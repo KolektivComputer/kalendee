@@ -61,6 +61,13 @@ private fun fieldFrom(message: String?, defaultField: String): String {
         msg.startsWith("email") -> "email"
         msg.startsWith("password") -> "password"
         msg.startsWith("name") -> "name"
+        msg.startsWith("slug") || msg.startsWith("team slug") -> "slug"
+        msg.startsWith("team name") -> "name"
+        msg.startsWith("description") -> "description"
+        msg.startsWith("invalid organization team id") || msg.startsWith("team not found") -> "teamId"
+        msg.startsWith("team role") -> "role"
+        msg.startsWith("team member") -> "userId"
+        msg.startsWith("team and calendar") -> "calendarId"
         msg.startsWith("storageQuotaBytes") -> "storageQuotaBytes"
         msg.startsWith("userIds") -> "userIds"
         msg.startsWith("color") -> "color"
@@ -86,6 +93,7 @@ private fun fieldFrom(message: String?, defaultField: String): String {
         msg.startsWith("interval") || msg.startsWith("count") || msg.startsWith("until") ||
             msg.startsWith("unknown recurrence") -> "recurrence"
         msg.startsWith("invalid calendar") || msg.startsWith("event is already in that calendar") -> "calendarId"
+        msg.startsWith("invalid user id") -> "userId"
         msg.startsWith("invalid event") || msg.startsWith("invalid user") -> "id"
         else -> defaultField
     }

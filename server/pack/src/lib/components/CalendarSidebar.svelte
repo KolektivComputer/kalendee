@@ -3,6 +3,8 @@
   import Bell from "@lucide/svelte/icons/bell"
   import BellOff from "@lucide/svelte/icons/bell-off"
   import CalendarPlus from "@lucide/svelte/icons/calendar-plus"
+  import ChevronDown from "@lucide/svelte/icons/chevron-down"
+  import ChevronRight from "@lucide/svelte/icons/chevron-right"
   import Clock from "@lucide/svelte/icons/clock"
   import Eye from "@lucide/svelte/icons/eye"
   import EyeOff from "@lucide/svelte/icons/eye-off"
@@ -13,6 +15,7 @@
   import UserPlus from "@lucide/svelte/icons/user-plus"
   import X from "@lucide/svelte/icons/x"
   import { ContextMenu } from "bits-ui"
+  import { onMount } from "svelte"
   import { CALENDAR_PALETTE, cssColor, nextCalendarColor } from "../colors"
   import { actionMessage, fieldError } from "../errors"
   import { organizationRoleLabel, type ViewerOrganization } from "../organizations"
@@ -27,10 +30,12 @@
     RespondFriendRequestIn,
     SearchUsersIn,
     SendFriendRequestIn,
+    TeamSummary,
     UpdateCalendarIn,
     UserSearchOut,
     UserSearchResult,
   } from "../page-types"
+  import { readCollapsed, writeCollapsed } from "../sidebar"
   import AvailabilityDialog from "./AvailabilityDialog.svelte"
   import ShareDialog from "./ShareDialog.svelte"
   import TimeRequestsDialog from "./TimeRequestsDialog.svelte"
@@ -43,6 +48,7 @@
     friends = [],
     friendRequests = [],
     organizations = [],
+    teams = [],
     createPending = false,
     updatePending = false,
     deletePending = false,
@@ -63,6 +69,7 @@
     friends?: FriendSummary[]
     friendRequests?: FriendRequestSummary[]
     organizations?: ViewerOrganization[]
+    teams?: TeamSummary[]
     createPending?: boolean
     updatePending?: boolean
     deletePending?: boolean
@@ -83,11 +90,20 @@
   const sendFriendRequest = useAction<SendFriendRequestIn, FriendRequestOut>("kalendee.sendFriendRequest")
   const searchUsers = useAction<SearchUsersIn, UserSearchOut>("kalendee.searchUsers", { reload: false })
 
+  interface TeamGroup {
+    id: string
+    name: string
+    calendars: CalendarSummary[]
+  }
+
   interface OrganizationGroup {
     id: string
     slug: string | null
     name: string
     calendars: CalendarSummary[]
+    teams: TeamGroup[]
+    other: CalendarSummary[]
+    groupedByTeam: boolean
   }
 
   const personalCalendars = $derived(calendars.filter((calendar) => !calendar.organizationId))
@@ -107,9 +123,32 @@
         slug: calendar.organizationSlug ?? known?.slug ?? null,
         name: calendar.organizationName ?? known?.displayName ?? "Organization",
         calendars: [calendar],
+        teams: [],
+        other: [],
+        groupedByTeam: false,
       })
     }
-    return [...groups.values()]
+    const result = [...groups.values()]
+    if (readOnly) return result
+    for (const group of result) {
+      const visibleTeams = teams.filter((team) => team.organizationId === group.id)
+      if (visibleTeams.length === 0) continue
+      const buckets = new Map<string, TeamGroup>()
+      for (const team of visibleTeams) {
+        buckets.set(team.id, { id: team.id, name: team.name, calendars: [] })
+      }
+      group.groupedByTeam = true
+      group.teams = [...buckets.values()]
+      for (const calendar of group.calendars) {
+        const bucket = calendar.teamId ? buckets.get(calendar.teamId) : undefined
+        if (bucket) {
+          bucket.calendars.push(calendar)
+        } else {
+          group.other.push(calendar)
+        }
+      }
+    }
+    return result
   })
   const organizationsWithoutCalendars = $derived(
     readOnly ? [] : organizations.filter((organization) => !orgGroups.some((group) => group.id === organization.id)),
@@ -141,6 +180,20 @@
   let friendSearchError = $state("")
   let pendingRequestId = $state("")
   let pendingRemovalId = $state("")
+  let collapsed = $state<Record<string, boolean>>({})
+
+  onMount(() => {
+    collapsed = readCollapsed()
+  })
+
+  function isCollapsed(key: string): boolean {
+    return collapsed[key] === true
+  }
+
+  function toggleCollapsed(key: string) {
+    collapsed = { ...collapsed, [key]: !collapsed[key] }
+    writeCollapsed(collapsed)
+  }
 
   const friendsError = $derived(
     actionMessage(acceptFriendRequest.error) ||
@@ -460,25 +513,95 @@
     <p class="text-sm text-base-content/60">Create a calendar to start adding events.</p>
   {:else}
     {#if personalCalendars.length > 0}
-      <ul class="menu w-full p-0">
-        {#each personalCalendars as calendar (calendar.id)}
-          {@render calendarItem(calendar)}
-        {/each}
-      </ul>
+      <div class="flex flex-col gap-1">
+        <button
+          type="button"
+          class="flex w-full items-center gap-1 text-left"
+          aria-expanded={!isCollapsed("personal")}
+          onclick={() => toggleCollapsed("personal")}
+        >
+          {#if isCollapsed("personal")}
+            <ChevronRight class="h-3.5 w-3.5 shrink-0" />
+          {:else}
+            <ChevronDown class="h-3.5 w-3.5 shrink-0" />
+          {/if}
+          <h3 class="truncate text-xs font-medium text-base-content/60">Personal</h3>
+        </button>
+        {#if !isCollapsed("personal")}
+          <ul class="menu w-full p-0">
+            {#each personalCalendars as calendar (calendar.id)}
+              {@render calendarItem(calendar)}
+            {/each}
+          </ul>
+        {/if}
+      </div>
     {/if}
     {#each orgGroups as group (group.id)}
+      {@const orgKey = `org:${group.id}`}
       <div class="flex flex-col gap-1">
         <div class="flex items-center justify-between gap-2">
-          <h3 class="truncate text-xs font-medium text-base-content/60" title={group.name}>{group.name}</h3>
+          <button
+            type="button"
+            class="flex min-w-0 items-center gap-1 text-left"
+            aria-expanded={!isCollapsed(orgKey)}
+            onclick={() => toggleCollapsed(orgKey)}
+          >
+            {#if isCollapsed(orgKey)}
+              <ChevronRight class="h-3.5 w-3.5 shrink-0" />
+            {:else}
+              <ChevronDown class="h-3.5 w-3.5 shrink-0" />
+            {/if}
+            <h3 class="truncate text-xs font-medium text-base-content/60" title={group.name}>{group.name}</h3>
+          </button>
           {#if group.slug}
             <Link href={`/o/${group.slug}`} class="link link-hover shrink-0 text-xs">Open</Link>
           {/if}
         </div>
-        <ul class="menu w-full p-0">
-          {#each group.calendars as calendar (calendar.id)}
-            {@render calendarItem(calendar)}
-          {/each}
-        </ul>
+        {#if !isCollapsed(orgKey)}
+          {#if !group.groupedByTeam}
+            <ul class="menu w-full p-0">
+              {#each group.calendars as calendar (calendar.id)}
+                {@render calendarItem(calendar)}
+              {/each}
+            </ul>
+          {:else}
+            {#each group.teams as team (team.id)}
+              {@const teamKey = `team:${team.id}`}
+              <div class="flex flex-col gap-1 pl-2">
+                <button
+                  type="button"
+                  class="flex min-w-0 items-center gap-1 text-left"
+                  aria-expanded={!isCollapsed(teamKey)}
+                  onclick={() => toggleCollapsed(teamKey)}
+                >
+                  {#if isCollapsed(teamKey)}
+                    <ChevronRight class="h-3 w-3 shrink-0" />
+                  {:else}
+                    <ChevronDown class="h-3 w-3 shrink-0" />
+                  {/if}
+                  <h4 class="truncate text-[0.7rem] text-base-content/50" title={team.name}>{team.name}</h4>
+                </button>
+                {#if !isCollapsed(teamKey)}
+                  <ul class="menu w-full p-0">
+                    {#each team.calendars as calendar (calendar.id)}
+                      {@render calendarItem(calendar)}
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+            {/each}
+            {#if group.other.length > 0}
+              <div class="flex flex-col gap-1 pl-2">
+                <h4 class="px-1 py-1 text-[0.7rem] text-base-content/50">Other calendars</h4>
+                <ul class="menu w-full p-0">
+                  {#each group.other as calendar (calendar.id)}
+                    {@render calendarItem(calendar)}
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+          {/if}
+        {/if}
       </div>
     {/each}
   {/if}

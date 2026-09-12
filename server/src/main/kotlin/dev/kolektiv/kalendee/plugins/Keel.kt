@@ -8,12 +8,14 @@ import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarPermission
 import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.EventId
+import dev.kolektiv.kalendee.calendar.OrganizationId
 import dev.kolektiv.kalendee.calendar.ViewWindow
 import dev.kolektiv.kalendee.events.EventInviteService
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.notifications.NotificationService
 import dev.kolektiv.kalendee.organizations.OrganizationService
+import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.web.AdminActions
 import dev.kolektiv.kalendee.web.AdminPage
 import dev.kolektiv.kalendee.web.AvailabilityActions
@@ -31,6 +33,7 @@ import dev.kolektiv.kalendee.web.NotificationActions
 import dev.kolektiv.kalendee.web.NotificationsPage
 import dev.kolektiv.kalendee.web.OrganizationActions
 import dev.kolektiv.kalendee.web.OrganizationProfilePage
+import dev.kolektiv.kalendee.web.OrganizationTeamActions
 import dev.kolektiv.kalendee.web.OrganizationSettingsPage
 import dev.kolektiv.kalendee.web.PublicCalendarPage
 import dev.kolektiv.kalendee.web.PublicDirectoryPage
@@ -48,6 +51,7 @@ import dev.kolektiv.kalendee.web.toFriendRequestSummary
 import dev.kolektiv.kalendee.web.toFriendSummary
 import dev.kolektiv.kalendee.web.toState
 import dev.kolektiv.kalendee.web.toSummary
+import dev.kolektiv.kalendee.web.toTeamSummary
 import dev.kolektiv.kalendee.web.toViewer
 import dev.kolektiv.kalendee.calendar.occurrences
 import dev.kolektiv.keel.bundle.FrontendBundle
@@ -80,6 +84,7 @@ fun Application.configureKeel() {
     val friendshipActions by inject<FriendshipActions>()
     val availabilityActions by inject<AvailabilityActions>()
     val organizationActions by inject<OrganizationActions>()
+    val organizationTeamActions by inject<OrganizationTeamActions>()
     val authService by inject<AuthService>()
     val store by inject<CalendarStore>()
     val eventInviteService by inject<EventInviteService>()
@@ -87,6 +92,7 @@ fun Application.configureKeel() {
     val friendshipService by inject<FriendshipService>()
     val groupService by inject<GroupService>()
     val organizationService by inject<OrganizationService>()
+    val organizationTeams by inject<OrganizationTeamService>()
     val adminCalendarService by inject<AdminCalendarService>()
     val clock by inject<Clock>()
     keel {
@@ -156,6 +162,12 @@ fun Application.configureKeel() {
                     calendars.mapNotNull { it.organizationId }.distinct(),
                     subject?.id,
                 )
+                val teamLabels = subject?.let { organizationTeams.teamLabelsFor(it.id) }.orEmpty()
+                val subjectTeams = if (readOnly) {
+                    emptyList()
+                } else {
+                    subject?.let { organizationTeams.teamsForSubject(it.id) }.orEmpty()
+                }
                 val events = subject?.let { store.listEvents(it.id, window.range) }.orEmpty()
                 val holidayPrefs = subject?.let { store.holidayPrefs(it.id) }
                 val holidayState = holidayPrefs?.toState() ?: emptyHolidayState()
@@ -194,11 +206,12 @@ fun Application.configureKeel() {
                     today = today.toString(),
                     now = now.toString(),
                     calendars = calendars.map {
+                        val label = teamLabels[it.id]
                         it.toSummary(
                             authService,
                             ownerName = ownerNames[it.ownerId].orEmpty(),
                             organization = it.organizationId?.let(calendarOrganizations::get),
-                        )
+                        ).copy(teamId = label?.teamId?.value, teamName = label?.teamName)
                     },
                     events = events.map { it.toSummary() } + holidayEvents,
                     showHolidays = holidayState.showHolidays,
@@ -207,6 +220,7 @@ fun Application.configureKeel() {
                     customHolidays = holidayState.customHolidays,
                     friends = friends.map { it.toFriendSummary() },
                     friendRequests = friendRequests.map { it.toFriendRequestSummary() },
+                    teams = subjectTeams.map { it.toTeamSummary() },
                 )
             }
             page<PublicCalendarPage>("kalendee.publicCalendar", "/c/{token}") {
@@ -287,7 +301,9 @@ fun Application.configureKeel() {
             }
             page<OrganizationSettingsPage>("kalendee.orgSettings", "/o/{slug}/settings") {
                 val user = call.currentUser() ?: throw PageRedirectException("/login")
-                val page = organizationActions.organizationSettingsPage(params["slug"].orEmpty(), user)
+                val base = organizationActions.organizationSettingsPage(params["slug"].orEmpty(), user)
+                val extras = organizationTeamActions.settingsExtras(OrganizationId(base.org.id), user)
+                val page = base.copy(teams = extras.teams, manageableCalendars = extras.manageableCalendars)
                 head(
                     "${page.org.displayName} settings — Kalendee",
                     description = "Manage organization members on Kalendee.",
@@ -445,6 +461,7 @@ fun Application.configureKeel() {
             friendshipActions,
             availabilityActions,
             organizationActions,
+            organizationTeamActions,
         )
     }
 }

@@ -25,6 +25,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -75,6 +76,18 @@ data class OrganizationTeamCalendarGrant(
     val calendarColor: String,
     val permission: CalendarPermission,
     val createdAt: Instant,
+)
+
+data class OrganizationTeamLabel(
+    val teamId: OrganizationTeamId,
+    val teamName: String,
+)
+
+data class SubjectTeam(
+    val team: OrganizationTeam,
+    val memberCount: Int,
+    val viewerRole: OrganizationTeamRole?,
+    val canManageGrants: Boolean,
 )
 
 class OrganizationTeamService(
@@ -321,6 +334,58 @@ class OrganizationTeamService(
 
     suspend fun teamCalendarsFor(userId: UserId): Map<Uuid, CalendarPermission> = dbQuery {
         teamCalendars(userId)
+    }
+
+    /**
+     * Every team the user can see: their teams as a member, plus every team of
+     * the organizations they own or administer, with the viewer's team role.
+     */
+    suspend fun teamsForSubject(userId: UserId): List<SubjectTeam> = dbQuery {
+        val roles = organizationRoles(userId)
+        val memberships = teamMemberships(userId)
+        val rows = visibleTeamRows(roles, memberships.keys)
+        if (rows.isEmpty()) return@dbQuery emptyList()
+        val teams = rows.map { it.toTeam() }
+        val counts = teamMemberCounts(teams.map { it.id })
+        teams.map { team ->
+            val viewerRole = memberships[team.id]
+            SubjectTeam(
+                team = team,
+                memberCount = counts[team.id] ?: 0,
+                viewerRole = viewerRole,
+                canManageGrants = canManageTeam(roles[team.organizationId], viewerRole),
+            )
+        }
+    }
+
+    /**
+     * The primary visible team for every calendar the subject can reach through
+     * a team grant. A named team beats the default `all` team so explicit
+     * grants stay visible in the sidebar; then the strongest permission wins,
+     * then the team name, so the label is stable.
+     */
+    suspend fun teamLabelsFor(userId: UserId): Map<CalendarId, OrganizationTeamLabel> = dbQuery {
+        val roles = organizationRoles(userId)
+        val memberships = teamMemberships(userId)
+        val teams = visibleTeamRows(roles, memberships.keys).map { it.toTeam() }
+        if (teams.isEmpty()) return@dbQuery emptyMap()
+        val teamsById = teams.associateBy { it.id }
+        val best = mutableMapOf<CalendarId, GrantCandidate>()
+        CalendarTeamGrantsTable.selectAll()
+            .where { CalendarTeamGrantsTable.teamId inList teams.map { it.id.toUuid() } }
+            .forEach { row ->
+                val team = teamsById[OrganizationTeamId(row[CalendarTeamGrantsTable.teamId].toString())]
+                    ?: return@forEach
+                val permission = CalendarPermission.fromWire(row[CalendarTeamGrantsTable.permission])
+                    ?: return@forEach
+                val calendarId = CalendarId(row[CalendarTeamGrantsTable.calendarId].toString())
+                val candidate = GrantCandidate(permission, team)
+                val current = best[calendarId]
+                if (current == null || candidate.outranks(current)) best[calendarId] = candidate
+            }
+        best.mapValues { (_, candidate) ->
+            OrganizationTeamLabel(teamId = candidate.team.id, teamName = candidate.team.name)
+        }
     }
 
     suspend fun defaultTeamId(orgId: OrganizationId): OrganizationTeamId? = dbQuery {
@@ -622,6 +687,78 @@ class OrganizationTeamService(
             .where { OrganizationTeamsTable.organizationId eq orgId.toUuid() }
             .map { it[OrganizationTeamsTable.id] }
 
+    private fun JdbcTransaction.organizationRoles(userId: UserId): Map<OrganizationId, OrganizationRole> =
+        OrganizationMembersTable.selectAll()
+            .where { OrganizationMembersTable.userId eq userId.toUuid() }
+            .associate { row ->
+                OrganizationId(row[OrganizationMembersTable.organizationId].toString()) to
+                    (OrganizationRole.fromWire(row[OrganizationMembersTable.role]) ?: OrganizationRole.MEMBER)
+            }
+
+    private fun JdbcTransaction.teamMemberships(userId: UserId): Map<OrganizationTeamId, OrganizationTeamRole> =
+        OrganizationTeamMembersTable.selectAll()
+            .where { OrganizationTeamMembersTable.userId eq userId.toUuid() }
+            .associate { row ->
+                OrganizationTeamId(row[OrganizationTeamMembersTable.teamId].toString()) to
+                    (OrganizationTeamRole.fromWire(row[OrganizationTeamMembersTable.role])
+                        ?: OrganizationTeamRole.MEMBER)
+            }
+
+    private fun JdbcTransaction.visibleTeamRows(
+        roles: Map<OrganizationId, OrganizationRole>,
+        memberTeamIds: Collection<OrganizationTeamId>,
+    ): List<ResultRow> {
+        val managerOrgIds = roles.filterValues { it != OrganizationRole.MEMBER }.keys.map { it.toUuid() }
+        val teamIds = memberTeamIds.map { it.toUuid() }
+        if (managerOrgIds.isEmpty() && teamIds.isEmpty()) return emptyList()
+        val where = when {
+            teamIds.isEmpty() -> OrganizationTeamsTable.organizationId inList managerOrgIds
+            managerOrgIds.isEmpty() -> OrganizationTeamsTable.id inList teamIds
+            else ->
+                (OrganizationTeamsTable.id inList teamIds) or
+                    (OrganizationTeamsTable.organizationId inList managerOrgIds)
+        }
+        return OrganizationTeamsTable.selectAll()
+            .where { where }
+            .orderBy(
+                OrganizationTeamsTable.name to SortOrder.ASC,
+                OrganizationTeamsTable.id to SortOrder.ASC,
+            )
+            .toList()
+    }
+
+    private fun JdbcTransaction.teamMemberCounts(teamIds: List<OrganizationTeamId>): Map<OrganizationTeamId, Int> {
+        if (teamIds.isEmpty()) return emptyMap()
+        return OrganizationTeamMembersTable.selectAll()
+            .where { OrganizationTeamMembersTable.teamId inList teamIds.map { it.toUuid() } }
+            .map { OrganizationTeamId(it[OrganizationTeamMembersTable.teamId].toString()) }
+            .groupingBy { it }
+            .eachCount()
+    }
+
+    private fun canManageTeam(orgRole: OrganizationRole?, teamRole: OrganizationTeamRole?): Boolean =
+        orgRole == OrganizationRole.OWNER ||
+            orgRole == OrganizationRole.ADMIN ||
+            teamRole == OrganizationTeamRole.MAINTAINER
+
+    private data class GrantCandidate(
+        val permission: CalendarPermission,
+        val team: OrganizationTeam,
+    ) {
+        fun outranks(other: GrantCandidate): Boolean {
+            val isDefault = team.slug == DefaultTeamSlug
+            val otherDefault = other.team.slug == DefaultTeamSlug
+            if (isDefault != otherDefault) return otherDefault
+            val rank = permissionRank(permission)
+            val otherRank = permissionRank(other.permission)
+            if (rank != otherRank) return rank > otherRank
+            val name = team.name.lowercase()
+            val otherName = other.team.name.lowercase()
+            if (name != otherName) return name < otherName
+            return team.id.value < other.team.id.value
+        }
+    }
+
     private fun requireOrgManager(role: OrganizationRole) {
         if (role != OrganizationRole.OWNER && role != OrganizationRole.ADMIN) {
             throw CalendarException.Forbidden("only owners and admins can manage teams")
@@ -668,7 +805,7 @@ class OrganizationTeamService(
     }
 }
 
-private const val DefaultTeamSlug = "all"
+internal const val DefaultTeamSlug = "all"
 private const val DefaultTeamName = "Everyone"
 
 internal fun permissionRank(permission: CalendarPermission): Int = when (permission) {

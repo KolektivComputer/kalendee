@@ -337,6 +337,7 @@
         friends={data.friends}
         friendRequests={data.friendRequests}
         organizations={data.readOnly ? [] : organizations}
+        teams={data.readOnly ? [] : data.teams}
         createPending={createCalendar.isPending}
         updatePending={updateCalendar.isPending}
         deletePending={deleteCalendar.isPending}

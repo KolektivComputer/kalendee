@@ -41,6 +41,7 @@ import dev.kolektiv.kalendee.web.FriendshipActions
 import dev.kolektiv.kalendee.web.HolidayActions
 import dev.kolektiv.kalendee.web.NotificationActions
 import dev.kolektiv.kalendee.web.OrganizationActions
+import dev.kolektiv.kalendee.web.OrganizationTeamActions
 import dev.kolektiv.kalendee.web.ReminderActions
 import dev.kolektiv.kalendee.web.ShareActions
 import io.ktor.server.application.ApplicationEnvironment
@@ -146,6 +147,15 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
             auth = get(),
             settings = get(),
             database = get(),
+        )
+    }
+    single {
+        OrganizationTeamActions(
+            teams = get(),
+            orgs = get(),
+            store = get(),
+            auth = get(),
+            settings = get(),
         )
     }
     single { EventActions(store = get(), auth = get(), settings = get()) }

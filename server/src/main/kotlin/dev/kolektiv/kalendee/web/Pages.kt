@@ -909,6 +909,61 @@ data class DisconnectAccountIn(
 
 @KeelType
 @Serializable
+data class DiscordGuildsIn(
+    val connectionId: String,
+)
+
+@KeelType
+@Serializable
+data class DiscordGuildSummary(
+    val id: String,
+    val name: String,
+    val iconUrl: String? = null,
+    val owner: Boolean = false,
+    val botPresent: Boolean = false,
+    val inviteUrl: String? = null,
+    val imported: Boolean = false,
+    val externalCalendarId: String? = null,
+    val calendarId: String? = null,
+    val enabled: Boolean = false,
+    val lastSyncAt: String? = null,
+    val lastError: String? = null,
+)
+
+@KeelType
+@Serializable
+data class DiscordGuildsOut(
+    val guilds: List<DiscordGuildSummary> = emptyList(),
+)
+
+@KeelType
+@Serializable
+data class ImportDiscordGuildIn(
+    val connectionId: String,
+    val guildId: String,
+)
+
+@KeelType
+@Serializable
+data class SyncDiscordImportIn(
+    val externalCalendarId: String,
+)
+
+@KeelType
+@Serializable
+data class SetDiscordImportEnabledIn(
+    val externalCalendarId: String,
+    val enabled: Boolean,
+)
+
+@KeelType
+@Serializable
+data class RemoveDiscordImportIn(
+    val externalCalendarId: String,
+)
+
+@KeelType
+@Serializable
 data class SetEmailVerificationIn(
     val policy: String,
 )

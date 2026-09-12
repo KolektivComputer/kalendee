@@ -48,10 +48,14 @@ data class DiscordGuildSummary(
     val id: String,
     val name: String,
     val icon: String?,
+    val owner: Boolean = false,
     val botPresent: Boolean,
     val imported: Boolean,
     val enabled: Boolean,
     val externalCalendarId: String?,
+    val calendarId: String? = null,
+    val lastSyncAt: String? = null,
+    val lastError: String? = null,
     val inviteUrl: String?,
 )
 
@@ -117,18 +121,12 @@ class DiscordImportService(
         if (guildId !in botGuildIds()) {
             throw DiscordBotNotInGuildException(guildId, invite)
         }
-        val existing = dbQuery {
-            ExternalCalendarsTable.selectAll()
-                .where {
-                    (ExternalCalendarsTable.connectionId eq connection) and
-                        (ExternalCalendarsTable.externalId eq guildId)
-                }
-                .singleOrNull()
-        }
+        val existing = dbQuery { mappingRow(connection, guildId) }
         if (existing != null) {
             val externalCalendarId = existing[ExternalCalendarsTable.id].toString()
             syncNow(userId, externalCalendarId)
-            return summary(guild, botPresent = true, mapping = existing, inviteUrl = invite)
+            val mapping = dbQuery { mappingRow(connection, guildId) } ?: existing
+            return summary(guild, botPresent = true, mapping = mapping, inviteUrl = invite)
         }
         val calendar = store.createCalendar(userId, CreateCalendar(displayName = "Discord · ${guild.name}"))
         val externalCalendarId = Uuid.random()
@@ -147,15 +145,44 @@ class DiscordImportService(
             }
         }
         syncNow(userId, externalCalendarId.toString())
+        val mapping = dbQuery { mappingRow(connection, guildId) }
+            ?: error("discord import mapping disappeared")
+        return summary(guild, botPresent = true, mapping = mapping, inviteUrl = invite)
+    }
+
+    /**
+     * The current summary for one imported guild. Used by the web actions to
+     * return fresh state after sync/enable changes without re-listing.
+     */
+    suspend fun guildSummary(userId: UserId, externalCalendarId: String): DiscordGuildSummary {
+        val uuid = Uuid.parseOrNull(externalCalendarId)
+            ?: throw CalendarException.Invalid("invalid external calendar id")
+        val context = loadSyncContext(userId, uuid)
+            ?: throw CalendarException.NotFound("external calendar not found")
+        if (context.provider != DiscordProviderId) {
+            throw CalendarException.Invalid("connection is not a Discord connection")
+        }
+        guilds(userId, context.connectionId.toString())
+            .firstOrNull { it.externalCalendarId == externalCalendarId }
+            ?.let { return it }
+        val mapping = dbQuery {
+            ExternalCalendarsTable.selectAll()
+                .where { ExternalCalendarsTable.id eq uuid }
+                .singleOrNull()
+        } ?: throw CalendarException.NotFound("external calendar not found")
         return DiscordGuildSummary(
-            id = guild.id,
-            name = guild.name,
-            icon = guild.icon,
-            botPresent = true,
+            id = context.guildId,
+            name = context.guildName ?: "Discord server",
+            icon = null,
+            owner = false,
+            botPresent = context.guildId in botGuildIds(),
             imported = true,
-            enabled = true,
-            externalCalendarId = externalCalendarId.toString(),
-            inviteUrl = invite,
+            enabled = mapping[ExternalCalendarsTable.enabled],
+            externalCalendarId = externalCalendarId,
+            calendarId = mapping[ExternalCalendarsTable.calendarId].toString(),
+            lastSyncAt = mapping[ExternalCalendarsTable.lastSyncAt]?.toString(),
+            lastError = mapping[ExternalCalendarsTable.lastError],
+            inviteUrl = inviteUrl(),
         )
     }
 
@@ -336,6 +363,14 @@ class DiscordImportService(
             .where { ExternalCalendarsTable.connectionId eq connectionId }
             .associateBy { it[ExternalCalendarsTable.externalId] }
 
+    private fun JdbcTransaction.mappingRow(connectionId: Uuid, guildId: String): ResultRow? =
+        ExternalCalendarsTable.selectAll()
+            .where {
+                (ExternalCalendarsTable.connectionId eq connectionId) and
+                    (ExternalCalendarsTable.externalId eq guildId)
+            }
+            .singleOrNull()
+
     private fun JdbcTransaction.ownedConnectionIds(userId: UserId): List<Uuid> =
         CalendarConnectionsTable.selectAll()
             .where { CalendarConnectionsTable.userId eq userId.toUuid() }
@@ -402,10 +437,14 @@ class DiscordImportService(
         id = guild.id,
         name = guild.name,
         icon = guild.icon,
+        owner = guild.owner,
         botPresent = botPresent,
         imported = mapping != null,
         enabled = mapping?.get(ExternalCalendarsTable.enabled) ?: false,
         externalCalendarId = mapping?.get(ExternalCalendarsTable.id)?.toString(),
+        calendarId = mapping?.get(ExternalCalendarsTable.calendarId)?.toString(),
+        lastSyncAt = mapping?.get(ExternalCalendarsTable.lastSyncAt)?.toString(),
+        lastError = mapping?.get(ExternalCalendarsTable.lastError),
         inviteUrl = inviteUrl,
     )
 

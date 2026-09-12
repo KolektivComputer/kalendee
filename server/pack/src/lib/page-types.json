@@ -210,6 +210,10 @@
             "in": "DisconnectAccountIn",
             "out": "DeletedOut"
         },
+        "kalendee.discordGuilds": {
+            "in": "DiscordGuildsIn",
+            "out": "DiscordGuildsOut"
+        },
         "kalendee.eventAttendees": {
             "in": "EventAttendeesIn",
             "out": "EventAttendeesOut"
@@ -229,6 +233,10 @@
         "kalendee.getCalendarSharing": {
             "in": "GetCalendarSharingIn",
             "out": "CalendarSharingOut"
+        },
+        "kalendee.importDiscordGuild": {
+            "in": "ImportDiscordGuildIn",
+            "out": "DiscordGuildSummary"
         },
         "kalendee.inviteToEvent": {
             "in": "InviteToEventIn",
@@ -285,6 +293,10 @@
         "kalendee.reminderSettings": {
             "in": "ReminderSettingsIn",
             "out": "ReminderSettingsOut"
+        },
+        "kalendee.removeDiscordImport": {
+            "in": "RemoveDiscordImportIn",
+            "out": "DeletedOut"
         },
         "kalendee.removeEventAttendee": {
             "in": "RemoveEventAttendeeIn",
@@ -346,6 +358,10 @@
             "in": "SetCalendarPublicIn",
             "out": "CalendarSharingOut"
         },
+        "kalendee.setDiscordImportEnabled": {
+            "in": "SetDiscordImportEnabledIn",
+            "out": "DiscordGuildSummary"
+        },
         "kalendee.setEmailVerification": {
             "in": "SetEmailVerificationIn",
             "out": "EmailVerificationPolicyOut"
@@ -385,6 +401,10 @@
         "kalendee.shareCalendar": {
             "in": "ShareCalendarIn",
             "out": "CalendarSharingOut"
+        },
+        "kalendee.syncDiscordImport": {
+            "in": "SyncDiscordImportIn",
+            "out": "DiscordGuildSummary"
         },
         "kalendee.unfollowCalendar": {
             "in": "UnfollowCalendarIn",
@@ -1161,6 +1181,35 @@
                 "connectionId": "string"
             }
         },
+        "DiscordGuildsIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string"
+            }
+        },
+        "DiscordGuildSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "name": "string",
+                "iconUrl": "string | null",
+                "owner": "boolean",
+                "botPresent": "boolean",
+                "inviteUrl": "string | null",
+                "imported": "boolean",
+                "externalCalendarId": "string | null",
+                "calendarId": "string | null",
+                "enabled": "boolean",
+                "lastSyncAt": "string | null",
+                "lastError": "string | null"
+            }
+        },
+        "DiscordGuildsOut": {
+            "kind": "object",
+            "fields": {
+                "guilds": "DiscordGuildSummary[]"
+            }
+        },
         "EventAttendeesIn": {
             "kind": "object",
             "fields": {
@@ -1243,6 +1292,13 @@
                 "publicLinkToken": "string | null",
                 "followerCount": "number",
                 "friends": "FriendSummary[]"
+            }
+        },
+        "ImportDiscordGuildIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string",
+                "guildId": "string"
             }
         },
         "InviteToEventIn": {
@@ -1424,6 +1480,12 @@
                 "notifyAtStart": "boolean"
             }
         },
+        "RemoveDiscordImportIn": {
+            "kind": "object",
+            "fields": {
+                "externalCalendarId": "string"
+            }
+        },
         "RemoveEventAttendeeIn": {
             "kind": "object",
             "fields": {
@@ -1556,6 +1618,13 @@
                 "enabled": "boolean"
             }
         },
+        "SetDiscordImportEnabledIn": {
+            "kind": "object",
+            "fields": {
+                "externalCalendarId": "string",
+                "enabled": "boolean"
+            }
+        },
         "SetEmailVerificationIn": {
             "kind": "object",
             "fields": {
@@ -1653,6 +1722,12 @@
                 "calendarId": "string",
                 "username": "string",
                 "permission": "string"
+            }
+        },
+        "SyncDiscordImportIn": {
+            "kind": "object",
+            "fields": {
+                "externalCalendarId": "string"
             }
         },
         "UnfollowCalendarIn": {

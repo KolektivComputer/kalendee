@@ -21,6 +21,7 @@ import dev.kolektiv.kalendee.web.AdminUserSummary
 import dev.kolektiv.kalendee.web.AuthActions
 import dev.kolektiv.kalendee.web.CalendarActions
 import dev.kolektiv.kalendee.web.ConnectionActions
+import dev.kolektiv.kalendee.web.DiscordActions
 import dev.kolektiv.kalendee.web.EventActions
 import dev.kolektiv.kalendee.web.EventInviteActions
 import dev.kolektiv.kalendee.web.FriendshipActions
@@ -72,6 +73,7 @@ fun Application.configureKeel() {
     val authActions by inject<AuthActions>()
     val calendarActions by inject<CalendarActions>()
     val connectionActions by inject<ConnectionActions>()
+    val discordActions by inject<DiscordActions>()
     val eventActions by inject<EventActions>()
     val eventInviteActions by inject<EventInviteActions>()
     val holidayActions by inject<HolidayActions>()
@@ -363,6 +365,7 @@ fun Application.configureKeel() {
                     "appearance" -> "appearance"
                     "holidays" -> "holidays"
                     "notifications" -> "notifications"
+                    "connections" -> "connections"
                     else -> "account"
                 }
                 head("Settings — Kalendee", description = "Account, appearance, and holiday settings.")
@@ -442,6 +445,7 @@ fun Application.configureKeel() {
             authActions,
             calendarActions,
             connectionActions,
+            discordActions,
             eventActions,
             eventInviteActions,
             holidayActions,

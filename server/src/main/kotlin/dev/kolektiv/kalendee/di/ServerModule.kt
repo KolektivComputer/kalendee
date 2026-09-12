@@ -46,6 +46,7 @@ import dev.kolektiv.kalendee.web.AuthActions
 import dev.kolektiv.kalendee.web.AvailabilityActions
 import dev.kolektiv.kalendee.web.CalendarActions
 import dev.kolektiv.kalendee.web.ConnectionActions
+import dev.kolektiv.kalendee.web.DiscordActions
 import dev.kolektiv.kalendee.web.EventActions
 import dev.kolektiv.kalendee.web.EventInviteActions
 import dev.kolektiv.kalendee.web.FriendshipActions
@@ -189,6 +190,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { AuthActions(auth = get(), settings = get(), verification = get(), loginAlerts = get()) }
     single { CalendarActions(store = get(), auth = get(), settings = get()) }
     single { ConnectionActions(connections = get(), auth = get(), settings = get()) }
+    single { DiscordActions(imports = get(), auth = get(), settings = get()) }
     single {
         OrganizationActions(
             orgs = get(),

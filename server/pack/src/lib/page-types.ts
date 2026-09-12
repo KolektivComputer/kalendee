@@ -582,6 +582,29 @@ export interface DisconnectAccountIn {
   connectionId: string
 }
 
+export interface DiscordGuildsIn {
+  connectionId: string
+}
+
+export interface DiscordGuildSummary {
+  id: string
+  name: string
+  iconUrl: string | null
+  owner: boolean
+  botPresent: boolean
+  inviteUrl: string | null
+  imported: boolean
+  externalCalendarId: string | null
+  calendarId: string | null
+  enabled: boolean
+  lastSyncAt: string | null
+  lastError: string | null
+}
+
+export interface DiscordGuildsOut {
+  guilds: DiscordGuildSummary[]
+}
+
 export interface EventAttendeesIn {
   eventId: string
 }
@@ -643,6 +666,11 @@ export interface CalendarSharingOut {
   publicLinkToken: string | null
   followerCount: number
   friends: FriendSummary[]
+}
+
+export interface ImportDiscordGuildIn {
+  connectionId: string
+  guildId: string
 }
 
 export interface InviteToEventIn {
@@ -776,6 +804,10 @@ export interface ReminderSettingsOut {
   notifyAtStart: boolean
 }
 
+export interface RemoveDiscordImportIn {
+  externalCalendarId: string
+}
+
 export interface RemoveEventAttendeeIn {
   eventId: string
   attendeeId: string
@@ -870,6 +902,11 @@ export interface SetCalendarPublicIn {
   enabled: boolean
 }
 
+export interface SetDiscordImportEnabledIn {
+  externalCalendarId: string
+  enabled: boolean
+}
+
 export interface SetEmailVerificationIn {
   policy: string
 }
@@ -937,6 +974,10 @@ export interface ShareCalendarIn {
   calendarId: string
   username: string
   permission: string
+}
+
+export interface SyncDiscordImportIn {
+  externalCalendarId: string
 }
 
 export interface UnfollowCalendarIn {
@@ -1075,11 +1116,13 @@ export interface KalendeeActions {
   "kalendee.deleteEvent": { in: DeleteEventIn; out: DeletedOut }
   "kalendee.deleteOrganization": { in: DeleteOrganizationIn; out: DeletedOut }
   "kalendee.disconnectAccount": { in: DisconnectAccountIn; out: DeletedOut }
+  "kalendee.discordGuilds": { in: DiscordGuildsIn; out: DiscordGuildsOut }
   "kalendee.eventAttendees": { in: EventAttendeesIn; out: EventAttendeesOut }
   "kalendee.eventReminders": { in: GetEventRemindersIn; out: EventRemindersOut }
   "kalendee.followCalendar": { in: FollowCalendarIn; out: FollowOut }
   "kalendee.friends": { in: FriendsIn; out: FriendsOut }
   "kalendee.getCalendarSharing": { in: GetCalendarSharingIn; out: CalendarSharingOut }
+  "kalendee.importDiscordGuild": { in: ImportDiscordGuildIn; out: DiscordGuildSummary }
   "kalendee.inviteToEvent": { in: InviteToEventIn; out: EventAttendeesOut }
   "kalendee.inviteToOrganization": { in: InviteToOrganizationIn; out: OrganizationInvitationOut }
   "kalendee.login": { in: LoginIn; out: LoginOut }
@@ -1094,6 +1137,7 @@ export interface KalendeeActions {
   "kalendee.publicRsvp": { in: PublicRsvpIn; out: RsvpOut }
   "kalendee.register": { in: RegisterIn; out: RegisterOut }
   "kalendee.reminderSettings": { in: ReminderSettingsIn; out: ReminderSettingsOut }
+  "kalendee.removeDiscordImport": { in: RemoveDiscordImportIn; out: DeletedOut }
   "kalendee.removeEventAttendee": { in: RemoveEventAttendeeIn; out: EventAttendeesOut }
   "kalendee.removeFriend": { in: RemoveFriendIn; out: FriendsOut }
   "kalendee.removeOrganizationMember": { in: RemoveOrganizationMemberIn; out: DeletedOut }
@@ -1109,6 +1153,7 @@ export interface KalendeeActions {
   "kalendee.sendFriendRequest": { in: SendFriendRequestIn; out: FriendRequestOut }
   "kalendee.setCalendarHidden": { in: SetCalendarHiddenIn; out: CalendarSummary }
   "kalendee.setCalendarPublic": { in: SetCalendarPublicIn; out: CalendarSharingOut }
+  "kalendee.setDiscordImportEnabled": { in: SetDiscordImportEnabledIn; out: DiscordGuildSummary }
   "kalendee.setEmailVerification": { in: SetEmailVerificationIn; out: EmailVerificationPolicyOut }
   "kalendee.setEventOpenRsvp": { in: SetEventOpenRsvpIn; out: EventSummary }
   "kalendee.setEventReminders": { in: SetEventRemindersIn; out: EventRemindersOut }
@@ -1119,6 +1164,7 @@ export interface KalendeeActions {
   "kalendee.setShowHolidays": { in: SetShowHolidaysIn; out: HolidayStateOut }
   "kalendee.setUserPublicAccess": { in: SetUserPublicAccessIn; out: Viewer }
   "kalendee.shareCalendar": { in: ShareCalendarIn; out: CalendarSharingOut }
+  "kalendee.syncDiscordImport": { in: SyncDiscordImportIn; out: DiscordGuildSummary }
   "kalendee.unfollowCalendar": { in: UnfollowCalendarIn; out: FollowOut }
   "kalendee.upcomingReminders": { in: UpcomingRemindersIn; out: ReminderInstanceOut[] }
   "kalendee.updateCalendar": { in: UpdateCalendarIn; out: CalendarSummary }

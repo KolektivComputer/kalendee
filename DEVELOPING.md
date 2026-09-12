@@ -224,7 +224,7 @@ The flake exports `nixosModules.default` and `nixosModules.kalendee`. The module
 
 ```nix
 {
-  inputs.kalendee.url = "github:kolektiv/kalendee";
+  inputs.kalendee.url = "github:kolektivdev/kalendee";
 
   # in your configuration:
   modules = [ inputs.kalendee.nixosModules.default ];

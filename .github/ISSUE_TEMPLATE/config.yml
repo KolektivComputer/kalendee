@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Contributing guide
-    url: https://github.com/kolektiv/kalendee/blob/main/CONTRIBUTING.md
+    url: https://github.com/kolektivdev/kalendee/blob/main/CONTRIBUTING.md
     about: How to contribute, commit conventions, and the AI-assistance policy.
   - name: Development guide
-    url: https://github.com/kolektiv/kalendee/blob/main/DEVELOPING.md
+    url: https://github.com/kolektivdev/kalendee/blob/main/DEVELOPING.md
     about: Build, run, test, Docker, Nix, and demo data instructions.

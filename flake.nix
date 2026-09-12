@@ -2,7 +2,7 @@
 #
 # Consume from another flake:
 #
-#   inputs.kalendee.url = "github:kolektiv/kalendee";
+#   inputs.kalendee.url = "github:kolektivdev/kalendee";
 #   modules = [ inputs.kalendee.nixosModules.default ];
 #   services.kalendee = {
 #     enable = true;

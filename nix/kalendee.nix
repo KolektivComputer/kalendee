@@ -13,6 +13,9 @@
 # Secrets must never end up in the Nix store: put them in a runtime
 # environment file (sops-nix, agenix, ...) and set `environmentFile`.
 #
+# Plain-HTTP deployments need `KALENDEE_COOKIE_SECURE = "false"` via `environment`.
+# Optional integrations (mail, S3, registration policy) go there too, or in `environmentFile`.
+#
 # On startup Kalendee seeds (or promotes) the admin user from
 # `KALENDEE_ADMIN_USERNAME` / `KALENDEE_ADMIN_PASSWORD`.
 #

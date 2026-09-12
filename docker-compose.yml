@@ -1,0 +1,55 @@
+# Kalendee production example.
+#
+#   cp .env.example .env
+#   # edit .env: strong passwords, KALENDEE_PUBLIC_URL, ...
+#   docker compose up -d
+#
+# By default this pulls the published image from GHCR. To build this checkout
+# instead, comment out `image:` and uncomment the `build:` block below.
+#
+# TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...).
+# KALENDEE_COOKIE_SECURE defaults to true; leave it unless you serve plain HTTP.
+
+name: kalendee
+
+services:
+  kalendee:
+    image: ghcr.io/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
+    # build:
+    #   context: .
+    #   args:
+    #     VERSION: local
+    env_file:
+      - .env
+    ports:
+      - "${KALENDEE_HOST_PORT:-8080}:8080"
+    volumes:
+      - kalendee-avatars:/data
+      # Optional: mount a full HOCON config file. Uncomment this and set
+      # KALENDEE_CONFIG=/config/application.conf in .env. See
+      # application.conf.example.
+      # - ./application.conf:/config/application.conf:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kalendee}
+      POSTGRES_USER: ${POSTGRES_USER:-kalendee}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - kalendee-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  kalendee-avatars:
+  kalendee-postgres:

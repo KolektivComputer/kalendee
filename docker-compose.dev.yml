@@ -1,0 +1,62 @@
+# Kalendee development example.
+#
+#   cp .env.dev.example .env.dev
+#   docker compose -f docker-compose.dev.yml up
+#
+# The server runs from the bind-mounted source tree with Gradle; Gradle
+# recompiles on restart, so stop/start the kalendee service after code changes.
+# On Docker Desktop (macOS/Windows) remove the `user:` line below so the
+# container is not restricted to a Linux host UID.
+
+name: kalendee-dev
+
+services:
+  kalendee:
+    build:
+      context: .
+      target: dev
+    user: "${KALENDEE_UID:-1000}:${KALENDEE_GID:-1000}"
+    env_file:
+      - .env.dev
+    ports:
+      - "${KALENDEE_HOST_PORT:-8080}:8080"
+    volumes:
+      - .:/src
+      - gradle-home:/gradle-home
+      - pnpm-store:/pnpm-store
+    working_dir: /src
+    command: ["./gradlew", "--no-daemon", ":server:run"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    tty: true
+
+  postgres:
+    image: postgres:17-alpine
+    env_file:
+      - .env.dev
+    volumes:
+      - kalendee-dev-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-kalendee}\" -d \"$${POSTGRES_DB:-kalendee}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Optional: Keel pack watch mode, rebuilding the Svelte pack on change.
+  # KALENDEE_KEEL_PACK=/src/server/pack/dist is already set in .env.dev.example.
+  # pack:
+  #   image: node:22-alpine
+  #   working_dir: /src/server/pack
+  #   volumes:
+  #     - .:/src
+  #     - pnpm-store:/pnpm-store
+  #   environment:
+  #     npm_config_store_dir: /pnpm-store
+  #   command: sh -c "npm install -g pnpm@11.25.0 && pnpm install --frozen-lockfile && pnpm dev"
+
+volumes:
+  gradle-home:
+  pnpm-store:
+  kalendee-dev-postgres:

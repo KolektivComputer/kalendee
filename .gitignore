@@ -17,3 +17,17 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+server/pack/dist/
+
+.env.local
+
+# Local runtime configuration (examples are committed)
+.env
+.env.dev
+/application.conf
+/application.conf.dev
+
+# Nix
+/result
+/result-*
+.direnv/

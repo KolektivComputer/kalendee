@@ -553,6 +553,14 @@ data class DeleteCalendarIn(
 
 @KeelType
 @Serializable
+data class TransferCalendarIn(
+    val id: String,
+    val organizationId: String? = null,
+    val teamId: String? = null,
+)
+
+@KeelType
+@Serializable
 data class RecurrenceIn(
     val frequency: String,
     val interval: Int = 1,

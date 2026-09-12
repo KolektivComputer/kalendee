@@ -58,6 +58,7 @@ class KeelAppTest {
         assertTrue(body.contains("\"kalendee.createCalendar\""))
         assertTrue(body.contains("\"kalendee.updateCalendar\""))
         assertTrue(body.contains("\"kalendee.deleteCalendar\""))
+        assertTrue(body.contains("\"kalendee.transferCalendar\""))
         assertTrue(body.contains("\"kalendee.createEvent\""))
         assertTrue(body.contains("\"kalendee.updateEvent\""))
         assertTrue(body.contains("\"kalendee.deleteEvent\""))

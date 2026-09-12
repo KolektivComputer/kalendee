@@ -406,6 +406,10 @@
             "in": "ShareCalendarIn",
             "out": "CalendarSharingOut"
         },
+        "kalendee.transferCalendar": {
+            "in": "TransferCalendarIn",
+            "out": "CalendarSummary"
+        },
         "kalendee.unfollowCalendar": {
             "in": "UnfollowCalendarIn",
             "out": "FollowOut"
@@ -1748,6 +1752,14 @@
                 "calendarId": "string",
                 "username": "string",
                 "permission": "string"
+            }
+        },
+        "TransferCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "organizationId": "string | null",
+                "teamId": "string | null"
             }
         },
         "UnfollowCalendarIn": {

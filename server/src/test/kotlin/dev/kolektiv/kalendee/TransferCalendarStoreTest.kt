@@ -1,0 +1,307 @@
+package dev.kolektiv.kalendee
+
+import dev.kolektiv.kalendee.auth.AuthService
+import dev.kolektiv.kalendee.auth.PublicAccessMode
+import dev.kolektiv.kalendee.auth.RegisterUser
+import dev.kolektiv.kalendee.auth.User
+import dev.kolektiv.kalendee.calendar.CalendarException
+import dev.kolektiv.kalendee.calendar.CalendarId
+import dev.kolektiv.kalendee.calendar.CalendarPermission
+import dev.kolektiv.kalendee.calendar.CalendarStore
+import dev.kolektiv.kalendee.calendar.CreateCalendar
+import dev.kolektiv.kalendee.calendar.CreateEvent
+import dev.kolektiv.kalendee.calendar.OrganizationId
+import dev.kolektiv.kalendee.db.CalendarsTable
+import dev.kolektiv.kalendee.organizations.OrganizationRole
+import dev.kolektiv.kalendee.organizations.OrganizationService
+import dev.kolektiv.kalendee.organizations.OrganizationTeamRole
+import dev.kolektiv.kalendee.organizations.OrganizationTeamService
+import io.ktor.server.testing.testApplication
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Instant
+import kotlin.uuid.Uuid
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.SchemaUtils
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import org.jetbrains.exposed.v1.jdbc.update
+import org.koin.ktor.ext.get
+
+class TransferCalendarStoreTest {
+    @Test
+    fun personalCalendarMovesIntoOrganization() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        installApi(configure = { store = get(); auth = get(); orgs = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.MEMBER)
+
+        val aliceCalendar = store.createCalendar(alice.id, CreateCalendar(displayName = "Alice Personal"))
+        val movedByOwner = requireNotNull(store.transferCalendar(aliceCalendar.id, alice.id, org.id))
+        assertEquals(org.id, movedByOwner.organizationId)
+        assertEquals(alice.id, movedByOwner.ownerId)
+        assertEquals(CalendarPermission.OWNER, movedByOwner.permission)
+        assertEquals(org.id, store.getCalendar(aliceCalendar.id, alice.id)?.organizationId)
+
+        val bobCalendar = store.createCalendar(bob.id, CreateCalendar(displayName = "Bob Personal"))
+        val movedByMember = requireNotNull(store.transferCalendar(bobCalendar.id, bob.id, org.id))
+        assertEquals(org.id, movedByMember.organizationId)
+        assertEquals(bob.id, movedByMember.ownerId)
+        assertEquals(CalendarPermission.OWNER, movedByMember.permission)
+    }
+
+    @Test
+    fun organizationManagersAndOwnersCanMoveToPersonal() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        installApi(configure = { store = get(); auth = get(); orgs = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val dave = registerUser(auth, "dave")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.MEMBER)
+        orgs.addMember(alice.id, org.id, dave.id, OrganizationRole.ADMIN)
+
+        val bobCalendar = store.createCalendar(
+            bob.id,
+            CreateCalendar(displayName = "Bob Team", organizationId = org.id),
+        )
+        val movedByOwner = requireNotNull(store.transferCalendar(bobCalendar.id, alice.id, null))
+        assertNull(movedByOwner.organizationId)
+        assertEquals(alice.id, movedByOwner.ownerId)
+        assertEquals(CalendarPermission.OWNER, movedByOwner.permission)
+
+        val adminTarget = store.createCalendar(
+            bob.id,
+            CreateCalendar(displayName = "Admin Target", organizationId = org.id),
+        )
+        val movedByAdmin = requireNotNull(store.transferCalendar(adminTarget.id, dave.id, null))
+        assertNull(movedByAdmin.organizationId)
+        assertEquals(dave.id, movedByAdmin.ownerId)
+
+        val ownCalendar = store.createCalendar(
+            bob.id,
+            CreateCalendar(displayName = "Bob Own", organizationId = org.id),
+        )
+        val movedByMember = requireNotNull(store.transferCalendar(ownCalendar.id, bob.id, null))
+        assertNull(movedByMember.organizationId)
+        assertEquals(bob.id, movedByMember.ownerId)
+
+        val aliceCalendar = store.createCalendar(
+            alice.id,
+            CreateCalendar(displayName = "Alice Team", organizationId = org.id),
+        )
+        assertFailsWith<CalendarException.Forbidden> {
+            store.transferCalendar(aliceCalendar.id, bob.id, null)
+        }
+        assertEquals(org.id, store.getCalendar(aliceCalendar.id, alice.id)?.organizationId)
+    }
+
+    @Test
+    fun destinationOrganizationMustExistAndActorMustBeMember() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        installApi(configure = { store = get(); auth = get(); orgs = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val carol = registerUser(auth, "carol")
+        orgs.create(alice.id, "acme", "Acme")
+        val carolOrg = orgs.create(carol.id, "other", "Other")
+        val calendar = store.createCalendar(alice.id, CreateCalendar(displayName = "Personal"))
+
+        assertFailsWith<CalendarException.NotFound> {
+            store.transferCalendar(calendar.id, alice.id, MissingOrganization)
+        }
+        assertFailsWith<CalendarException.Forbidden> {
+            store.transferCalendar(calendar.id, alice.id, carolOrg.id)
+        }
+        assertNull(store.transferCalendar(CalendarId.generate(), alice.id, carolOrg.id))
+    }
+
+    @Test
+    fun teamWriteMemberCannotTransfer() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var teams: OrganizationTeamService
+        installApi(configure = { store = get(); auth = get(); orgs = get(); teams = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.MEMBER)
+        val calendar = store.createCalendar(
+            alice.id,
+            CreateCalendar(displayName = "Team", organizationId = org.id),
+        )
+        val design = teams.create(alice.id, org.id, "design", "Design")
+        teams.addMember(alice.id, design.id, bob.id)
+        teams.grant(alice.id, calendar.id, design.id, CalendarPermission.WRITE)
+
+        assertEquals(CalendarPermission.WRITE, store.getCalendar(calendar.id, bob.id)?.permission)
+        assertFailsWith<CalendarException.Forbidden> {
+            store.transferCalendar(calendar.id, bob.id, null)
+        }
+    }
+
+    @Test
+    fun teamDestinationReplacesGrantsAndEnforcesManagers() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var teams: OrganizationTeamService
+        installApi(configure = { store = get(); auth = get(); orgs = get(); teams = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.MEMBER)
+        val design = teams.create(alice.id, org.id, "design", "Design")
+        val product = teams.create(alice.id, org.id, "product", "Product")
+        val calendar = store.createCalendar(
+            alice.id,
+            CreateCalendar(displayName = "Team", organizationId = org.id),
+        )
+        teams.grant(alice.id, calendar.id, design.id, CalendarPermission.WRITE)
+
+        val moved = requireNotNull(store.transferCalendar(calendar.id, alice.id, org.id, product.id))
+        assertEquals(org.id, moved.organizationId)
+        assertEquals(alice.id, moved.ownerId)
+        assertEquals(CalendarPermission.OWNER, moved.permission)
+        assertTrue(teams.grants(alice.id, design.id).none { it.calendarId == calendar.id })
+        val grant = teams.grants(alice.id, product.id).single { it.calendarId == calendar.id }
+        assertEquals(CalendarPermission.WRITE, grant.permission)
+
+        val bobCalendar = store.createCalendar(bob.id, CreateCalendar(displayName = "Bob Personal"))
+        assertFailsWith<CalendarException.Forbidden> {
+            store.transferCalendar(bobCalendar.id, bob.id, org.id, product.id)
+        }
+
+        teams.addMember(alice.id, product.id, bob.id)
+        teams.setMemberRole(alice.id, product.id, bob.id, OrganizationTeamRole.MAINTAINER)
+        val movedByMaintainer = requireNotNull(store.transferCalendar(bobCalendar.id, bob.id, org.id, product.id))
+        assertEquals(org.id, movedByMaintainer.organizationId)
+
+        val other = orgs.create(alice.id, "other", "Other")
+        val otherTeam = teams.create(alice.id, other.id, "sales", "Sales")
+        val second = store.createCalendar(alice.id, CreateCalendar(displayName = "Second"))
+        assertFailsWith<CalendarException.Invalid> {
+            store.transferCalendar(second.id, alice.id, org.id, otherTeam.id)
+        }
+    }
+
+    @Test
+    fun transferPreservesCalendarChildData() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var database: Database
+        installApi(configure = { store = get(); auth = get(); orgs = get(); database = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        val calendar = store.createCalendar(alice.id, CreateCalendar(displayName = "Personal"))
+        val event = store.createEvent(
+            calendar.id,
+            alice.id,
+            CreateEvent(title = "Standup", start = start, end = end),
+        )
+        store.addShare(calendar.id, alice.id, bob.id, CalendarPermission.READ)
+        val shared = requireNotNull(store.setPublicLink(calendar.id, alice.id, true))
+        val token = requireNotNull(shared.publicLinkToken)
+        assertNotNull(store.follow(token, bob.id))
+        assertEquals(1, store.countFollowers(calendar.id))
+        assertNotNull(store.setCalendarHidden(calendar.id, bob.id, true))
+        suspendTransaction(database) {
+            CalendarsTable.update({ CalendarsTable.id eq Uuid.parse(calendar.id.value) }) {
+                it[requestsEnabled] = true
+                it[slotMinutes] = 30
+                it[accessMode] = PublicAccessMode.PUBLIC.wire
+            }
+        }
+
+        val moved = requireNotNull(store.transferCalendar(calendar.id, alice.id, org.id))
+        assertEquals(org.id, moved.organizationId)
+        assertTrue(moved.publicLinkEnabled)
+        assertEquals(token, moved.publicLinkToken)
+        assertTrue(moved.requestsEnabled)
+        assertEquals(30, moved.slotMinutes)
+        assertEquals(PublicAccessMode.PUBLIC, moved.accessMode)
+
+        val refreshed = requireNotNull(store.getCalendar(calendar.id, alice.id))
+        assertTrue(refreshed.publicLinkEnabled)
+        assertEquals(token, refreshed.publicLinkToken)
+        assertTrue(refreshed.requestsEnabled)
+        assertEquals(30, refreshed.slotMinutes)
+        assertEquals(PublicAccessMode.PUBLIC, refreshed.accessMode)
+        assertEquals(listOf(event.id), store.listEvents(calendar.id, alice.id).map { it.id })
+        assertNotNull(
+            store.createEvent(calendar.id, alice.id, CreateEvent(title = "Second", start = start, end = end)),
+        )
+        assertEquals(listOf(bob.id), store.listShares(calendar.id, alice.id).map { it.userId })
+        assertEquals(1, store.countFollowers(calendar.id))
+        assertNotNull(store.publicCalendar(token))
+        assertEquals(true, store.getCalendar(calendar.id, bob.id)?.hidden)
+    }
+
+    @Test
+    fun syncedCalendarCannotTransfer() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var database: Database
+        installApi(configure = { store = get(); auth = get(); database = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val synced = store.createCalendar(alice.id, CreateCalendar(displayName = "Synced"))
+        suspendTransaction(database) {
+            SchemaUtils.create(TestExternalCalendarsTable)
+            TestExternalCalendarsTable.insert {
+                it[id] = Uuid.random()
+                it[calendarId] = Uuid.parse(synced.id.value)
+            }
+        }
+
+        assertFailsWith<CalendarException.Forbidden> {
+            store.transferCalendar(synced.id, alice.id, null)
+        }
+        val free = store.createCalendar(alice.id, CreateCalendar(displayName = "Free"))
+        assertNotNull(store.transferCalendar(free.id, alice.id, null))
+    }
+
+    private suspend fun registerUser(auth: AuthService, username: String): User =
+        auth.register(RegisterUser(username = username, password = "password12")).session?.user
+            ?: error("registration did not create a session")
+
+    private companion object {
+        val MissingOrganization = OrganizationId("00000000-0000-0000-0000-000000000001")
+        val start: Instant = Instant.parse("2026-09-07T10:00:00Z")
+        val end: Instant = Instant.parse("2026-09-07T10:30:00Z")
+    }
+}
+
+private object TestExternalCalendarsTable : Table("external_calendars") {
+    val id = uuid("id")
+    val calendarId = uuid("calendar_id")
+}

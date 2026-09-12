@@ -996,6 +996,12 @@ export interface ShareCalendarIn {
   permission: string
 }
 
+export interface TransferCalendarIn {
+  id: string
+  organizationId: string | null
+  teamId: string | null
+}
+
 export interface UnfollowCalendarIn {
   calendarId: string
 }
@@ -1187,6 +1193,7 @@ export interface KalendeeActions {
   "kalendee.setShowHolidays": { in: SetShowHolidaysIn; out: HolidayStateOut }
   "kalendee.setUserPublicAccess": { in: SetUserPublicAccessIn; out: Viewer }
   "kalendee.shareCalendar": { in: ShareCalendarIn; out: CalendarSharingOut }
+  "kalendee.transferCalendar": { in: TransferCalendarIn; out: CalendarSummary }
   "kalendee.unfollowCalendar": { in: UnfollowCalendarIn; out: FollowOut }
   "kalendee.upcomingReminders": { in: UpcomingRemindersIn; out: ReminderInstanceOut[] }
   "kalendee.updateCalendar": { in: UpdateCalendarIn; out: CalendarSummary }

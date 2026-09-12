@@ -1,9 +1,11 @@
-export type SettingsTab = "account" | "appearance" | "holidays" | "notifications"
+export type SettingsTab = "account" | "appearance" | "holidays" | "notifications" | "connections"
 
 export function settingsHref(tab: SettingsTab = "account"): string {
   return tab === "account" ? "/settings" : `/settings?tab=${tab}`
 }
 
 export function parseSettingsTab(value: string | null | undefined): SettingsTab {
-  return value === "appearance" || value === "holidays" || value === "notifications" ? value : "account"
+  return value === "appearance" || value === "holidays" || value === "notifications" || value === "connections"
+    ? value
+    : "account"
 }

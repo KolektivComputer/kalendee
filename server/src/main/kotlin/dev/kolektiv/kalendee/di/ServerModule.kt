@@ -15,6 +15,8 @@ import dev.kolektiv.kalendee.db.DatabaseProvider
 import dev.kolektiv.kalendee.db.DatabaseSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.external.store.ExternalEventStore
+import dev.kolektiv.kalendee.external.store.PostgresExternalEventStore
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.LoggingMailer
@@ -23,6 +25,15 @@ import dev.kolektiv.kalendee.mail.MailSettings
 import dev.kolektiv.kalendee.mail.Mailer
 import dev.kolektiv.kalendee.mail.SmtpMailer
 import dev.kolektiv.kalendee.notifications.NotificationService
+import dev.kolektiv.kalendee.oauth.AesGcmTokenVault
+import dev.kolektiv.kalendee.oauth.ConnectionService
+import dev.kolektiv.kalendee.oauth.OAuthSettings
+import dev.kolektiv.kalendee.oauth.OAuthStateService
+import dev.kolektiv.kalendee.oauth.ProviderRegistry
+import dev.kolektiv.kalendee.oauth.TokenVault
+import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
+import dev.kolektiv.kalendee.oauth.providers.DiscordApi
+import dev.kolektiv.kalendee.oauth.providers.DiscordProvider
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.storage.AvatarStorage
@@ -34,6 +45,8 @@ import dev.kolektiv.kalendee.web.AdminActions
 import dev.kolektiv.kalendee.web.AuthActions
 import dev.kolektiv.kalendee.web.AvailabilityActions
 import dev.kolektiv.kalendee.web.CalendarActions
+import dev.kolektiv.kalendee.web.ConnectionActions
+import dev.kolektiv.kalendee.web.DiscordActions
 import dev.kolektiv.kalendee.web.EventActions
 import dev.kolektiv.kalendee.web.EventInviteActions
 import dev.kolektiv.kalendee.web.FriendshipActions
@@ -42,6 +55,8 @@ import dev.kolektiv.kalendee.web.NotificationActions
 import dev.kolektiv.kalendee.web.OrganizationActions
 import dev.kolektiv.kalendee.web.ReminderActions
 import dev.kolektiv.kalendee.web.ShareActions
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import io.ktor.server.application.ApplicationEnvironment
 import kotlin.time.Clock
 import org.koin.dsl.module
@@ -50,6 +65,7 @@ import org.koin.dsl.onClose
 fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) = module {
     single { DatabaseSettings.from(environment.config) }
     single { AuthSettings.from(environment.config, developmentMode) }
+    single { OAuthSettings.from(environment.config) }
     single { AppSettings.from(environment.config, developmentMode) }
     single { MailSettings.from(environment.config) }
     single<Mailer> {
@@ -96,7 +112,43 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
         )
     }
     single { ReminderService(database = get(), store = get(), clock = get()) }
+    single { HttpClient(CIO) { expectSuccess = false } } onClose { it?.close() }
+    single<TokenVault> { AesGcmTokenVault.from(get()) }
+    single { OAuthStateService(database = get(), vault = get(), clock = get()) }
+    single { DiscordApi(http = get(), botToken = get<OAuthSettings>().discord.botToken) }
+    single {
+        ProviderRegistry(
+            providers = listOf(
+                DiscordProvider(settings = get<OAuthSettings>().discord, http = get(), api = get()),
+            ),
+        )
+    }
+    single {
+        ConnectionService(
+            database = get(),
+            vault = get(),
+            states = get(),
+            registry = get(),
+            auth = get(),
+            authSettings = get(),
+            hasher = get(),
+            appSettings = get(),
+            clock = get(),
+        )
+    }
     single<CalendarStore> { PostgresCalendarStore(database = get(), clock = get()) }
+    single<ExternalEventStore> { PostgresExternalEventStore(database = get(), clock = get()) }
+    single {
+        DiscordImportService(
+            database = get(),
+            connections = get(),
+            store = get(),
+            externalEvents = get(),
+            api = get(),
+            settings = get(),
+            clock = get(),
+        )
+    }
     single {
         EventInviteService(
             database = get(),
@@ -137,6 +189,8 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { loadFrontendBundle(environment) } onClose { it?.close() }
     single { AuthActions(auth = get(), settings = get(), verification = get(), loginAlerts = get()) }
     single { CalendarActions(store = get(), auth = get(), settings = get()) }
+    single { ConnectionActions(connections = get(), auth = get(), settings = get()) }
+    single { DiscordActions(imports = get(), auth = get(), settings = get()) }
     single {
         OrganizationActions(
             orgs = get(),

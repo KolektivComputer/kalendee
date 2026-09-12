@@ -162,6 +162,10 @@
             "in": "CalendarSlotsIn",
             "out": "CalendarSlotsOut"
         },
+        "kalendee.connectProvider": {
+            "in": "ConnectProviderIn",
+            "out": "ConnectProviderOut"
+        },
         "kalendee.createCalendar": {
             "in": "CreateCalendarIn",
             "out": "CalendarSummary"
@@ -202,6 +206,14 @@
             "in": "DeleteOrganizationIn",
             "out": "DeletedOut"
         },
+        "kalendee.disconnectAccount": {
+            "in": "DisconnectAccountIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.discordGuilds": {
+            "in": "DiscordGuildsIn",
+            "out": "DiscordGuildsOut"
+        },
         "kalendee.eventAttendees": {
             "in": "EventAttendeesIn",
             "out": "EventAttendeesOut"
@@ -221,6 +233,10 @@
         "kalendee.getCalendarSharing": {
             "in": "GetCalendarSharingIn",
             "out": "CalendarSharingOut"
+        },
+        "kalendee.importDiscordGuild": {
+            "in": "ImportDiscordGuildIn",
+            "out": "DiscordGuildSummary"
         },
         "kalendee.inviteToEvent": {
             "in": "InviteToEventIn",
@@ -277,6 +293,10 @@
         "kalendee.reminderSettings": {
             "in": "ReminderSettingsIn",
             "out": "ReminderSettingsOut"
+        },
+        "kalendee.removeDiscordImport": {
+            "in": "RemoveDiscordImportIn",
+            "out": "DeletedOut"
         },
         "kalendee.removeEventAttendee": {
             "in": "RemoveEventAttendeeIn",
@@ -338,6 +358,10 @@
             "in": "SetCalendarPublicIn",
             "out": "CalendarSharingOut"
         },
+        "kalendee.setDiscordImportEnabled": {
+            "in": "SetDiscordImportEnabledIn",
+            "out": "DiscordGuildSummary"
+        },
         "kalendee.setEmailVerification": {
             "in": "SetEmailVerificationIn",
             "out": "EmailVerificationPolicyOut"
@@ -349,6 +373,10 @@
         "kalendee.setEventReminders": {
             "in": "SetEventRemindersIn",
             "out": "EventRemindersOut"
+        },
+        "kalendee.setOauthRegistration": {
+            "in": "SetOauthRegistrationIn",
+            "out": "SetOauthRegistrationOut"
         },
         "kalendee.setOrganizationMemberRole": {
             "in": "SetOrganizationMemberRoleIn",
@@ -373,6 +401,10 @@
         "kalendee.shareCalendar": {
             "in": "ShareCalendarIn",
             "out": "CalendarSharingOut"
+        },
+        "kalendee.syncDiscordImport": {
+            "in": "SyncDiscordImportIn",
+            "out": "DiscordGuildSummary"
         },
         "kalendee.unfollowCalendar": {
             "in": "UnfollowCalendarIn",
@@ -454,7 +486,11 @@
                 "effectiveAccessMode": "string",
                 "organizationId": "string | null",
                 "organizationName": "string | null",
-                "organizationSlug": "string | null"
+                "organizationSlug": "string | null",
+                "connectionId": "string | null",
+                "syncDirection": "string | null",
+                "syncStatus": "string | null",
+                "syncError": "string | null"
             }
         },
         "AdminUserSummary": {
@@ -524,7 +560,8 @@
                 "subscribedHolidayIds": "string[]",
                 "customHolidays": "CustomHolidaySummary[]",
                 "groups": "GroupSummary[]",
-                "calendars": "AdminCalendarSummary[]"
+                "calendars": "AdminCalendarSummary[]",
+                "oauthRegistration": "boolean"
             }
         },
         "DirectoryOrgSummary": {
@@ -797,6 +834,28 @@
                 "viewer": "Viewer | null"
             }
         },
+        "ProviderSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "enabled": "boolean",
+                "connectUrl": "string"
+            }
+        },
+        "ConnectionSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "provider": "string",
+                "providerName": "string",
+                "accountEmail": "string | null",
+                "displayName": "string | null",
+                "status": "string",
+                "lastSyncAt": "string | null",
+                "lastError": "string | null"
+            }
+        },
         "SettingsPage": {
             "kind": "object",
             "fields": {
@@ -805,7 +864,9 @@
                 "showHolidays": "boolean",
                 "holidayCatalog": "HolidayCatalogItem[]",
                 "subscribedHolidayIds": "string[]",
-                "customHolidays": "CustomHolidaySummary[]"
+                "customHolidays": "CustomHolidaySummary[]",
+                "providers": "ProviderSummary[]",
+                "connections": "ConnectionSummary[]"
             }
         },
         "VerifyEmailPage": {
@@ -1026,6 +1087,19 @@
                 "days": "AvailabilityDayOut[]"
             }
         },
+        "ConnectProviderIn": {
+            "kind": "object",
+            "fields": {
+                "providerId": "string",
+                "returnTo": "string | null"
+            }
+        },
+        "ConnectProviderOut": {
+            "kind": "object",
+            "fields": {
+                "url": "string"
+            }
+        },
         "CreateCalendarIn": {
             "kind": "object",
             "fields": {
@@ -1099,6 +1173,41 @@
             "kind": "object",
             "fields": {
                 "organizationId": "string"
+            }
+        },
+        "DisconnectAccountIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string"
+            }
+        },
+        "DiscordGuildsIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string"
+            }
+        },
+        "DiscordGuildSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "name": "string",
+                "iconUrl": "string | null",
+                "owner": "boolean",
+                "botPresent": "boolean",
+                "inviteUrl": "string | null",
+                "imported": "boolean",
+                "externalCalendarId": "string | null",
+                "calendarId": "string | null",
+                "enabled": "boolean",
+                "lastSyncAt": "string | null",
+                "lastError": "string | null"
+            }
+        },
+        "DiscordGuildsOut": {
+            "kind": "object",
+            "fields": {
+                "guilds": "DiscordGuildSummary[]"
             }
         },
         "EventAttendeesIn": {
@@ -1183,6 +1292,13 @@
                 "publicLinkToken": "string | null",
                 "followerCount": "number",
                 "friends": "FriendSummary[]"
+            }
+        },
+        "ImportDiscordGuildIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string",
+                "guildId": "string"
             }
         },
         "InviteToEventIn": {
@@ -1364,6 +1480,12 @@
                 "notifyAtStart": "boolean"
             }
         },
+        "RemoveDiscordImportIn": {
+            "kind": "object",
+            "fields": {
+                "externalCalendarId": "string"
+            }
+        },
         "RemoveEventAttendeeIn": {
             "kind": "object",
             "fields": {
@@ -1496,6 +1618,13 @@
                 "enabled": "boolean"
             }
         },
+        "SetDiscordImportEnabledIn": {
+            "kind": "object",
+            "fields": {
+                "externalCalendarId": "string",
+                "enabled": "boolean"
+            }
+        },
         "SetEmailVerificationIn": {
             "kind": "object",
             "fields": {
@@ -1521,6 +1650,18 @@
                 "eventId": "string",
                 "offsetsSeconds": "number[]",
                 "useDefaults": "boolean"
+            }
+        },
+        "SetOauthRegistrationIn": {
+            "kind": "object",
+            "fields": {
+                "open": "boolean"
+            }
+        },
+        "SetOauthRegistrationOut": {
+            "kind": "object",
+            "fields": {
+                "oauthRegistrationOpen": "boolean"
             }
         },
         "SetOrganizationMemberRoleIn": {
@@ -1581,6 +1722,12 @@
                 "calendarId": "string",
                 "username": "string",
                 "permission": "string"
+            }
+        },
+        "SyncDiscordImportIn": {
+            "kind": "object",
+            "fields": {
+                "externalCalendarId": "string"
             }
         },
         "UnfollowCalendarIn": {

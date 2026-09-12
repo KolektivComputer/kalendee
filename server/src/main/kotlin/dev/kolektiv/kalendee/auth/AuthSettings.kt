@@ -34,6 +34,7 @@ data class AuthSettings(
     val superadminUsername: String? = null,
     val emailVerification: EmailVerificationPolicy = EmailVerificationPolicy.Optional,
     val emailVerificationTtl: Duration = 24.hours,
+    val oauthRegistration: Boolean = false,
 ) {
     companion object {
         fun from(config: ApplicationConfig, developmentMode: Boolean): AuthSettings {
@@ -61,6 +62,10 @@ data class AuthSettings(
                 ?.toLongOrNull()
                 ?.takeIf { it > 0 }
                 ?: 24
+            val oauthRegistration = config.propertyOrNull("auth.oauthRegistration")
+                ?.getString()
+                ?.toBooleanStrictOrNull()
+                ?: false
             return AuthSettings(
                 registration = registration,
                 sessionTtl = sessionDays.days,
@@ -77,6 +82,7 @@ data class AuthSettings(
                 superadminUsername = superadminUsername,
                 emailVerification = emailVerification,
                 emailVerificationTtl = emailVerificationTtlHours.hours,
+                oauthRegistration = oauthRegistration,
             )
         }
     }

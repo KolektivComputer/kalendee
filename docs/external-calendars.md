@@ -1,13 +1,15 @@
 # External calendar connections
 
-Decision document for linking external calendar accounts (Google, Apple,
-Microsoft, generic CalDAV, ICS) and mirroring them into Kalendee. Derived from
-a read-only architecture report; no implementation exists yet.
+Decision document for linking external calendars and reading remote events
+into Kalendee. Discord server events are the first implemented source
+(read-only, bot-token based); Google, Microsoft, Apple, generic CalDAV, and ICS
+remain planned. Derived from a read-only architecture report.
 
 ## Contents
 
 - [Goal](#goal)
 - [Guiding architecture principle](#guiding-architecture-principle)
+- [Event sources](#event-sources)
 - [Provider matrix](#provider-matrix)
 - [Recommended implementation order](#recommended-implementation-order)
 - [Milestone plan](#milestone-plan)
@@ -41,18 +43,53 @@ The only new logic is (a) where mirrored rows come from and (b) routing writes
 through the connection instead of only to Postgres. Read-only mirrors are
 ordinary rows flagged provider-managed, so the store and UI reject local edits.
 
+## Event sources
+
+### Discord server events (implemented, read-only)
+
+Kalendee imports a Discord guild's **scheduled events** into a mirrored,
+read-only calendar. This is an events source, not a calendar sync: Discord has
+no public calendar API, so the import is one-way (Discord to Kalendee) and
+never writes back.
+
+- **User OAuth (scopes `identify` + `guilds`)** lists the guilds the signed-in
+  user belongs to and which of them have the Kalendee bot. The user token never
+  reads scheduled events.
+- **Bot token (read-only)** reads guild scheduled events. The bot must be
+  invited to each guild the user wants to import; the settings UI links to the
+  per-guild invite URL and shows a "bot missing" state.
+- Configuration: `KALENDEE_DISCORD_CLIENT_ID`,
+  `KALENDEE_DISCORD_CLIENT_SECRET`, and `KALENDEE_DISCORD_BOT_TOKEN` (see
+  [application.conf.example](../application.conf.example)). The UI lives under
+  **Settings → Connected Accounts** in the Keel web UI.
+- Each import creates a `Discord · <guild>` calendar; events carry a Discord
+  deep link. Removing an import keeps the local calendar and detaches its
+  events. Recurring events are materialized per occurrence inside a rolling
+  window; unsupported recurrence rules fall back to the master event with an
+  explanatory note.
+- Implementation: [DiscordImportService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/oauth/discord/DiscordImportService.kt),
+  [DiscordActions.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/web/DiscordActions.kt),
+  [settings page](../server/pack/src/pages/kalendee/settings/+page.svelte).
+
+Google and Microsoft providers are **deferred from this initial PR** and
+remain tracked in issue #3; their rows in the matrix below describe the planned
+design.
+
 ## Provider matrix
 
 Effort is per adapter, excluding shared OAuth/vault infrastructure:
 **S** = under 1 week, **M** = 1–3 weeks, **L** = over 3 weeks. "Push" means
-provider-initiated change notification; everything else polls.
+provider-initiated change notification; everything else polls. Discord is
+listed here as a read-only events source; the calendar-account rows are
+planned work.
 
 ### Linkable accounts
 
 | Provider | Auth mechanism | Calendar API | Two-way | Push / webhooks | Effort | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Google Calendar | OAuth2 offline refresh token | Calendar API v3 | Yes | `events.watch` channels | M | Incremental `syncToken`; full RRULE + EXDATE; sensitive scopes require Google app verification for public deployments. |
-| Microsoft Outlook / O365 | OAuth2 + PKCE (MSAL) | Graph v1.0 | Yes | Graph change notifications | M | Multi-tenant + personal accounts; `calendarView/delta`; subscriptions last about 3 days and need renewal. |
+| Discord server events | User OAuth (`identify`, `guilds`) + per-guild bot token | Guild scheduled events (no calendar API) | No (read-only import) | None (manual "Sync now") | S | **Implemented.** Bot must be invited per guild; settings shows bot-missing state and invite link. |
+| Google Calendar | OAuth2 offline refresh token | Calendar API v3 | Yes | `events.watch` channels | M | **Deferred from the initial PR (issue #3).** Incremental `syncToken`; full RRULE + EXDATE; sensitive scopes require Google app verification for public deployments. |
+| Microsoft Outlook / O365 | OAuth2 + PKCE (MSAL) | Graph v1.0 | Yes | Graph change notifications | M | **Deferred from the initial PR (issue #3).** Multi-tenant + personal accounts; `calendarView/delta`; subscriptions last about 3 days and need renewal. |
 | Apple iCloud | CalDAV + app-specific password | CalDAV (RFC 4791) | Yes | None (poll) | S–M | **Sign in with Apple does not grant calendar access.** 2FA users must create an app-specific password. Reuses the generic CalDAV adapter. |
 | Generic CalDAV | Basic auth / app password; Nextcloud can do OAuth | CalDAV | Yes | None generally (poll) | S–M once the adapter exists | Nextcloud, Fastmail, mailbox.org, Posteo, GMX, Yandex, Zoho, Synology, Radicale, Baikal, SOGo, Stalwart, DAViCal, Xandikos. Discovery via `/.well-known/caldav`; `sync-collection` with ctag fallback. |
 | Fastmail (JMAP) | OAuth2 or app password | JMAP Calendars (RFC 8984), also CalDAV | Yes | JMAP push via EventSource | M | CalDAV is the cheap path; JMAP is the modern path with granular push. |
@@ -77,6 +114,11 @@ provider-initiated change notification; everything else polls.
 
 ## Recommended implementation order
 
+Discord scheduled-event import has shipped as a read-only events source (see
+[Event sources](#event-sources)). The calendar-account order below starts after
+that; Google and Microsoft are deferred from the initial PR and tracked in
+issue #3.
+
 1. **Google Calendar** — largest user base, mature incremental sync
    (`syncToken`), offline refresh tokens, and push channels. Exercises every
    hard part of the design first: vault, refresh, delta, two-way, recurrence.
@@ -97,10 +139,15 @@ provider-initiated change notification; everything else polls.
 
 | Milestone | Scope | Effort |
 | --- | --- | --- |
-| M1 | Connection + read-only mirror (Google + Graph) | 4–6 weeks |
+| M0 (shipped) | Discord scheduled-event import (read-only events source) | S |
+| M1 | Connection + read-only calendar mirror (Google + Graph) | 4–6 weeks |
 | M2 | Two-way writes + periodic sync + status | 4–6 weeks |
 | M3 | Generic CalDAV + push/webhooks | 3–5 weeks |
 | M4 | Social/notifications parity + `oauthRegistration` gating | 2–3 weeks |
+
+Discord shipped first because it needs no calendar API, no incremental sync,
+and no two-way writes. The Google/Graph M1 below remains deferred and tracked
+in issue #3.
 
 Estimates assume one senior engineer familiar with the codebase; provider
 app-review lead time is additional.
@@ -189,30 +236,36 @@ app-review lead time is additional.
 - **Redirects:** the exact registered URI
   `{baseUrl}/api/v1/oauth/{provider}/callback`; never accept a `redirect_uri`
   from the request; only relative return paths, to prevent open redirects.
-- **Scopes:** least privilege. Request read-only scopes when the user picks a
-  read-only mirror, write scopes only for two-way. Never request Gmail, Drive,
-  or contacts.
-- **Credentials:** per-instance BYO OAuth client credentials
+- **Scopes:** least privilege. Discord account linking requests only
+  `identify` + `guilds`; scheduled events are read with the bot token, not the
+  user token. Planned calendar providers request read-only scopes for read-only
+  mirrors and write scopes only for two-way. Never request Gmail, Drive, or
+  contacts.
+- **Credentials:** per-instance BYO credentials via HOCON `${?VAR}`, matching
+  the configuration rules in [GOALS.md](../GOALS.md). Discord uses
+  `KALENDEE_DISCORD_CLIENT_ID` / `KALENDEE_DISCORD_CLIENT_SECRET` and a
+  read-only `KALENDEE_DISCORD_BOT_TOKEN`. The Google/Microsoft client
+  credentials
   (`KALENDEE_GOOGLE_CLIENT_ID` / `_SECRET`,
-  `KALENDEE_MICROSOFT_CLIENT_ID` / `_SECRET`) via HOCON `${?VAR}`, matching
-  the configuration rules in [GOALS.md](../GOALS.md). This avoids one shared
-  app's verification, quota, and liability.
+  `KALENDEE_MICROSOFT_CLIENT_ID` / `_SECRET`) are deferred with issue #3. This
+  avoids one shared app's verification, quota, and liability.
 - **Secrets in logs:** tokens, authorization codes, PKCE verifiers, and
   `Authorization` headers are never logged; error responses stay generic.
-- **Disconnect/revoke:** revoke at the provider where supported (Google),
-  delete the connection and vaulted tokens, then either delete mirror
-  calendars or detach mirrored events, per the user's choice. Background sync
-  stops and status rows are cleaned up.
-- **Webhook authenticity:** Google channel token and resource-state headers;
-  Graph `clientState` plus `validationToken` handshake; idempotent processing
-  with replay windows.
+- **Disconnect/revoke:** revoke at the provider where supported (Discord token
+  revocation is best effort), delete the connection and vaulted tokens, then
+  either delete mirror calendars or detach mirrored events, per the user's
+  choice. Background sync stops and status rows are cleaned up.
+- **Webhook authenticity** (planned): Google channel token and resource-state
+  headers; Graph `clientState` plus `validationToken` handshake; idempotent
+  processing with replay windows.
 
 ## Data model sketch
 
-Proposed as migration `V17__external_calendars.sql`. The latest migration in
-the tree is
-[V16__organizations.sql](../server/src/main/resources/db/migration/V16__organizations.sql).
-Draft only; table/column names can change during implementation.
+Implemented as migration `V17__external_calendars.sql`
+([file](../server/src/main/resources/db/migration/V17__external_calendars.sql)).
+The SQL below is the original sketch; the shipped migration uses `TEXT` for
+ciphertext and includes the planned tables below. Column names can still change
+with later migrations.
 
 ```sql
 -- One credential set per user per provider account.
@@ -322,11 +375,12 @@ Notes:
 
 Product decisions needed (recommended defaults in parentheses):
 
-- **Which providers to prioritize?** (Google, then Microsoft Graph, then
-  generic CalDAV, then ICS; see
+- **Which providers to prioritize?** (Discord scheduled events shipped first;
+  then Google, Microsoft Graph, generic CalDAV, then ICS; see
   [implementation order](#recommended-implementation-order).)
-- **Read-only vs two-way default?** (Ship M1 read-only. Make two-way opt-in
-  per calendar via `sync_direction`; two-way is where the conflict cost is.)
+- **Read-only vs two-way default?** (Discord is read-only today. Ship the
+  calendar-account M1 read-only. Make two-way opt-in per calendar via
+  `sync_direction`; two-way is where the conflict cost is.)
 - **Per-instance BYO OAuth apps vs one shared Kalendee app?** (Per-instance
   BYO credentials; avoids verification, quota, and liability. Revisit only if
   a managed shared app becomes a product goal.)
@@ -340,16 +394,17 @@ Ways to contribute:
 
 - Review the provider matrix and drop or raise providers.
 - Provide test accounts and OAuth client credentials for Google and Microsoft
-  verification testing.
+  verification testing (issue #3).
 - Implement from the repo starting points below; the settings/admin patterns
   are already established.
 
 | Area | Start here |
 | --- | --- |
 | Settings and admin toggle pattern | [AuthService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/auth/AuthService.kt), [Pages.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/web/Pages.kt), [settings page](../server/pack/src/pages/kalendee/settings/+page.svelte) |
+| Discord event import | [DiscordImportService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/oauth/discord/DiscordImportService.kt), [DiscordActions.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/web/DiscordActions.kt) |
 | Calendar and event models | [Models.kt](../core/src/commonMain/kotlin/dev/kolektiv/kalendee/calendar/Models.kt) |
 | Recurrence limits | [Recurrence.kt](../core/src/commonMain/kotlin/dev/kolektiv/kalendee/calendar/Recurrence.kt) |
 | RSS and public sharing | [RssRoutes.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/api/RssRoutes.kt) |
 | Reminders | [ReminderService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/reminders/ReminderService.kt) |
 | Server config | [AppSettings.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/config/AppSettings.kt), [application.conf.example](../application.conf.example) |
-| Latest schema change | [V16__organizations.sql](../server/src/main/resources/db/migration/V16__organizations.sql) |
+| Latest schema change | [V17__external_calendars.sql](../server/src/main/resources/db/migration/V17__external_calendars.sql) |

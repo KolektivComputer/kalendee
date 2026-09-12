@@ -202,9 +202,20 @@
       copied = false
     }
   }
+
+  function close() {
+    open = false
+    loadedFor = ""
+    sharing = null
+    loadError = ""
+    inviteUsername = ""
+    invitePermission = "read"
+    publicEnabled = false
+    copied = false
+  }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box max-w-xl">
     <h3 class="text-lg font-bold">Share {calendar?.displayName ?? "calendar"}</h3>
     <p class="py-2 text-base-content/70">Invite people by username or email, or publish a read-only link.</p>
@@ -377,7 +388,7 @@
     {/if}
 
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={() => (open = false)}>Done</button>
+      <button type="button" class="btn btn-ghost" onclick={close}>Done</button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>

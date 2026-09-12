@@ -39,6 +39,7 @@ import dev.kolektiv.kalendee.db.EventAttendeesTable
 import dev.kolektiv.kalendee.db.EventReminderSettingsTable
 import dev.kolektiv.kalendee.db.EventRemindersTable
 import dev.kolektiv.kalendee.db.EventsTable
+import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.db.HolidaySubscriptionsTable
 import dev.kolektiv.kalendee.db.OrganizationMembersTable
 import dev.kolektiv.kalendee.db.OrganizationsTable
@@ -522,6 +523,7 @@ class PostgresCalendarStore(
             val permission = permissionFor(calendarId.toUuid(), userId)
                 ?: throw CalendarException.NotFound("calendar not found")
             if (!permission.canWrite) throw CalendarException.Forbidden("read-only calendar")
+            requireNotMirrored(calendarId.toUuid())
             val calendar = CalendarsTable.selectAll()
                 .where { CalendarsTable.id eq calendarId.toUuid() }
                 .single()
@@ -581,6 +583,7 @@ class PostgresCalendarStore(
             val permission = permissionFor(row[EventsTable.calendarId], userId)
                 ?: return@dbQuery null
             if (!permission.canWrite) throw CalendarException.Forbidden("read-only calendar")
+            requireNotMirrored(row[EventsTable.calendarId])
             val existing = row.toEvent()
             existing.requireEtag(expectedEtag)
             val validated = command.validated(existing.start, existing.end)
@@ -636,9 +639,11 @@ class PostgresCalendarStore(
         val sourcePermission = permissionFor(row[EventsTable.calendarId], userId)
             ?: return@dbQuery null
         if (!sourcePermission.canWrite) throw CalendarException.Forbidden("read-only calendar")
+        requireNotMirrored(row[EventsTable.calendarId])
         val destinationPermission = permissionFor(destinationCalendarId.toUuid(), userId)
             ?: throw CalendarException.NotFound("calendar not found")
         if (!destinationPermission.canWrite) throw CalendarException.Forbidden("read-only calendar")
+        requireNotMirrored(destinationCalendarId.toUuid())
         if (destinationCalendarId.toUuid() == row[EventsTable.calendarId]) {
             throw CalendarException.Invalid("event is already in that calendar")
         }
@@ -731,6 +736,7 @@ class PostgresCalendarStore(
         val permission = permissionFor(row[EventsTable.calendarId], userId)
             ?: return@dbQuery false
         if (!permission.canWrite) throw CalendarException.Forbidden("read-only calendar")
+        requireNotMirrored(row[EventsTable.calendarId])
         val existing = row.toEvent()
         existing.requireEtag(expectedEtag)
         EventsTable.deleteWhere { EventsTable.id eq id.toUuid() } > 0
@@ -807,6 +813,15 @@ class PostgresCalendarStore(
                     ?: EventRsvpStatus.INVITED
                 row[EventAttendeesTable.eventId] to status
             }
+    }
+
+    private fun JdbcTransaction.requireNotMirrored(calendarId: Uuid) {
+        val mirrored = ExternalCalendarsTable.selectAll()
+            .where { ExternalCalendarsTable.calendarId eq calendarId }
+            .count() > 0
+        if (mirrored) {
+            throw CalendarException.Forbidden("this calendar syncs from an external provider and is read-only")
+        }
     }
 
     private fun JdbcTransaction.permissionFor(calendarId: Uuid, userId: UserId): CalendarPermission? {

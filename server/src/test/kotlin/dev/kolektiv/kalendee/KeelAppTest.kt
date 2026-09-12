@@ -69,6 +69,16 @@ class KeelAppTest {
         assertTrue(body.contains("\"kalendee.createCustomHoliday\""))
         assertTrue(body.contains("\"kalendee.deleteCustomHoliday\""))
         assertTrue(body.contains("\"kalendee.setRegistration\""))
+        assertTrue(body.contains("\"kalendee.setOauthRegistration\""))
+        assertTrue(body.contains("\"kalendee.connectProvider\""))
+        assertTrue(body.contains("\"kalendee.disconnectAccount\""))
+        assertTrue(body.contains("\"kalendee.discordGuilds\""))
+        assertTrue(body.contains("\"kalendee.importDiscordGuild\""))
+        assertTrue(body.contains("\"kalendee.syncDiscordImport\""))
+        assertTrue(body.contains("\"kalendee.setDiscordImportEnabled\""))
+        assertTrue(body.contains("\"kalendee.removeDiscordImport\""))
+        assertTrue(body.contains("\"DiscordGuildSummary\""))
+        assertTrue(body.contains("\"DiscordGuildsOut\""))
         assertTrue(body.contains("\"kalendee.organizations\""))
         assertTrue(body.contains("\"kalendee.createOrganization\""))
         assertTrue(body.contains("\"kalendee.updateOrganization\""))
@@ -320,6 +330,13 @@ class KeelAppTest {
             header(KeelHeaders.VISIT, "true")
         }
         assertTrue(unknown.bodyAsText().contains("\"tab\":\"account\""))
+
+        val connections = client.get("/settings") {
+            url { parameters.append("tab", "connections") }
+            header(KeelHeaders.VISIT, "true")
+        }
+        assertEquals(HttpStatusCode.OK, connections.status)
+        assertTrue(connections.bodyAsText().contains("\"tab\":\"connections\""))
     }
 
     @Test

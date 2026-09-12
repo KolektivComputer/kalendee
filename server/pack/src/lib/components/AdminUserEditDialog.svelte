@@ -70,14 +70,23 @@
         password: password.trim() || null,
         admin,
       })
-      open = false
+      close()
     } catch {
       // The action error renders below.
     }
   }
+
+  function close() {
+    open = false
+    loadedFor = ""
+    displayName = ""
+    email = ""
+    password = ""
+    admin = false
+  }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box max-w-md">
     <h3 class="text-lg font-bold">Edit {user?.displayName ?? "user"}</h3>
     <p class="py-2 text-base-content/70">@{user?.username ?? ""}</p>
@@ -157,7 +166,7 @@
       {/if}
 
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost" disabled={updateUser.isPending} onclick={() => (open = false)}>
+        <button type="button" class="btn btn-ghost" disabled={updateUser.isPending} onclick={close}>
           Cancel
         </button>
         <button type="submit" class="btn btn-primary" disabled={updateUser.isPending}>

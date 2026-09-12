@@ -148,6 +148,7 @@
     return () => window.removeEventListener("keydown", onKeyDown)
   })
 
+  let contextMenuOpen = $state(false)
   let menu = $state<
     | { kind: "event"; event: EventSummary }
     | { kind: "holiday"; event: EventSummary }
@@ -155,6 +156,11 @@
     | { kind: "timed"; day: number; minutes: number }
     | { kind: "none" }
   >({ kind: "none" })
+
+  function closeMenu() {
+    contextMenuOpen = false
+    menu = { kind: "none" }
+  }
 
   const moveDestinations = $derived.by(() => {
     if (menu.kind !== "event") return []
@@ -423,7 +429,12 @@
   }
 </script>
 
-<ContextMenu.Root>
+<ContextMenu.Root
+  bind:open={contextMenuOpen}
+  onOpenChange={(open) => {
+    if (!open) menu = { kind: "none" }
+  }}
+>
   <ContextMenu.Trigger>
     {#snippet child({ props })}
       <div
@@ -591,13 +602,18 @@
     {/snippet}
   </ContextMenu.Trigger>
   <ContextMenu.Portal>
-    <ContextMenu.Content class="z-60">
+    <ContextMenu.Content class="z-60" onCloseAutoFocus={(event) => event.preventDefault()}>
       <ul class="menu menu-sm bg-base-100 rounded-box border-base-300 min-w-44 border p-1 shadow-lg">
         {#if menu.kind === "event" && !readOnly}
           <li>
             <ContextMenu.Item
               class="rounded-field data-[highlighted]:bg-base-content/10"
-              onSelect={() => menu.kind === "event" && onSelect(menu.event)}
+              onSelect={() => {
+                if (menu.kind !== "event") return
+                const selected = menu.event
+                closeMenu()
+                onSelect(selected)
+              }}
             >
               <PenLine class="h-4 w-4" />
               Edit
@@ -606,7 +622,12 @@
           <li>
             <ContextMenu.Item
               class="rounded-field text-error data-[highlighted]:bg-error/10"
-              onSelect={() => menu.kind === "event" && onDelete(menu.event)}
+              onSelect={() => {
+                if (menu.kind !== "event") return
+                const selected = menu.event
+                closeMenu()
+                onDelete(selected)
+              }}
             >
               <Trash class="h-4 w-4" />
               Delete
@@ -630,7 +651,9 @@
                           class="rounded-field data-[highlighted]:bg-base-content/10"
                           onSelect={() => {
                             if (menu.kind !== "event") return
-                            onMoveToCalendar?.({ event: menu.event, calendarId: calendar.id })
+                            const selected = menu.event
+                            closeMenu()
+                            onMoveToCalendar?.({ event: selected, calendarId: calendar.id })
                           }}
                         >
                           {calendar.displayName}
@@ -646,7 +669,10 @@
           <li>
             <ContextMenu.Item
               class="rounded-field data-[highlighted]:bg-base-content/10"
-              onSelect={() => void router.visit(settingsHref("holidays"))}
+              onSelect={() => {
+                closeMenu()
+                void router.visit(settingsHref("holidays"))
+              }}
             >
               <Calendar class="h-4 w-4" />
               Manage holidays
@@ -658,7 +684,9 @@
               class="rounded-field data-[highlighted]:bg-base-content/10"
               onSelect={() => {
                 if (menu.kind !== "allday") return
-                createAllDay(dates[menu.day])
+                const day = menu.day
+                closeMenu()
+                createAllDay(dates[day])
               }}
             >
               <Plus class="h-4 w-4" />
@@ -671,9 +699,11 @@
               class="rounded-field data-[highlighted]:bg-base-content/10"
               onSelect={() => {
                 if (menu.kind !== "timed") return
+                const { day, minutes } = menu
+                closeMenu()
                 onDraft({
-                  start: at(menu.day, menu.minutes),
-                  end: at(menu.day, menu.minutes + 30),
+                  start: at(day, minutes),
+                  end: at(day, minutes + 30),
                   allDay: false,
                 })
               }}

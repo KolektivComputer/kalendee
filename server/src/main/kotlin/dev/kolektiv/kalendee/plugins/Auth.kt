@@ -41,6 +41,7 @@ private fun requiresAuth(path: String): Boolean {
     if (path != "/api/v1" && !path.startsWith("/api/v1/")) return false
     if (path.startsWith("/api/v1/users/") && path.endsWith("/avatar")) return false
     if (path.startsWith("/api/v1/public/")) return false
+    if (path.startsWith("/api/v1/oauth/") && path.endsWith("/callback")) return false
     return when (path) {
         "/api/v1", "/api/v1/", "/api/v1/health",
         "/api/v1/auth/register", "/api/v1/auth/login",

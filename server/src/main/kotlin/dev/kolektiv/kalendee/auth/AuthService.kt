@@ -218,6 +218,14 @@ class AuthService(
         }
     }
 
+    suspend fun isOAuthRegistrationOpen(): Boolean = dbQuery { oauthRegistrationOpen() }
+
+    suspend fun setOAuthRegistrationOpen(open: Boolean) {
+        dbQuery {
+            upsertAppSetting(OauthRegistrationKey, if (open) "open" else "closed")
+        }
+    }
+
     suspend fun emailVerificationPolicy(): EmailVerificationPolicy = dbQuery { emailVerificationPolicy() }
 
     suspend fun setEmailVerificationPolicy(policy: EmailVerificationPolicy) {
@@ -459,6 +467,18 @@ class AuthService(
         }
     }
 
+    private fun JdbcTransaction.oauthRegistrationOpen(): Boolean {
+        val override = AppSettingsTable.selectAll()
+            .where { AppSettingsTable.key eq OauthRegistrationKey }
+            .singleOrNull()
+            ?.get(AppSettingsTable.value)
+        return when (override) {
+            "open" -> true
+            "closed" -> false
+            else -> settings.oauthRegistration
+        }
+    }
+
     private fun JdbcTransaction.emailVerificationPolicy(): EmailVerificationPolicy {
         val override = AppSettingsTable.selectAll()
             .where { AppSettingsTable.key eq EmailVerificationKey }
@@ -519,6 +539,7 @@ class AuthService(
 }
 
 private const val RegistrationKey = "registration"
+private const val OauthRegistrationKey = "oauth_registration"
 private const val EmailVerificationKey = "email_verification"
 private const val PublicAccessKey = "public_access"
 

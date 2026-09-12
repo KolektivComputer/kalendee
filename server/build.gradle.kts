@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.ktor.serverContentNegotiation)
     implementation(libs.ktor.serverStatusPages)
     implementation(libs.ktor.serializationKotlinxJson)
+    implementation(libs.ktor.clientCio)
     implementation(libs.angus.mail)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.postgresql)
@@ -34,6 +35,7 @@ dependencies {
     implementation(libs.aws.sdk.s3)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.ktor.clientContentNegotiation)
+    testImplementation(libs.ktor.clientMock)
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.h2)
 }

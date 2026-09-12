@@ -1,25 +1,37 @@
 <script lang="ts">
   import { Head, Link, page, router, useAction } from "@kolektiv/keel-svelte"
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw"
   import X from "@lucide/svelte/icons/x"
   import { untrack } from "svelte"
   import HolidaysDialog from "../../../lib/components/HolidaysDialog.svelte"
   import ReminderEditor from "../../../lib/components/ReminderEditor.svelte"
   import { actionMessage, fieldError } from "../../../lib/errors"
   import type {
+    ConnectProviderIn,
+    ConnectProviderOut,
+    ConnectionSummary,
     CreateCustomHolidayIn,
     CustomHolidaySummary,
     DeleteCustomHolidayIn,
     DeletedOut,
+    DisconnectAccountIn,
+    DiscordGuildsIn,
+    DiscordGuildsOut,
+    DiscordGuildSummary,
     HolidayStateOut,
+    ImportDiscordGuildIn,
     LogoutIn,
     LogoutOut,
     ReminderSettingsIn,
     ReminderSettingsOut,
+    RemoveDiscordImportIn,
     ResendVerificationIn,
     ResendVerificationOut,
+    SetDiscordImportEnabledIn,
     SetShowHolidaysIn,
     SetUserPublicAccessIn,
     SettingsPage,
+    SyncDiscordImportIn,
     UpdateHolidaySubscriptionsIn,
     UpdateReminderSettingsIn,
     UpdateSettingsIn,
@@ -56,6 +68,32 @@
     reload: false,
   })
   const setUserPublicAccess = useAction<SetUserPublicAccessIn, Viewer>("kalendee.setUserPublicAccess", { reload: false })
+  const connectProvider = useAction<ConnectProviderIn, ConnectProviderOut>("kalendee.connectProvider", { reload: false })
+  const disconnectAccount = useAction<DisconnectAccountIn, DeletedOut>("kalendee.disconnectAccount")
+  const discordGuildsAction = useAction<DiscordGuildsIn, DiscordGuildsOut>("kalendee.discordGuilds", { reload: false })
+  const importDiscordGuild = useAction<ImportDiscordGuildIn, DiscordGuildSummary>("kalendee.importDiscordGuild", {
+    reload: false,
+  })
+  const syncDiscordImport = useAction<SyncDiscordImportIn, DiscordGuildSummary>("kalendee.syncDiscordImport", {
+    reload: false,
+  })
+  const setDiscordImportEnabled = useAction<SetDiscordImportEnabledIn, DiscordGuildSummary>(
+    "kalendee.setDiscordImportEnabled",
+    { reload: false },
+  )
+  const removeDiscordImport = useAction<RemoveDiscordImportIn, DeletedOut>("kalendee.removeDiscordImport", {
+    reload: false,
+  })
+
+  const OAUTH_RESULTS: Record<string, { tone: string; text: string }> = {
+    ok: { tone: "alert-success", text: "Discord account connected." },
+    error: { tone: "alert-error", text: "Could not connect the account. Try again." },
+    registration_closed: { tone: "alert-warning", text: "Registration is closed on this server." },
+    email_taken: {
+      tone: "alert-warning",
+      text: "An account with that email already exists. Sign in and link it from settings instead.",
+    },
+  }
 
   const policy = $derived(ctx.shared?.emailVerificationPolicy as string | undefined)
   const instancePublicAccess = $derived(ctx.shared?.publicAccess as string | undefined)
@@ -80,12 +118,19 @@
   let notificationPermission = $state<NotificationPermission | "unsupported">("unsupported")
   let browserNotificationsEnabled = $state(false)
   let userAccess = $state(ctx.data.viewer.publicAccess || "inherit")
+  let connectionError = $state("")
+  let guildsByConnection = $state<Record<string, DiscordGuildSummary[]>>({})
+  let guildsLoading = $state("")
+  let guildsError = $state<Record<string, string>>({})
+  let guildPending = $state("")
+  let guildError = $state<{ connectionId: string; message: string } | null>(null)
 
   const titles: Record<SettingsTab, string> = {
     account: "My Account",
     appearance: "Appearance",
     holidays: "Holidays",
     notifications: "Notifications",
+    connections: "Connected Accounts",
   }
 
   const publicAccessOptions = [
@@ -122,6 +167,14 @@
   const reminderRowsValueError = $derived(reminderRowsError(reminderRows))
   const reminderSummary = $derived(offsetsFromRows(reminderRows).map(formatOffset).join(", "))
   const reminderLoading = $derived(getReminderSettings.isPending)
+  const oauthResult = $derived(parseOauthResult(ctx.path))
+  const importedGuilds = $derived.by(() => {
+    const out: Record<string, DiscordGuildSummary[]> = {}
+    for (const [connectionId, guilds] of Object.entries(guildsByConnection)) {
+      out[connectionId] = guilds.filter((guild) => guild.imported && guild.externalCalendarId)
+    }
+    return out
+  })
 
   $effect(() => {
     displayName = ctx.data.viewer.displayName
@@ -169,6 +222,7 @@
   $effect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return
+      if (hasOpenDialog()) return
       event.preventDefault()
       closeSettings()
     }
@@ -184,6 +238,10 @@
 
   function closeSettings() {
     void router.visit("/")
+  }
+
+  function hasOpenDialog(): boolean {
+    return typeof document !== "undefined" && document.querySelector("dialog[open]") !== null
   }
 
   function refreshViewer() {
@@ -314,6 +372,173 @@
       })
   }
 
+  function parseOauthResult(path: string): { tone: string; text: string } | null {
+    const queryIndex = path.indexOf("?")
+    if (queryIndex < 0) return null
+    const value = new URLSearchParams(path.slice(queryIndex + 1)).get("oauth")
+    return value ? (OAUTH_RESULTS[value] ?? null) : null
+  }
+
+  function formatTimestamp(value: string | null | undefined): string {
+    if (!value) return ""
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  }
+
+  function connectionStatusBadge(status: string): string {
+    if (status === "active") return "badge-success"
+    if (status === "needs_reauth") return "badge-warning"
+    return "badge-ghost"
+  }
+
+  function connectionStatusLabel(status: string): string {
+    if (status === "needs_reauth") return "Needs reconnect"
+    return status.charAt(0).toUpperCase() + status.slice(1)
+  }
+
+  function guildInitials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return "?"
+    return parts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("")
+  }
+
+  async function connectProviderAccount(providerId: string) {
+    connectionError = ""
+    connectProvider.reset()
+    try {
+      const out = await connectProvider.mutateAsync({ providerId, returnTo: "/settings?tab=connections" })
+      window.location.href = out.url
+    } catch {
+      connectionError = actionMessage(connectProvider.error)
+    }
+  }
+
+  async function disconnectAccountById(connection: ConnectionSummary) {
+    const label = connection.displayName ?? connection.accountEmail ?? connection.providerName
+    if (!window.confirm(`Disconnect ${label}? Imported calendars stay in Kalendee.`)) return
+    connectionError = ""
+    disconnectAccount.reset()
+    try {
+      await disconnectAccount.mutateAsync({ connectionId: connection.id })
+    } catch {
+      connectionError = actionMessage(disconnectAccount.error)
+    }
+  }
+
+  async function loadGuilds(connectionId: string) {
+    guildsLoading = connectionId
+    guildsError = { ...guildsError, [connectionId]: "" }
+    guildError = null
+    try {
+      const out = await discordGuildsAction.mutateAsync({ connectionId })
+      guildsByConnection = { ...guildsByConnection, [connectionId]: out.guilds }
+    } catch {
+      guildsError = { ...guildsError, [connectionId]: actionMessage(discordGuildsAction.error) }
+    } finally {
+      guildsLoading = ""
+    }
+  }
+
+  function replaceGuild(connectionId: string, summary: DiscordGuildSummary) {
+    const current = guildsByConnection[connectionId] ?? []
+    const next = current.some((guild) => guild.id === summary.id)
+      ? current.map((guild) => (guild.id === summary.id ? summary : guild))
+      : [...current, summary]
+    guildsByConnection = { ...guildsByConnection, [connectionId]: next }
+  }
+
+  async function importGuild(connectionId: string, guild: DiscordGuildSummary) {
+    guildPending = `import:${guild.id}`
+    guildError = null
+    try {
+      const summary = await importDiscordGuild.mutateAsync({ connectionId, guildId: guild.id })
+      replaceGuild(connectionId, summary)
+    } catch {
+      guildError = {
+        connectionId,
+        message: fieldError(importDiscordGuild.error, "guildId") ?? actionMessage(importDiscordGuild.error),
+      }
+    } finally {
+      guildPending = ""
+    }
+  }
+
+  async function syncGuild(connectionId: string, guild: DiscordGuildSummary) {
+    if (!guild.externalCalendarId) return
+    guildPending = `sync:${guild.id}`
+    guildError = null
+    try {
+      const summary = await syncDiscordImport.mutateAsync({ externalCalendarId: guild.externalCalendarId })
+      replaceGuild(connectionId, summary)
+    } catch {
+      guildError = {
+        connectionId,
+        message:
+          fieldError(syncDiscordImport.error, "externalCalendarId") ?? actionMessage(syncDiscordImport.error),
+      }
+    } finally {
+      guildPending = ""
+    }
+  }
+
+  async function syncConnectionImports(connectionId: string) {
+    for (const guild of importedGuilds[connectionId] ?? []) {
+      await syncGuild(connectionId, guild)
+    }
+  }
+
+  async function toggleGuild(connectionId: string, guild: DiscordGuildSummary) {
+    if (!guild.externalCalendarId) return
+    guildPending = `toggle:${guild.id}`
+    guildError = null
+    try {
+      const summary = await setDiscordImportEnabled.mutateAsync({
+        externalCalendarId: guild.externalCalendarId,
+        enabled: !guild.enabled,
+      })
+      replaceGuild(connectionId, summary)
+    } catch {
+      guildError = {
+        connectionId,
+        message:
+          fieldError(setDiscordImportEnabled.error, "externalCalendarId") ??
+          actionMessage(setDiscordImportEnabled.error),
+      }
+    } finally {
+      guildPending = ""
+    }
+  }
+
+  async function removeGuildImport(connectionId: string, guild: DiscordGuildSummary) {
+    if (!guild.externalCalendarId) return
+    if (!window.confirm(`Remove the import for ${guild.name}? The calendar and its events stay in Kalendee.`)) return
+    guildPending = `remove:${guild.id}`
+    guildError = null
+    try {
+      await removeDiscordImport.mutateAsync({ externalCalendarId: guild.externalCalendarId })
+      replaceGuild(connectionId, {
+        ...guild,
+        imported: false,
+        enabled: false,
+        externalCalendarId: null,
+        calendarId: null,
+        lastSyncAt: null,
+        lastError: null,
+      })
+    } catch {
+      guildError = {
+        connectionId,
+        message:
+          fieldError(removeDiscordImport.error, "externalCalendarId") ?? actionMessage(removeDiscordImport.error),
+      }
+    } finally {
+      guildPending = ""
+    }
+  }
+
   function pickAvatar() {
     avatarInput?.click()
   }
@@ -418,6 +643,15 @@
           onclick={() => selectTab("account")}
         >
           My Account
+        </button>
+        <button
+          type="button"
+          class="settings-nav"
+          class:settings-nav-active={tab === "connections"}
+          aria-current={tab === "connections" ? "page" : undefined}
+          onclick={() => selectTab("connections")}
+        >
+          Connected Accounts
         </button>
 
         <div class="settings-separator"></div>
@@ -722,6 +956,226 @@
             onCreateCustom={(input) => createCustomHoliday.mutateAsync(input)}
             onDeleteCustom={(id) => deleteCustomHoliday.mutateAsync({ id })}
           />
+        {:else if tab === "connections"}
+          <div class="settings-stack">
+            {#if oauthResult}
+              <div
+                class="alert {oauthResult.tone}"
+                role={oauthResult.tone === "alert-success" ? "status" : "alert"}
+              >
+                <span>{oauthResult.text}</span>
+              </div>
+            {/if}
+
+            {#if connectionError}
+              <p class="text-error text-sm">{connectionError}</p>
+            {/if}
+
+            <div class="settings-card">
+              <div class="settings-card-body settings-stack">
+                <div class="settings-field">
+                  <span class="settings-label">Connect an account</span>
+                  <p class="settings-hint">
+                    Link a Discord account to import its server events into a read-only calendar. Nothing is written
+                    back to Discord.
+                  </p>
+                </div>
+                {#if ctx.data.providers.filter((provider) => provider.enabled).length === 0}
+                  <p class="settings-hint">No account providers are configured on this server.</p>
+                {:else}
+                  <div class="flex flex-wrap gap-2">
+                    {#each ctx.data.providers.filter((provider) => provider.enabled) as provider (provider.id)}
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        disabled={connectProvider.isPending}
+                        onclick={() => void connectProviderAccount(provider.id)}
+                      >
+                        {connectProvider.isPending ? "Opening…" : `Connect ${provider.displayName}`}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            {#if ctx.data.connections.length === 0}
+              <div class="settings-card">
+                <div class="settings-card-body">
+                  <p class="settings-hint">No connected accounts yet.</p>
+                </div>
+              </div>
+            {/if}
+
+            {#each ctx.data.connections as connection (connection.id)}
+              <div class="settings-card">
+                <div class="settings-card-body settings-stack">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="badge badge-outline badge-sm">{connection.providerName}</span>
+                        <span class="badge badge-sm {connectionStatusBadge(connection.status)}">
+                          {connectionStatusLabel(connection.status)}
+                        </span>
+                      </div>
+                      <p class="mt-1 truncate font-medium">
+                        {connection.displayName ?? connection.accountEmail ?? connection.providerName}
+                      </p>
+                      {#if connection.displayName && connection.accountEmail}
+                        <p class="settings-hint truncate">{connection.accountEmail}</p>
+                      {/if}
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm text-error"
+                      disabled={disconnectAccount.isPending}
+                      onclick={() => void disconnectAccountById(connection)}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+
+                  <p class="settings-hint">
+                    {connection.lastSyncAt
+                      ? `Last sync ${formatTimestamp(connection.lastSyncAt)}`
+                      : "Not synced yet"}
+                  </p>
+                  {#if connection.lastError}
+                    <p class="text-error text-sm">{connection.lastError}</p>
+                  {/if}
+                  {#if connection.status === "needs_reauth"}
+                    <p class="settings-hint">Reconnect this account to keep its imports in sync.</p>
+                  {/if}
+
+                  {#if connection.provider === "discord"}
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-sm"
+                        disabled={guildsLoading === connection.id}
+                        onclick={() => void loadGuilds(connection.id)}
+                      >
+                        {guildsLoading === connection.id ? "Loading…" : "Load servers"}
+                      </button>
+                      {#if (importedGuilds[connection.id] ?? []).length > 0}
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          disabled={guildPending !== "" || guildsLoading === connection.id}
+                          onclick={() => void syncConnectionImports(connection.id)}
+                        >
+                          <RefreshCw
+                            class={`h-4 w-4${guildPending.startsWith("sync:") ? " animate-spin" : ""}`}
+                            aria-hidden="true"
+                          />
+                          Sync now
+                        </button>
+                      {/if}
+                    </div>
+
+                    {#if guildsError[connection.id]}
+                      <p class="text-error text-sm">{guildsError[connection.id]}</p>
+                    {/if}
+
+                    {#if guildsByConnection[connection.id]}
+                      <ul class="flex flex-col gap-2">
+                        {#each guildsByConnection[connection.id] ?? [] as guild (guild.id)}
+                          <li class="rounded-box border border-base-300 bg-base-100 p-3">
+                            <div class="flex flex-wrap items-start gap-3">
+                              {#if guild.iconUrl}
+                                <img src={guild.iconUrl} alt="" class="h-9 w-9 shrink-0 rounded-full object-cover" />
+                              {:else}
+                                <span
+                                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-content/20 text-sm font-semibold"
+                                  aria-hidden="true"
+                                >
+                                  {guildInitials(guild.name)}
+                                </span>
+                              {/if}
+                              <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <span class="truncate font-medium">{guild.name}</span>
+                                  {#if guild.imported}
+                                    <span class="badge badge-sm {guild.enabled ? 'badge-success' : 'badge-ghost'}">
+                                      {guild.enabled ? "Enabled" : "Paused"}
+                                    </span>
+                                  {/if}
+                                  {#if !guild.botPresent}
+                                    <span class="badge badge-warning badge-sm">Bot missing</span>
+                                  {/if}
+                                </div>
+                                {#if guild.imported && guild.lastSyncAt}
+                                  <p class="settings-hint">Last sync {formatTimestamp(guild.lastSyncAt)}</p>
+                                {/if}
+                                {#if guild.imported && guild.lastError}
+                                  <p class="text-error text-sm">{guild.lastError}</p>
+                                {/if}
+                                {#if !guild.botPresent && guild.inviteUrl}
+                                  <a
+                                    class="link link-primary text-sm"
+                                    href={guild.inviteUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Add Kalendee bot
+                                  </a>
+                                {/if}
+                              </div>
+                              <div class="flex flex-wrap gap-2">
+                                {#if !guild.imported}
+                                  {#if guild.botPresent}
+                                    <button
+                                      type="button"
+                                      class="btn btn-primary btn-sm"
+                                      disabled={guildPending !== ""}
+                                      onclick={() => void importGuild(connection.id, guild)}
+                                    >
+                                      Import
+                                    </button>
+                                  {:else if !guild.inviteUrl}
+                                    <span class="settings-hint">Ask an admin to configure the bot.</span>
+                                  {/if}
+                                {:else}
+                                  <button
+                                    type="button"
+                                    class="btn btn-sm"
+                                    disabled={guildPending !== ""}
+                                    onclick={() => void toggleGuild(connection.id, guild)}
+                                  >
+                                    {guild.enabled ? "Pause" : "Enable"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="btn btn-sm"
+                                    disabled={guildPending !== ""}
+                                    onclick={() => void syncGuild(connection.id, guild)}
+                                  >
+                                    Sync now
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="btn btn-ghost btn-sm text-error"
+                                    disabled={guildPending !== ""}
+                                    onclick={() => void removeGuildImport(connection.id, guild)}
+                                  >
+                                    Remove import
+                                  </button>
+                                {/if}
+                              </div>
+                            </div>
+                          </li>
+                        {/each}
+                      </ul>
+                    {/if}
+
+                    {#if guildError && guildError.connectionId === connection.id}
+                      <p class="text-error text-sm">{guildError.message}</p>
+                    {/if}
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
         {:else}
           <div class="settings-stack">
             <div class="settings-card">

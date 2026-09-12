@@ -49,7 +49,7 @@ configure<PublishingExtension> {
         if (yuriUser.isPresent && yuriPass.isPresent) {
             val user = yuriUser.get()
             val pass = yuriPass.get()
-            val snapshot = project.version.toString().contains("SNAPSHOT", ignoreCase = true)
+            val snapshot = project.version.toString().endsWith("-SNAPSHOT", ignoreCase = true)
             maven {
                 name = if (snapshot) "yuriSnapshots" else "yuriReleases"
                 url = uri(

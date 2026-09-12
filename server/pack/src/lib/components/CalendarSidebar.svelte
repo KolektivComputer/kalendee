@@ -492,7 +492,7 @@
     {#if !readOnly}
       <button
         type="button"
-        class="btn btn-ghost btn-xs btn-square tooltip"
+        class="btn btn-ghost btn-xs btn-square tooltip tooltip-right"
         data-tip="Add Calendar"
         aria-label="Add Calendar"
         onclick={openCreate}
@@ -555,7 +555,7 @@
       <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Friends</h2>
       <button
         type="button"
-        class="btn btn-ghost btn-xs btn-square tooltip"
+        class="btn btn-ghost btn-xs btn-square tooltip tooltip-right"
         data-tip="Add Friend"
         aria-label="Add Friend"
         onclick={openFriends}

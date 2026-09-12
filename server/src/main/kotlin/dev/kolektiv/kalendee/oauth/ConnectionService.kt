@@ -164,6 +164,16 @@ class ConnectionService(
         return refreshed.accessToken
     }
 
+    /**
+     * Marks a stored connection as needing re-authentication, e.g. when a provider
+     * rejects an access token before its recorded expiry. Used by sync services.
+     */
+    suspend fun markNeedsReauth(userId: UserId, connectionId: String, error: String) {
+        val uuid = Uuid.parseOrNull(connectionId)
+            ?: throw CalendarException.Invalid("invalid connection id")
+        markNeedsReauth(userId, uuid, error)
+    }
+
     suspend fun handleCallback(
         providerId: String,
         code: String,

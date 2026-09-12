@@ -15,6 +15,8 @@ import dev.kolektiv.kalendee.db.DatabaseProvider
 import dev.kolektiv.kalendee.db.DatabaseSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.external.store.ExternalEventStore
+import dev.kolektiv.kalendee.external.store.PostgresExternalEventStore
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.LoggingMailer
@@ -29,6 +31,7 @@ import dev.kolektiv.kalendee.oauth.OAuthSettings
 import dev.kolektiv.kalendee.oauth.OAuthStateService
 import dev.kolektiv.kalendee.oauth.ProviderRegistry
 import dev.kolektiv.kalendee.oauth.TokenVault
+import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
 import dev.kolektiv.kalendee.oauth.providers.DiscordApi
 import dev.kolektiv.kalendee.oauth.providers.DiscordProvider
 import dev.kolektiv.kalendee.organizations.OrganizationService
@@ -133,6 +136,18 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
         )
     }
     single<CalendarStore> { PostgresCalendarStore(database = get(), clock = get()) }
+    single<ExternalEventStore> { PostgresExternalEventStore(database = get(), clock = get()) }
+    single {
+        DiscordImportService(
+            database = get(),
+            connections = get(),
+            store = get(),
+            externalEvents = get(),
+            api = get(),
+            settings = get(),
+            clock = get(),
+        )
+    }
     single {
         EventInviteService(
             database = get(),

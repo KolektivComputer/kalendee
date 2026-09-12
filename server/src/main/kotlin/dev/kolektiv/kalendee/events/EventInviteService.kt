@@ -15,6 +15,7 @@ import dev.kolektiv.kalendee.calendar.OrganizationId
 import dev.kolektiv.kalendee.db.CalendarsTable
 import dev.kolektiv.kalendee.db.EventAttendeesTable
 import dev.kolektiv.kalendee.db.EventsTable
+import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.mail.MailService
 import dev.kolektiv.kalendee.notifications.NotificationService
 import kotlin.time.Clock
@@ -257,7 +258,10 @@ class EventInviteService(
     }
 
     suspend fun setOpenRsvp(eventId: EventId, actorId: UserId, enabled: Boolean): Event {
-        requireWritable(eventId, actorId)
+        val event = requireWritable(eventId, actorId)
+        if (dbQuery { calendarIsMirrored(event.calendarId) }) {
+            throw CalendarException.Forbidden("this calendar syncs from an external provider and is read-only")
+        }
         dbQuery {
             EventsTable.update({ EventsTable.id eq eventId.toUuid() }) {
                 it[openRsvp] = enabled
@@ -360,6 +364,11 @@ class EventInviteService(
         }
         return event
     }
+
+    private fun JdbcTransaction.calendarIsMirrored(calendarId: CalendarId): Boolean =
+        ExternalCalendarsTable.selectAll()
+            .where { ExternalCalendarsTable.calendarId eq Uuid.parse(calendarId.value) }
+            .count() > 0
 
     private fun JdbcTransaction.attendeeCountForUser(eventId: EventId, userId: UserId): Long =
         EventAttendeesTable.selectAll()

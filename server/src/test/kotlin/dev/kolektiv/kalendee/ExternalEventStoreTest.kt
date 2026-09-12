@@ -32,6 +32,7 @@ import kotlin.uuid.Uuid
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -45,17 +46,17 @@ class ExternalEventStoreTest {
         val fixture = installFixture()
         val event = importedEvent()
 
-        fixture.external.upsert(fixture.calendar.id, event)
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
 
-        val stored = fixture.external.listExternal(fixture.calendar.id).single()
+        val stored = fixture.external.listBySource(fixture.externalId).single()
         assertEquals(event.uid, stored.uid)
+        assertEquals(fixture.calendar.id, stored.calendarId)
         assertEquals(event.start, stored.start)
         assertEquals(event.end, stored.end)
         assertEquals(EventStatus.CONFIRMED, stored.status)
 
         val row = fixture.rawRows().single()
-        val externalCalendarId = Uuid.parse(fixture.externalId.toString())
-        assertEquals(externalCalendarId, row[EventsTable.externalCalendarId])
+        assertEquals(fixture.externalId, row[EventsTable.externalCalendarId])
         assertEquals(event.uid, row[EventsTable.externalUid])
         assertNull(row[EventsTable.recurrenceFrequency])
         assertNull(row[EventsTable.recurrenceInterval])
@@ -68,9 +69,9 @@ class ExternalEventStoreTest {
         val fixture = installFixture()
         val event = importedEvent()
 
-        fixture.external.upsert(fixture.calendar.id, event)
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
         val first = fixture.rawRows().single()
-        fixture.external.upsert(fixture.calendar.id, event)
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
         val second = fixture.rawRows().single()
 
         assertEquals(1, fixture.rawRows().size)
@@ -84,10 +85,11 @@ class ExternalEventStoreTest {
     fun upsertPropagatesChangesAndBumpsEtag() = testApplication {
         val fixture = installFixture()
         val event = importedEvent()
-        fixture.external.upsert(fixture.calendar.id, event)
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
         val first = fixture.rawRows().single()
 
         fixture.external.upsert(
+            fixture.externalId,
             fixture.calendar.id,
             event.copy(title = "Renamed", start = event.start + 1.hours, end = event.end + 1.hours),
         )
@@ -101,16 +103,40 @@ class ExternalEventStoreTest {
     }
 
     @Test
+    fun upsertMovesEventBetweenCalendarsWithoutDuplicates() = testApplication {
+        val fixture = installFixture()
+        val destination = fixture.store.createCalendar(
+            fixture.user.id,
+            CreateCalendar(displayName = "Routed"),
+        )
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+
+        fixture.external.upsert(
+            fixture.externalId,
+            destination.id,
+            importedEvent().copy(title = "Moved"),
+        )
+
+        val row = fixture.rawRows().single()
+        assertEquals(destination.id.value, row[EventsTable.calendarId].toString())
+        assertEquals("Moved", row[EventsTable.title])
+        assertEquals(destination.id, fixture.external.listBySource(fixture.externalId).single().calendarId)
+    }
+
+    @Test
     fun deleteByUidsRemovesOnlyListedEvents() = testApplication {
         val fixture = installFixture()
         val first = importedEvent(uid = "discord:guild-1:event-1")
         val second = importedEvent(uid = "discord:guild-1:event-2")
-        fixture.external.upsert(fixture.calendar.id, first)
-        fixture.external.upsert(fixture.calendar.id, second)
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, first)
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, second)
 
-        fixture.external.deleteByUids(fixture.calendar.id, listOf(first.uid))
+        fixture.external.deleteByUids(fixture.externalId, listOf(first.uid))
 
-        assertEquals(listOf(second.uid), fixture.external.listExternal(fixture.calendar.id).map { it.uid })
+        assertEquals(
+            listOf(second.uid),
+            fixture.external.listBySource(fixture.externalId).map { it.uid },
+        )
         assertEquals(1, fixture.rawRows().size)
     }
 
@@ -118,23 +144,26 @@ class ExternalEventStoreTest {
     fun markCancelledSetsStatusWithoutRemovingTheRow() = testApplication {
         val fixture = installFixture()
         val event = importedEvent()
-        fixture.external.upsert(fixture.calendar.id, event)
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
         val before = fixture.rawRows().single()
 
-        fixture.external.markCancelled(fixture.calendar.id, event.uid)
+        fixture.external.markCancelled(fixture.externalId, event.uid)
 
         val after = fixture.rawRows().single()
         assertEquals(EventStatus.CANCELLED.name, after[EventsTable.status])
         assertNotEquals(before[EventsTable.etag], after[EventsTable.etag])
-        assertEquals(EventStatus.CANCELLED, fixture.external.listExternal(fixture.calendar.id).single().status)
+        assertEquals(
+            EventStatus.CANCELLED,
+            fixture.external.listBySource(fixture.externalId).single().status,
+        )
     }
 
     @Test
     fun mirroredCalendarRejectsLocalEventMutations() = testApplication {
         val fixture = installFixture()
         val event = importedEvent()
-        fixture.external.upsert(fixture.calendar.id, event)
-        val mirroredEventId = fixture.mirroredEventId()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
+        val mirroredEventId = fixture.importedEventId()
         val destination = fixture.store.createCalendar(
             fixture.user.id,
             CreateCalendar(displayName = "Local"),
@@ -168,10 +197,58 @@ class ExternalEventStoreTest {
     }
 
     @Test
+    fun importedEventInLocalCalendarRejectsLocalMutations() = testApplication {
+        val fixture = installFixture()
+        val routed = fixture.store.createCalendar(
+            fixture.user.id,
+            CreateCalendar(displayName = "Routed"),
+        )
+        fixture.external.upsert(fixture.externalId, routed.id, importedEvent())
+        val importedId = fixture.rawRows().single().let { EventId(it[EventsTable.id].toString()) }
+        val other = fixture.store.createCalendar(
+            fixture.user.id,
+            CreateCalendar(displayName = "Other"),
+        )
+
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.updateEvent(importedId, fixture.user.id, UpdateEvent(title = "Nope"))
+        }
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.deleteEvent(importedId, fixture.user.id)
+        }
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.moveEvent(importedId, fixture.user.id, other.id)
+        }
+        assertEquals("Community call", fixture.store.getEvent(importedId, fixture.user.id)?.title)
+    }
+
+    @Test
+    fun userCreatedEventInCalendarWithImportsStaysEditable() = testApplication {
+        val fixture = installFixture()
+        val routed = fixture.store.createCalendar(
+            fixture.user.id,
+            CreateCalendar(displayName = "Routed"),
+        )
+        fixture.external.upsert(fixture.externalId, routed.id, importedEvent())
+        val local = fixture.store.createEvent(
+            routed.id,
+            fixture.user.id,
+            CreateEvent(title = "Local", start = start, end = end),
+        )
+
+        fixture.store.updateEvent(local.id, fixture.user.id, UpdateEvent(title = "Edited"))
+        assertEquals("Edited", fixture.store.getEvent(local.id, fixture.user.id)?.title)
+
+        fixture.store.deleteEvent(local.id, fixture.user.id)
+        assertNull(fixture.store.getEvent(local.id, fixture.user.id))
+        assertEquals(1, fixture.store.listEvents(routed.id, fixture.user.id).size)
+    }
+
+    @Test
     fun openRsvpOnMirroredCalendarIsRejected() = testApplication {
         val fixture = installFixture()
-        fixture.external.upsert(fixture.calendar.id, importedEvent())
-        val mirroredEventId = fixture.mirroredEventId()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        val mirroredEventId = fixture.importedEventId()
 
         assertFailsWith<CalendarException.Forbidden> {
             fixture.invites.setOpenRsvp(mirroredEventId, fixture.user.id, enabled = true)
@@ -191,14 +268,12 @@ class ExternalEventStoreTest {
         suspend fun rawRows(): List<ResultRow> = withContext(Dispatchers.IO) {
             suspendTransaction(database) {
                 EventsTable.selectAll()
-                    .where {
-                        EventsTable.externalCalendarId eq Uuid.parse(externalId.toString())
-                    }
+                    .where { EventsTable.externalCalendarId eq externalId }
                     .toList()
             }
         }
 
-        suspend fun mirroredEventId(): EventId = EventId(rawRows().single()[EventsTable.id].toString())
+        suspend fun importedEventId(): EventId = EventId(rawRows().single()[EventsTable.id].toString())
     }
 
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.installFixture(): Fixture {

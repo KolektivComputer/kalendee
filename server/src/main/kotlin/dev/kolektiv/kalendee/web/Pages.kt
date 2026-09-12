@@ -979,6 +979,54 @@ data class RemoveDiscordImportIn(
 
 @KeelType
 @Serializable
+data class DiscordSyncSetupIn(
+    val connectionId: String,
+    val guildId: String,
+)
+
+@KeelType
+@Serializable
+data class DiscordEventRouteSummary(
+    val id: String,
+    val name: String,
+    val start: String,
+    val recurring: Boolean = false,
+    val calendarId: String? = null,
+    val skipped: Boolean = false,
+)
+
+@KeelType
+@Serializable
+data class DiscordSyncSetupOut(
+    val defaultCalendarId: String? = null,
+    val calendars: List<CalendarOptionSummary> = emptyList(),
+    val events: List<DiscordEventRouteSummary> = emptyList(),
+    val imported: Boolean = false,
+    val enabled: Boolean = false,
+    val lastSyncAt: String? = null,
+    val lastError: String? = null,
+)
+
+@KeelType
+@Serializable
+data class DiscordEventRouteIn(
+    val eventId: String,
+    val calendarId: String? = null,
+    val skipped: Boolean = false,
+)
+
+@KeelType
+@Serializable
+data class SaveDiscordSyncIn(
+    val connectionId: String,
+    val guildId: String,
+    val defaultCalendarId: String? = null,
+    val routes: List<DiscordEventRouteIn> = emptyList(),
+    val enabled: Boolean = true,
+)
+
+@KeelType
+@Serializable
 data class SetEmailVerificationIn(
     val policy: String,
 )

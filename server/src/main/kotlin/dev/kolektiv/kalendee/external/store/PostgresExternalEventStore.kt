@@ -5,7 +5,6 @@ import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.EventStatus
 import dev.kolektiv.kalendee.db.CalendarsTable
 import dev.kolektiv.kalendee.db.EventsTable
-import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.oauth.discord.ImportedCalendarEvent
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -27,14 +26,17 @@ class PostgresExternalEventStore(
     private val database: Database,
     private val clock: Clock = Clock.System,
 ) : ExternalEventStore {
-    override suspend fun upsert(calendarId: CalendarId, event: ImportedCalendarEvent) {
+    override suspend fun upsert(
+        externalCalendarId: Uuid,
+        calendarId: CalendarId,
+        event: ImportedCalendarEvent,
+    ) {
         dbQuery {
-            val externalCalendarId = externalCalendarId(calendarId)
-                ?: throw CalendarException.NotFound("external calendar not found")
             val timeZone = CalendarsTable.selectAll()
                 .where { CalendarsTable.id eq calendarId.toUuid() }
                 .singleOrNull()
                 ?.get(CalendarsTable.timeZone)
+                ?: throw CalendarException.NotFound("calendar not found")
             val now = clock.now()
             val existing = EventsTable.selectAll()
                 .where {
@@ -68,16 +70,19 @@ class PostgresExternalEventStore(
                 }
                 return@dbQuery
             }
-            val changed = existing[EventsTable.title] != event.title ||
+            val eventId = existing[EventsTable.id]
+            val moved = existing[EventsTable.calendarId] != calendarId.toUuid()
+            val changed = moved ||
+                existing[EventsTable.title] != event.title ||
                 existing[EventsTable.description] != event.description ||
                 existing[EventsTable.location] != event.location ||
                 existing[EventsTable.startAt] != event.start ||
                 existing[EventsTable.endAt] != event.end ||
                 existing[EventsTable.allDay] != event.allDay ||
                 existing[EventsTable.status] != event.status.name
-            val eventId = existing[EventsTable.id]
             EventsTable.update({ EventsTable.id eq eventId }) {
                 if (changed) {
+                    it[EventsTable.calendarId] = calendarId.toUuid()
                     it[title] = event.title
                     it[description] = event.description
                     it[location] = event.location
@@ -94,10 +99,9 @@ class PostgresExternalEventStore(
         }
     }
 
-    override suspend fun deleteByUids(calendarId: CalendarId, uids: Collection<String>) {
+    override suspend fun deleteByUids(externalCalendarId: Uuid, uids: Collection<String>) {
         if (uids.isEmpty()) return
         dbQuery {
-            val externalCalendarId = externalCalendarId(calendarId) ?: return@dbQuery
             EventsTable.deleteWhere {
                 (EventsTable.externalCalendarId eq externalCalendarId) and
                     (EventsTable.externalUid inList uids.toList())
@@ -105,17 +109,15 @@ class PostgresExternalEventStore(
         }
     }
 
-    override suspend fun listExternal(calendarId: CalendarId): List<StoredExternalEvent> = dbQuery {
-        val externalCalendarId = externalCalendarId(calendarId) ?: return@dbQuery emptyList()
+    override suspend fun listBySource(externalCalendarId: Uuid): List<StoredExternalEvent> = dbQuery {
         val statuses = EventStatus.entries.associateBy { it.name }
         EventsTable.selectAll()
             .where { EventsTable.externalCalendarId eq externalCalendarId }
             .map { row -> row.toStoredExternalEvent(statuses) }
     }
 
-    override suspend fun markCancelled(calendarId: CalendarId, uid: String) {
+    override suspend fun markCancelled(externalCalendarId: Uuid, uid: String) {
         dbQuery {
-            val externalCalendarId = externalCalendarId(calendarId) ?: return@dbQuery
             val row = EventsTable.selectAll()
                 .where {
                     (EventsTable.externalCalendarId eq externalCalendarId) and
@@ -134,15 +136,10 @@ class PostgresExternalEventStore(
         }
     }
 
-    private fun JdbcTransaction.externalCalendarId(calendarId: CalendarId): Uuid? = ExternalCalendarsTable
-        .selectAll()
-        .where { ExternalCalendarsTable.calendarId eq calendarId.toUuid() }
-        .singleOrNull()
-        ?.get(ExternalCalendarsTable.id)
-
     private fun ResultRow.toStoredExternalEvent(statuses: Map<String, EventStatus>): StoredExternalEvent =
         StoredExternalEvent(
             uid = this[EventsTable.externalUid] ?: "",
+            calendarId = CalendarId(this[EventsTable.calendarId].toString()),
             start = this[EventsTable.startAt],
             end = this[EventsTable.endAt],
             status = statuses[this[EventsTable.status]] ?: EventStatus.CONFIRMED,

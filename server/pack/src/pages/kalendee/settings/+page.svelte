@@ -3,6 +3,7 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw"
   import X from "@lucide/svelte/icons/x"
   import { untrack } from "svelte"
+  import DiscordSyncDialog from "../../../lib/components/DiscordSyncDialog.svelte"
   import HolidaysDialog from "../../../lib/components/HolidaysDialog.svelte"
   import ReminderEditor from "../../../lib/components/ReminderEditor.svelte"
   import { actionMessage, fieldError } from "../../../lib/errors"
@@ -19,15 +20,12 @@
     DiscordGuildsOut,
     DiscordGuildSummary,
     HolidayStateOut,
-    ImportDiscordGuildIn,
     LogoutIn,
     LogoutOut,
     ReminderSettingsIn,
     ReminderSettingsOut,
-    RemoveDiscordImportIn,
     ResendVerificationIn,
     ResendVerificationOut,
-    SetDiscordImportEnabledIn,
     SetShowHolidaysIn,
     SetUserPublicAccessIn,
     SettingsPage,
@@ -71,17 +69,7 @@
   const connectProvider = useAction<ConnectProviderIn, ConnectProviderOut>("kalendee.connectProvider", { reload: false })
   const disconnectAccount = useAction<DisconnectAccountIn, DeletedOut>("kalendee.disconnectAccount")
   const discordGuildsAction = useAction<DiscordGuildsIn, DiscordGuildsOut>("kalendee.discordGuilds", { reload: false })
-  const importDiscordGuild = useAction<ImportDiscordGuildIn, DiscordGuildSummary>("kalendee.importDiscordGuild", {
-    reload: false,
-  })
   const syncDiscordImport = useAction<SyncDiscordImportIn, DiscordGuildSummary>("kalendee.syncDiscordImport", {
-    reload: false,
-  })
-  const setDiscordImportEnabled = useAction<SetDiscordImportEnabledIn, DiscordGuildSummary>(
-    "kalendee.setDiscordImportEnabled",
-    { reload: false },
-  )
-  const removeDiscordImport = useAction<RemoveDiscordImportIn, DeletedOut>("kalendee.removeDiscordImport", {
     reload: false,
   })
 
@@ -124,6 +112,10 @@
   let guildsError = $state<Record<string, string>>({})
   let guildPending = $state("")
   let guildError = $state<{ connectionId: string; message: string } | null>(null)
+  let syncDialogOpen = $state(false)
+  let syncDialogConnectionId = $state("")
+  let syncDialogGuild = $state<DiscordGuildSummary | null>(null)
+  let routeCounts = $state<Record<string, number>>({})
 
   const titles: Record<SettingsTab, string> = {
     account: "My Account",
@@ -450,20 +442,33 @@
     guildsByConnection = { ...guildsByConnection, [connectionId]: next }
   }
 
-  async function importGuild(connectionId: string, guild: DiscordGuildSummary) {
-    guildPending = `import:${guild.id}`
-    guildError = null
-    try {
-      const summary = await importDiscordGuild.mutateAsync({ connectionId, guildId: guild.id })
-      replaceGuild(connectionId, summary)
-    } catch {
-      guildError = {
-        connectionId,
-        message: fieldError(importDiscordGuild.error, "guildId") ?? actionMessage(importDiscordGuild.error),
-      }
-    } finally {
-      guildPending = ""
-    }
+  function openSyncDialog(connectionId: string, guild: DiscordGuildSummary) {
+    syncDialogConnectionId = connectionId
+    syncDialogGuild = guild
+    syncDialogOpen = true
+  }
+
+  function onSyncDialogSaved(connectionId: string, summary: DiscordGuildSummary) {
+    replaceGuild(connectionId, summary)
+  }
+
+  function onSyncDialogRemoved(connectionId: string, guild: DiscordGuildSummary) {
+    replaceGuild(connectionId, {
+      ...guild,
+      imported: false,
+      enabled: false,
+      externalCalendarId: null,
+      calendarId: null,
+      lastSyncAt: null,
+      lastError: null,
+    })
+    const next = { ...routeCounts }
+    delete next[guild.id]
+    routeCounts = next
+  }
+
+  function onSyncDialogRoutes(guildId: string, calendarCount: number) {
+    routeCounts = { ...routeCounts, [guildId]: calendarCount }
   }
 
   async function syncGuild(connectionId: string, guild: DiscordGuildSummary) {
@@ -487,55 +492,6 @@
   async function syncConnectionImports(connectionId: string) {
     for (const guild of importedGuilds[connectionId] ?? []) {
       await syncGuild(connectionId, guild)
-    }
-  }
-
-  async function toggleGuild(connectionId: string, guild: DiscordGuildSummary) {
-    if (!guild.externalCalendarId) return
-    guildPending = `toggle:${guild.id}`
-    guildError = null
-    try {
-      const summary = await setDiscordImportEnabled.mutateAsync({
-        externalCalendarId: guild.externalCalendarId,
-        enabled: !guild.enabled,
-      })
-      replaceGuild(connectionId, summary)
-    } catch {
-      guildError = {
-        connectionId,
-        message:
-          fieldError(setDiscordImportEnabled.error, "externalCalendarId") ??
-          actionMessage(setDiscordImportEnabled.error),
-      }
-    } finally {
-      guildPending = ""
-    }
-  }
-
-  async function removeGuildImport(connectionId: string, guild: DiscordGuildSummary) {
-    if (!guild.externalCalendarId) return
-    if (!window.confirm(`Remove the import for ${guild.name}? The calendar and its events stay in Kalendee.`)) return
-    guildPending = `remove:${guild.id}`
-    guildError = null
-    try {
-      await removeDiscordImport.mutateAsync({ externalCalendarId: guild.externalCalendarId })
-      replaceGuild(connectionId, {
-        ...guild,
-        imported: false,
-        enabled: false,
-        externalCalendarId: null,
-        calendarId: null,
-        lastSyncAt: null,
-        lastError: null,
-      })
-    } catch {
-      guildError = {
-        connectionId,
-        message:
-          fieldError(removeDiscordImport.error, "externalCalendarId") ?? actionMessage(removeDiscordImport.error),
-      }
-    } finally {
-      guildPending = ""
     }
   }
 
@@ -1078,89 +1034,74 @@
                     {/if}
 
                     {#if guildsByConnection[connection.id]}
-                      <ul class="flex flex-col gap-2">
+                      <ul class="grid gap-3 xl:grid-cols-2">
                         {#each guildsByConnection[connection.id] ?? [] as guild (guild.id)}
-                          <li class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span
-                              class="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-base-300 bg-base-100 py-1 pr-3 pl-1"
-                            >
+                          <li class="rounded-box border border-base-300 bg-base-100 p-3">
+                            <div class="flex items-start gap-3">
                               {#if guild.iconUrl}
                                 <img
                                   src={guild.iconUrl}
                                   alt=""
-                                  class="h-6 w-6 shrink-0 rounded-full object-cover"
+                                  class="h-10 w-10 shrink-0 rounded-full object-cover"
                                 />
                               {:else}
                                 <span
-                                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-base-content/20 text-xs font-semibold"
+                                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-base-content/20 text-sm font-semibold"
                                   aria-hidden="true"
                                 >
                                   {guildInitials(guild.name)}
                                 </span>
                               {/if}
-                              <span class="min-w-0 truncate text-sm font-medium">{guild.name}</span>
-                            </span>
-                            {#if guild.imported}
-                              <span class="badge badge-sm {guild.enabled ? 'badge-success' : 'badge-ghost'}">
-                                {guild.enabled ? "Enabled" : "Paused"}
-                              </span>
-                            {/if}
-                            {#if !guild.botPresent}
-                              <span class="badge badge-warning badge-sm">Bot missing</span>
-                            {/if}
-                            {#if !guild.botPresent && guild.manageable && guild.inviteUrl}
-                              <a
-                                class="link link-primary text-sm"
-                                href={guild.inviteUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Add Kalendee bot
-                              </a>
-                            {/if}
-                            {#if !guild.imported}
-                              {#if guild.botPresent}
-                                <button
-                                  type="button"
-                                  class="btn btn-primary btn-sm"
-                                  disabled={guildPending !== ""}
-                                  onclick={() => void importGuild(connection.id, guild)}
-                                >
-                                  Import
-                                </button>
-                              {/if}
-                            {:else}
-                              <button
-                                type="button"
-                                class="btn btn-sm"
-                                disabled={guildPending !== ""}
-                                onclick={() => void toggleGuild(connection.id, guild)}
-                              >
-                                {guild.enabled ? "Pause" : "Enable"}
-                              </button>
-                              <button
-                                type="button"
-                                class="btn btn-sm"
-                                disabled={guildPending !== ""}
-                                onclick={() => void syncGuild(connection.id, guild)}
-                              >
-                                Sync now
-                              </button>
-                              <button
-                                type="button"
-                                class="btn btn-ghost btn-sm text-error"
-                                disabled={guildPending !== ""}
-                                onclick={() => void removeGuildImport(connection.id, guild)}
-                              >
-                                Remove import
-                              </button>
-                            {/if}
-                            {#if guild.imported && guild.lastSyncAt}
-                              <p class="settings-hint w-full">Last sync {formatTimestamp(guild.lastSyncAt)}</p>
-                            {/if}
-                            {#if guild.imported && guild.lastError}
-                              <p class="text-error w-full text-sm">{guild.lastError}</p>
-                            {/if}
+                              <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <span class="min-w-0 truncate font-medium">{guild.name}</span>
+                                  {#if guild.botPresent}
+                                    <span class="badge badge-success badge-outline badge-sm">installed</span>
+                                  {:else}
+                                    <span class="badge badge-ghost badge-sm">not installed</span>
+                                  {/if}
+                                  {#if guild.imported}
+                                    <span class="badge badge-sm {guild.enabled ? 'badge-success' : 'badge-ghost'}">
+                                      {guild.enabled ? "enabled" : "paused"}
+                                    </span>
+                                  {/if}
+                                </div>
+                                <div class="mt-1 flex flex-wrap items-center gap-2">
+                                  {#if guild.botPresent}
+                                    <button
+                                      type="button"
+                                      class="btn btn-sm"
+                                      onclick={() => openSyncDialog(connection.id, guild)}
+                                    >
+                                      Manage sync
+                                    </button>
+                                  {:else if guild.manageable && guild.inviteUrl}
+                                    <a
+                                      class="link link-primary text-sm"
+                                      href={guild.inviteUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      Install bot
+                                    </a>
+                                  {:else}
+                                    <span class="settings-hint">Ask a server admin to install the Kalendee bot.</span>
+                                  {/if}
+                                </div>
+                                {#if guild.imported && guild.lastSyncAt}
+                                  <p class="settings-hint mt-1">Last sync {formatTimestamp(guild.lastSyncAt)}</p>
+                                {/if}
+                                {#if guild.imported && guild.lastError}
+                                  <p class="mt-1 text-error text-sm">{guild.lastError}</p>
+                                {/if}
+                                {#if guild.botPresent && guild.imported && (routeCounts[guild.id] ?? 0) > 0}
+                                  <p class="settings-hint mt-1">
+                                    Synced to {routeCounts[guild.id]}
+                                    {routeCounts[guild.id] === 1 ? "calendar" : "calendars"}
+                                  </p>
+                                {/if}
+                              </div>
+                            </div>
                           </li>
                         {/each}
                       </ul>
@@ -1291,3 +1232,12 @@
     </div>
   </div>
 </div>
+
+<DiscordSyncDialog
+  bind:open={syncDialogOpen}
+  connectionId={syncDialogConnectionId}
+  guild={syncDialogGuild}
+  onSaved={onSyncDialogSaved}
+  onRemoved={onSyncDialogRemoved}
+  onRoutesChange={onSyncDialogRoutes}
+/>

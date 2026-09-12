@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Link, useAction } from "@kolektiv/keel-svelte"
+  import ArrowRightLeft from "@lucide/svelte/icons/arrow-right-left"
   import Bell from "@lucide/svelte/icons/bell"
   import BellOff from "@lucide/svelte/icons/bell-off"
   import CalendarPlus from "@lucide/svelte/icons/calendar-plus"
@@ -31,11 +32,25 @@
     SearchUsersIn,
     SendFriendRequestIn,
     TeamSummary,
+    TransferCalendarIn,
     UpdateCalendarIn,
     UserSearchOut,
     UserSearchResult,
   } from "../page-types"
   import { readCollapsed, writeCollapsed } from "../sidebar"
+  import {
+    canDropCalendar,
+    hasTransferDestination,
+    organizationTarget,
+    personalTarget,
+    rebucketCalendar,
+    targetFromElementData,
+    teamTarget,
+    transferDestinations,
+    transferInputFor,
+    transferTargetKey,
+    type TransferTarget,
+  } from "../transfer"
   import AvailabilityDialog from "./AvailabilityDialog.svelte"
   import ShareDialog from "./ShareDialog.svelte"
   import TimeRequestsDialog from "./TimeRequestsDialog.svelte"
@@ -89,6 +104,7 @@
   const removeFriend = useAction<RemoveFriendIn, FriendsOut>("kalendee.removeFriend")
   const sendFriendRequest = useAction<SendFriendRequestIn, FriendRequestOut>("kalendee.sendFriendRequest")
   const searchUsers = useAction<SearchUsersIn, UserSearchOut>("kalendee.searchUsers", { reload: false })
+  const transferCalendar = useAction<TransferCalendarIn, CalendarSummary>("kalendee.transferCalendar")
 
   interface TeamGroup {
     id: string
@@ -106,10 +122,16 @@
     groupedByTeam: boolean
   }
 
-  const personalCalendars = $derived(calendars.filter((calendar) => !calendar.organizationId))
+  let calendarList = $state<CalendarSummary[]>([])
+
+  $effect(() => {
+    calendarList = calendars
+  })
+
+  const personalCalendars = $derived(calendarList.filter((calendar) => !calendar.organizationId))
   const orgGroups = $derived.by(() => {
     const groups = new Map<string, OrganizationGroup>()
-    for (const calendar of calendars) {
+    for (const calendar of calendarList) {
       const organizationId = calendar.organizationId
       if (!organizationId) continue
       const existing = groups.get(organizationId)
@@ -182,8 +204,48 @@
   let pendingRemovalId = $state("")
   let collapsed = $state<Record<string, boolean>>({})
 
+  const TRANSFER_HOLD_MS = 500
+  const TRANSFER_SLOP_PX = 8
+
+  type TransferDrag = {
+    pointerId: number
+    calendar: CalendarSummary
+    originX: number
+    originY: number
+    startedAt: number
+    phase: "charging" | "dragging"
+    row: HTMLElement
+  }
+
+  let transferDrag = $state.raw<TransferDrag | null>(null)
+  let transferHover = $state("")
+  let transferGhost = $state.raw({ x: 0, y: 0 })
+  let transferRaf = 0
+  let suppressCalendarClick = false
+
   onMount(() => {
     collapsed = readCollapsed()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && transferDrag) cancelTransfer()
+    }
+    const onScroll = () => {
+      if (transferDrag) cancelTransfer()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("scroll", onScroll, { capture: true })
+      cancelTransfer()
+    }
+  })
+
+  $effect(() => {
+    const drag = transferDrag
+    if (!drag || drag.phase !== "dragging") return
+    const blockScroll = (event: TouchEvent) => event.preventDefault()
+    drag.row.addEventListener("touchmove", blockScroll, { passive: false })
+    return () => drag.row.removeEventListener("touchmove", blockScroll)
   })
 
   function isCollapsed(key: string): boolean {
@@ -337,6 +399,135 @@
   function unfollow(calendar: CalendarSummary) {
     void onUnfollow(calendar.id).catch(() => undefined)
   }
+
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node)
+    return {
+      destroy() {
+        node.remove()
+      },
+    }
+  }
+
+  function dragTargetValid(target: TransferTarget): boolean {
+    const drag = transferDrag
+    return drag?.phase === "dragging" && canDropCalendar(drag.calendar, target, teams, readOnly)
+  }
+
+  function dragTargetHover(target: TransferTarget): boolean {
+    return transferHover !== "" && transferHover === transferTargetKey(target) && dragTargetValid(target)
+  }
+
+  function transferTargetAt(clientX: number, clientY: number): TransferTarget | null {
+    if (typeof document === "undefined") return null
+    const element = document.elementFromPoint(clientX, clientY)
+    const holder = element?.closest<HTMLElement>("[data-transfer-kind]") ?? null
+    return holder ? targetFromElementData(holder.dataset) : null
+  }
+
+  function startTransferPress(event: PointerEvent, calendar: CalendarSummary) {
+    suppressCalendarClick = false
+    if (transferDrag || transferCalendar.isPending || event.button !== 0 || !event.isPrimary) return
+    if (!hasTransferDestination(calendar, organizations, teams, readOnly)) return
+    const origin = event.target
+    if (origin instanceof HTMLElement && origin.closest("button, a, input, select, textarea")) return
+    const row = event.currentTarget as HTMLElement
+    transferCalendar.reset()
+    transferDrag = {
+      pointerId: event.pointerId,
+      calendar,
+      originX: event.clientX,
+      originY: event.clientY,
+      startedAt: performance.now(),
+      phase: "charging",
+      row,
+    }
+    transferGhost = { x: event.clientX, y: event.clientY }
+    row.style.setProperty("--charge", "0")
+    row.setPointerCapture(event.pointerId)
+    transferRaf = requestAnimationFrame(chargeTransfer)
+  }
+
+  function chargeTransfer(timestamp: number) {
+    const drag = transferDrag
+    if (!drag || drag.phase !== "charging") return
+    const progress = Math.min(1, (timestamp - drag.startedAt) / TRANSFER_HOLD_MS)
+    drag.row.style.setProperty("--charge", progress.toFixed(3))
+    if (progress >= 1) {
+      transferDrag = { ...drag, phase: "dragging" }
+      transferHover = ""
+      return
+    }
+    transferRaf = requestAnimationFrame(chargeTransfer)
+  }
+
+  function moveTransfer(event: PointerEvent) {
+    const drag = transferDrag
+    if (!drag || event.pointerId !== drag.pointerId) return
+    if (drag.phase === "charging") {
+      const distance = Math.hypot(event.clientX - drag.originX, event.clientY - drag.originY)
+      if (distance > TRANSFER_SLOP_PX) cancelTransfer()
+      return
+    }
+    transferGhost = { x: event.clientX, y: event.clientY }
+    const target = transferTargetAt(event.clientX, event.clientY)
+    transferHover = target && canDropCalendar(drag.calendar, target, teams, readOnly) ? transferTargetKey(target) : ""
+  }
+
+  function endTransfer(event: PointerEvent) {
+    const drag = transferDrag
+    if (!drag || event.pointerId !== drag.pointerId) return
+    const dragging = drag.phase === "dragging"
+    let target: TransferTarget | null = null
+    if (dragging) {
+      const candidate = transferTargetAt(event.clientX, event.clientY)
+      if (candidate && canDropCalendar(drag.calendar, candidate, teams, readOnly)) target = candidate
+    }
+    cancelTransfer()
+    if (!dragging) return
+    suppressCalendarClick = true
+    if (target) void transferTo(drag.calendar, target)
+  }
+
+  function cancelTransfer() {
+    if (transferRaf !== 0) {
+      cancelAnimationFrame(transferRaf)
+      transferRaf = 0
+    }
+    const drag = transferDrag
+    transferDrag = null
+    transferHover = ""
+    if (drag) {
+      drag.row.style.removeProperty("--charge")
+      if (drag.row.hasPointerCapture(drag.pointerId)) drag.row.releasePointerCapture(drag.pointerId)
+    }
+  }
+
+  function cancelTransferFor(pointerId: number) {
+    if (transferDrag?.pointerId === pointerId) cancelTransfer()
+  }
+
+  function selectCalendar(calendar: CalendarSummary) {
+    if (suppressCalendarClick) {
+      suppressCalendarClick = false
+      return
+    }
+    selectedId = calendar.id
+  }
+
+  async function transferTo(calendar: CalendarSummary, target: TransferTarget) {
+    if (transferCalendar.isPending) return
+    transferCalendar.reset()
+    const input = transferInputFor(calendar.id, target)
+    try {
+      const updated = await transferCalendar.mutateAsync(input)
+      calendarList = calendarList.map((entry) =>
+        entry.id === calendar.id ? rebucketCalendar(entry, updated, input, organizations, teams) : entry,
+      )
+    } catch {
+      // transferCalendar.error renders below the calendar list.
+    }
+  }
 </script>
 
 {#snippet personAvatar(name: string, url: string | null, sizeClass: string)}
@@ -357,14 +548,42 @@
   {@const canUnfollow = !readOnly && calendar.permission === "follow"}
   <li>
           <ContextMenu.Root>
-            <ContextMenu.Trigger disabled={!canManage && !canUnfollow}>
+            <ContextMenu.Trigger disabled={(!canManage && !canUnfollow) || transferDrag !== null}>
               {#snippet child({ props })}
                 <div
                   {...props}
-                  class="flex items-center gap-2"
+                  class="relative flex items-center gap-2"
                   class:menu-active={calendar.id === selectedId}
                   class:opacity-45={calendar.hidden}
-                  onclick={() => (selectedId = calendar.id)}
+                  class:opacity-40={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
+                  class:transfer-charge={transferDrag?.calendar.id === calendar.id}
+                  class:touch-none={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
+                  class:cursor-grabbing={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
+                  onclick={() => selectCalendar(calendar)}
+                  onpointerdown={(event) => {
+                    props.onpointerdown?.(event)
+                    startTransferPress(event, calendar)
+                  }}
+                  onpointermove={(event) => {
+                    props.onpointermove?.(event)
+                    moveTransfer(event)
+                  }}
+                  onpointerup={(event) => {
+                    props.onpointerup?.(event)
+                    endTransfer(event)
+                  }}
+                  onpointercancel={(event) => {
+                    props.onpointercancel?.(event)
+                    cancelTransferFor(event.pointerId)
+                  }}
+                  onlostpointercapture={(event) => cancelTransferFor(event.pointerId)}
+                  oncontextmenu={(event) => {
+                    if (transferDrag) {
+                      event.preventDefault()
+                      return
+                    }
+                    props.oncontextmenu?.(event)
+                  }}
                 >
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" style={`background:${cssColor(calendar.color)}`}></span>
                   <span class="min-w-0 flex-1">
@@ -466,6 +685,38 @@
                           {/if}
                         </ContextMenu.Item>
                       </li>
+                      {@const destinations = transferDestinations(calendar, organizations, teams, readOnly)}
+                      {#if destinations.length > 0}
+                        <li>
+                          <ContextMenu.Sub>
+                            <ContextMenu.SubTrigger
+                              class="rounded-field data-[highlighted]:bg-base-content/10"
+                              disabled={transferCalendar.isPending}
+                            >
+                              <ArrowRightLeft class="h-4 w-4" />
+                              Move to…
+                              <ChevronRight class="ml-auto h-4 w-4" />
+                            </ContextMenu.SubTrigger>
+                            <ContextMenu.SubContent class="z-60">
+                              <ul
+                                class="menu menu-sm bg-base-100 rounded-box border-base-300 min-w-44 border p-1 shadow-lg"
+                              >
+                                {#each destinations as destination (destination.key)}
+                                  <li>
+                                    <ContextMenu.Item
+                                      class={`rounded-field data-[highlighted]:bg-base-content/10 ${destination.nested ? "pl-7" : ""}`}
+                                      disabled={destination.disabled || transferCalendar.isPending}
+                                      onSelect={() => void transferTo(calendar, destination.target)}
+                                    >
+                                      {destination.label}
+                                    </ContextMenu.Item>
+                                  </li>
+                                {/each}
+                              </ul>
+                            </ContextMenu.SubContent>
+                          </ContextMenu.Sub>
+                        </li>
+                      {/if}
                       <li>
                         <ContextMenu.Item
                           class="rounded-field text-error data-[highlighted]:bg-error/10"
@@ -494,7 +745,7 @@
         </li>
 {/snippet}
 
-<div class="flex flex-col gap-3 p-3">
+<div class="flex flex-col gap-3 p-3" class:select-none={transferDrag !== null}>
   <div class="flex items-center justify-between gap-2">
     <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Calendars</h2>
     {#if !readOnly}
@@ -512,8 +763,14 @@
   {#if calendars.length === 0}
     <p class="text-sm text-base-content/60">Create a calendar to start adding events.</p>
   {:else}
-    {#if personalCalendars.length > 0}
-      <div class="flex flex-col gap-1">
+    {#if personalCalendars.length > 0 || (transferDrag?.phase === "dragging" && transferDrag.calendar.organizationId !== null)}
+      {@const personalDrop = personalTarget()}
+      <div
+        class="flex flex-col gap-1"
+        data-transfer-kind="personal"
+        class:transfer-target-valid={dragTargetValid(personalDrop)}
+        class:transfer-target-hover={dragTargetHover(personalDrop)}
+      >
         <button
           type="button"
           class="flex w-full items-center gap-1 text-left"
@@ -538,7 +795,14 @@
     {/if}
     {#each orgGroups as group (group.id)}
       {@const orgKey = `org:${group.id}`}
-      <div class="flex flex-col gap-1">
+      {@const orgDrop = organizationTarget(group.id)}
+      <div
+        class="flex flex-col gap-1"
+        data-transfer-kind="org"
+        data-transfer-org={group.id}
+        class:transfer-target-valid={dragTargetValid(orgDrop)}
+        class:transfer-target-hover={dragTargetHover(orgDrop)}
+      >
         <div class="flex items-center justify-between gap-2">
           <button
             type="button"
@@ -567,7 +831,15 @@
           {:else}
             {#each group.teams as team (team.id)}
               {@const teamKey = `team:${team.id}`}
-              <div class="flex flex-col gap-1 pl-2">
+              {@const teamDrop = teamTarget(group.id, team.id)}
+              <div
+                class="flex flex-col gap-1 pl-2"
+                data-transfer-kind="team"
+                data-transfer-org={group.id}
+                data-transfer-team={team.id}
+                class:transfer-target-valid={dragTargetValid(teamDrop)}
+                class:transfer-target-hover={dragTargetHover(teamDrop)}
+              >
                 <button
                   type="button"
                   class="flex min-w-0 items-center gap-1 text-left"
@@ -606,12 +878,25 @@
     {/each}
   {/if}
 
+  {#if transferCalendar.isPending}
+    <p class="text-xs text-base-content/60" role="status">Moving calendar…</p>
+  {:else if transferCalendar.error}
+    <p class="text-error text-xs" role="alert">{actionMessage(transferCalendar.error)}</p>
+  {/if}
+
   {#if organizationsWithoutCalendars.length > 0}
     <div class="flex flex-col gap-1 border-t border-base-300 pt-3">
       <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Organizations</h2>
       <ul class="menu w-full p-0">
         {#each organizationsWithoutCalendars as organization (organization.id)}
-          <li>
+          {@const orgDrop = organizationTarget(organization.id)}
+          <li
+            class="rounded-box"
+            data-transfer-kind="org"
+            data-transfer-org={organization.id}
+            class:transfer-target-valid={dragTargetValid(orgDrop)}
+            class:transfer-target-hover={dragTargetHover(orgDrop)}
+          >
             <Link href={`/o/${organization.slug}`} class="flex items-center gap-2">
               <span
                 class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-base-content/20 text-[0.55rem] font-semibold leading-none"
@@ -722,6 +1007,21 @@
     <span class="label-text">Show holidays</span>
   </label>
 </div>
+
+{#if transferDrag?.phase === "dragging"}
+  <div
+    class="pointer-events-none fixed top-0 left-0 z-80 flex items-center gap-2 rounded-box border border-base-300 bg-base-100 px-2 py-1 text-xs shadow-lg"
+    style={`transform: translate3d(${transferGhost.x + 12}px, ${transferGhost.y + 12}px, 0)`}
+    aria-hidden="true"
+    use:portal
+  >
+    <span
+      class="h-2.5 w-2.5 shrink-0 rounded-full"
+      style={`background:${cssColor(transferDrag.calendar.color)}`}
+    ></span>
+    <span class="max-w-40 truncate">{transferDrag.calendar.displayName}</span>
+  </div>
+{/if}
 
 <dialog class="modal" bind:this={createDialog} onclose={() => (createOpen = false)}>
   <div class="modal-box">

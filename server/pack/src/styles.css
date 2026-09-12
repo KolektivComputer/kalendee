@@ -87,6 +87,43 @@ body,
   background: var(--color-error);
 }
 
+.transfer-charge::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 1;
+  border-radius: var(--radius-field);
+  pointer-events: none;
+  background: conic-gradient(var(--color-primary) calc(var(--charge, 0) * 1turn), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+.transfer-charge {
+  -webkit-touch-callout: none;
+}
+
+.transfer-charge::after {
+    background: none;
+    border: 2px solid var(--color-primary);
+    opacity: 0.55;
+  }
+}
+
+.transfer-target-valid {
+  border-radius: var(--radius-box);
+  outline: 1px dashed color-mix(in oklab, var(--color-primary) 45%, transparent);
+  outline-offset: -1px;
+}
+
+.transfer-target-hover {
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+}
+
 .settings-root {
   display: flex;
   height: 100%;

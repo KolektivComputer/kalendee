@@ -34,8 +34,8 @@ LABEL org.opencontainers.image.title="Kalendee" \
     org.opencontainers.image.description="Self-hosted CalDAV server with multiplatform clients" \
     org.opencontainers.image.licenses="AGPL-3.0-only" \
     org.opencontainers.image.version="${VERSION}" \
-    org.opencontainers.image.source="https://git.yuri.capital/kolektiv/kalendee" \
-    org.opencontainers.image.url="https://git.yuri.capital/kolektiv/kalendee"
+    org.opencontainers.image.source="https://github.com/kolektiv/kalendee" \
+    org.opencontainers.image.url="https://github.com/kolektiv/kalendee"
 
 # hadolint ignore=DL3008
 RUN apt-get update \

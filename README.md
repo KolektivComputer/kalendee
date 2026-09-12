@@ -1,45 +1,29 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Desktop (JVM), Server.
+Kalendee is a multiplatform caldav server / client implementation written in kotlin.
 
-* [/app/iosApp](./app/iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose
-  Multiplatform, you need this entry point for your iOS app. This is also where you should add SwiftUI code for your
-  project.
+### The Name
+Kalendee comes from Calendy, a popular calendar meeting scheduling service, and Kodee, who is one of Kotlin's mascots.
 
-* [/app/shared](./app/shared/src) is for code that will be shared across your Compose Multiplatform applications. It
-  contains several subfolders:
-    - [commonMain](./app/shared/src/commonMain/kotlin) is for code that’s common for all targets.
-    - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name. For
-      example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-      the [iosMain](./app/shared/src/iosMain/kotlin) folder would be the right place for such calls. Similarly, if you
-      want to edit the Desktop (JVM) specific part, the [jvmMain](./app/shared/src/jvmMain/kotlin)
-      folder is the appropriate location.
+## Goals
+- Self-hosted server with bespoke clients, inspired by Notion Calendar (formerly Cron)
+- Clients are themeable and the webui too using my other project, [keel](https://github.com/lizainslie/keel) also in `../keel` (will eventually require some adaptation from keel's end)
+- Implement all facets of CalDav protocol in a separate pure multiplatform Kotlin library
+- Allow me to link my calendar and let people propose to schedule things with me (allowing me to configurably allow anonymous access or logged-in users only.)
 
-* [/core](./core/src) is for the code that will be shared between all targets in the project. The most important
-  subfolder is [commonMain](./core/src/commonMain/kotlin). If preferred, you can add code to the platform-specific
-  folders here too.
+*giv me calendar clod make no mistakes!!11!*
 
-* [/server](./server/src/main/kotlin) is for the Ktor server application.
+## Screenshots
 
-### Running the apps
+Screenshots are captured from the seeded demo data (see [Demo data and screenshots](./DEVELOPING.md#demo-data-and-screenshots)) and live in [`docs/screenshots/`](./docs/screenshots).
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and
-options:
+<!-- Uncomment once captured:
+![Kalendee week view](docs/screenshots/week-view.png)
+-->
 
-- Android app: `./gradlew :app:androidApp:assembleDebug`
-- Desktop app:
-    - Hot reload: `./gradlew :app:desktopApp:hotRun --auto`
-    - Standard run: `./gradlew :app:desktopApp:run`
-- Server: `./gradlew :server:run`
-- iOS app: open the [/app/iosApp](./app/iosApp) directory in Xcode and run it from there.
+## Legal
+Kalendee is licensed under the GNU Affero General Public License v3
+(AGPL-3.0-only), see [LICENSE](./LICENSE). Note that if you run a modified
+version on a network server, the AGPL requires you to offer your users the
+corresponding source.
 
-### Running tests
-
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
-
-- Android tests: `./gradlew :app:shared:testAndroidHostTest`
-- Desktop tests: `./gradlew :app:shared:jvmTest`
-- Server tests: `./gradlew :server:test`
-- iOS tests: `./gradlew :app:shared:iosSimulatorArm64Test`
-
----
-
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+Setup, run, and test: [DEVELOPING.md](./DEVELOPING.md).
+Coding agents: [AGENTS.md](./AGENTS.md).

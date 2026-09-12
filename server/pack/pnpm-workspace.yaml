@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - "@kolektiv/keel-pack@0.0.1"
+  - "@kolektiv/keel-svelte@0.0.1"
+  - "@kolektiv/keel@0.0.1"

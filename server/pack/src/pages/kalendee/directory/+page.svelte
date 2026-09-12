@@ -228,7 +228,7 @@
 </div>
 
 <dialog class="modal" bind:this={createDialog} onclose={() => (createOpen = false)}>
-  <div class="modal-box max-w-md">
+  <div class="modal-box max-w-xl">
     <h3 class="text-lg font-bold">New organization</h3>
     <p class="py-2 text-base-content/70">
       Organizations group calendars and members under a shared page. You become the owner.
@@ -240,11 +240,11 @@
         void createOrg()
       }}
     >
-      <fieldset class="fieldset">
+      <fieldset class="fieldset min-w-0">
         <legend class="fieldset-legend">Slug</legend>
         <input
           id="org-slug"
-          class="input w-full"
+          class="input w-full min-w-0"
           bind:value={slug}
           required
           maxlength="32"
@@ -252,29 +252,29 @@
           autocomplete="off"
           disabled={createPending}
         />
-        <p class="label">The page lives at /o/&lt;slug&gt;. Lowercase letters, digits, dots, dashes, and underscores.</p>
+        <p class="label whitespace-normal">The page lives at /o/&lt;slug&gt;. Lowercase letters, digits, dots, dashes, and underscores.</p>
         {#if slugError}
-          <p class="label text-error">{slugError}</p>
+          <p class="label whitespace-normal text-error">{slugError}</p>
         {/if}
       </fieldset>
-      <fieldset class="fieldset">
+      <fieldset class="fieldset min-w-0">
         <legend class="fieldset-legend">Name</legend>
         <input
           id="org-name"
-          class="input w-full"
+          class="input w-full min-w-0"
           bind:value={displayName}
           required
           maxlength="80"
           disabled={createPending}
         />
       </fieldset>
-      <fieldset class="fieldset">
+      <fieldset class="fieldset min-w-0">
         <legend class="fieldset-legend">Description</legend>
-        <textarea class="textarea w-full" rows="3" bind:value={description} disabled={createPending}></textarea>
+        <textarea class="textarea w-full min-w-0" rows="3" bind:value={description} disabled={createPending}></textarea>
       </fieldset>
-      <fieldset class="fieldset">
+      <fieldset class="fieldset min-w-0">
         <legend class="fieldset-legend">Visibility</legend>
-        <label class="label cursor-pointer justify-start gap-3">
+        <label class="label cursor-pointer justify-start gap-3 whitespace-normal">
           <input
             type="radio"
             class="radio radio-sm"
@@ -284,9 +284,9 @@
             disabled={createPending}
             onchange={() => (visibility = "private")}
           />
-          <span class="label-text">Private — only members and invitees can see the page</span>
+          <span class="label-text whitespace-normal">Private — only members and invitees can see the page</span>
         </label>
-        <label class="label cursor-pointer justify-start gap-3">
+        <label class="label cursor-pointer justify-start gap-3 whitespace-normal">
           <input
             type="radio"
             class="radio radio-sm"
@@ -296,7 +296,7 @@
             disabled={createPending}
             onchange={() => (visibility = "public")}
           />
-          <span class="label-text">Public — listed in the directory</span>
+          <span class="label-text whitespace-normal">Public — listed in the directory</span>
         </label>
       </fieldset>
 

@@ -1,0 +1,111 @@
+# Required repository secrets (same as the sibling keel repo):
+#   YURI_CAPITAL_REPO_USERNAME / YURI_CAPITAL_REPO_PASSWORD — Nexus credentials
+#   for repo.yuri.capital. The Maven job skips publication with a warning when
+#   they are not configured. GHCR (docker.yml) uses the automatic GITHUB_TOKEN.
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release without the leading v (e.g. 1.2.3)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  maven:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Compute version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Publish to Nexus
+        env:
+          YURI_CAPITAL_REPO_USERNAME: ${{ secrets.YURI_CAPITAL_REPO_USERNAME }}
+          YURI_CAPITAL_REPO_PASSWORD: ${{ secrets.YURI_CAPITAL_REPO_PASSWORD }}
+        run: |
+          if [ -z "$YURI_CAPITAL_REPO_USERNAME" ] || [ -z "$YURI_CAPITAL_REPO_PASSWORD" ]; then
+            echo "::warning::Nexus credentials YURI_CAPITAL_REPO_USERNAME/YURI_CAPITAL_REPO_PASSWORD are not configured; skipping Maven publication."
+            exit 0
+          fi
+          if printf '%s' "$VERSION" | grep -qi 'SNAPSHOT'; then
+            REPO_TASK="YuriSnapshotsRepository"
+          else
+            REPO_TASK="YuriReleasesRepository"
+          fi
+          ./gradlew ":core:publishAllPublicationsTo${REPO_TASK}" ":app:shared:publishAllPublicationsTo${REPO_TASK}" -Pversion="$VERSION" --stacktrace
+
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: server/pack/pnpm-lock.yaml
+      - name: Compute version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if printf '%s' "$VERSION" | grep -qi 'SNAPSHOT'; then
+            echo "::error::Refusing to create a GitHub Release for snapshot version $VERSION."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Build server distribution
+        run: ./gradlew :server:buildFatJar :server:distZip -Pversion="$VERSION" --stacktrace
+      - name: Stage artifacts
+        run: |
+          mkdir -p dist-artifacts
+          cp "server/build/libs/server-all.jar" "dist-artifacts/kalendee-server-$VERSION.jar"
+          cp "server/build/distributions/server-$VERSION.zip" "dist-artifacts/kalendee-server-$VERSION.zip"
+          cp "server/pack/dist/kalendee.feb" "dist-artifacts/kalendee-$VERSION.feb"
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            gh release upload "v$VERSION" dist-artifacts/* --clobber
+          else
+            gh release create "v$VERSION" dist-artifacts/* --title "Kalendee v$VERSION" --generate-notes --target "$GITHUB_SHA"
+          fi

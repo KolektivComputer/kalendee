@@ -1,0 +1,7 @@
+ALTER TABLE users
+    ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);

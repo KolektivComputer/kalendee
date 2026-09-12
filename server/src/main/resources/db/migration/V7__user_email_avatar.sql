@@ -1,0 +1,5 @@
+ALTER TABLE users ADD COLUMN email TEXT;
+ALTER TABLE users ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN avatar_key TEXT;
+ALTER TABLE users ADD COLUMN avatar_updated_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX users_email_key ON users (email);

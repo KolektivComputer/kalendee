@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN accent TEXT NOT NULL DEFAULT 'primary';

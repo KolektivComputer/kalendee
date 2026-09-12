@@ -935,6 +935,7 @@ data class DiscordGuildSummary(
     val iconUrl: String? = null,
     val owner: Boolean = false,
     val botPresent: Boolean = false,
+    val manageable: Boolean = false,
     val inviteUrl: String? = null,
     val imported: Boolean = false,
     val externalCalendarId: String? = null,

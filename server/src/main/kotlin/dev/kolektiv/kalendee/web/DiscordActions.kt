@@ -58,9 +58,10 @@ class DiscordActions(
 private fun DiscordGuild.toDto(): DiscordGuildSummary = DiscordGuildSummary(
     id = id,
     name = name,
-    iconUrl = icon?.let { "https://cdn.discordapp.com/icons/$id/$it.png" },
+    iconUrl = discordIconUrl(id, icon),
     owner = owner,
     botPresent = botPresent,
+    manageable = manageable,
     inviteUrl = inviteUrl,
     imported = imported,
     externalCalendarId = externalCalendarId,
@@ -69,6 +70,15 @@ private fun DiscordGuild.toDto(): DiscordGuildSummary = DiscordGuildSummary(
     lastSyncAt = lastSyncAt,
     lastError = lastError,
 )
+
+private fun discordIconUrl(guildId: String, icon: String?): String? {
+    val hash = icon ?: return null
+    return if (hash.startsWith("a_")) {
+        "https://cdn.discordapp.com/icons/$guildId/$hash.webp?animated=true&size=128"
+    } else {
+        "https://cdn.discordapp.com/icons/$guildId/$hash.png?size=128"
+    }
+}
 
 private suspend fun <T> mapDiscordErrors(field: String, block: suspend () -> T): T = try {
     mapDomainErrors(field, block)

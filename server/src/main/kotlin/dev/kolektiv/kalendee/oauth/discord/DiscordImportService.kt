@@ -21,6 +21,7 @@ import dev.kolektiv.kalendee.oauth.providers.DiscordBotNotConfiguredException
 import dev.kolektiv.kalendee.oauth.providers.DiscordGuild
 import dev.kolektiv.kalendee.oauth.providers.DiscordScheduledEvent
 import io.ktor.http.URLBuilder
+import java.math.BigInteger
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -50,6 +51,7 @@ data class DiscordGuildSummary(
     val icon: String?,
     val owner: Boolean = false,
     val botPresent: Boolean,
+    val manageable: Boolean = false,
     val imported: Boolean,
     val enabled: Boolean,
     val externalCalendarId: String?,
@@ -103,6 +105,7 @@ class DiscordImportService(
                     inviteUrl = invite,
                 )
             }
+            .filter { it.botPresent || it.manageable || it.imported }
             .sortedBy { it.name.lowercase() }
     }
 
@@ -153,6 +156,10 @@ class DiscordImportService(
     /**
      * The current summary for one imported guild. Used by the web actions to
      * return fresh state after sync/enable changes without re-listing.
+     *
+     * This fallback only runs when the guild is absent from the user's guild
+     * list, so there is no permission data to judge manageability. It reports
+     * `manageable = false` and omits the invite link rather than guessing.
      */
     suspend fun guildSummary(userId: UserId, externalCalendarId: String): DiscordGuildSummary {
         val uuid = Uuid.parseOrNull(externalCalendarId)
@@ -176,13 +183,14 @@ class DiscordImportService(
             icon = null,
             owner = false,
             botPresent = context.guildId in botGuildIds(),
+            manageable = false,
             imported = true,
             enabled = mapping[ExternalCalendarsTable.enabled],
             externalCalendarId = externalCalendarId,
             calendarId = mapping[ExternalCalendarsTable.calendarId].toString(),
             lastSyncAt = mapping[ExternalCalendarsTable.lastSyncAt]?.toString(),
             lastError = mapping[ExternalCalendarsTable.lastError],
-            inviteUrl = inviteUrl(),
+            inviteUrl = null,
         )
     }
 
@@ -433,20 +441,38 @@ class DiscordImportService(
         botPresent: Boolean,
         mapping: ResultRow?,
         inviteUrl: String?,
-    ): DiscordGuildSummary = DiscordGuildSummary(
-        id = guild.id,
-        name = guild.name,
-        icon = guild.icon,
-        owner = guild.owner,
-        botPresent = botPresent,
-        imported = mapping != null,
-        enabled = mapping?.get(ExternalCalendarsTable.enabled) ?: false,
-        externalCalendarId = mapping?.get(ExternalCalendarsTable.id)?.toString(),
-        calendarId = mapping?.get(ExternalCalendarsTable.calendarId)?.toString(),
-        lastSyncAt = mapping?.get(ExternalCalendarsTable.lastSyncAt)?.toString(),
-        lastError = mapping?.get(ExternalCalendarsTable.lastError),
-        inviteUrl = inviteUrl,
-    )
+    ): DiscordGuildSummary {
+        val manageable = guild.owner || hasManageGuildPermission(guild.permissions)
+        return DiscordGuildSummary(
+            id = guild.id,
+            name = guild.name,
+            icon = guild.icon,
+            owner = guild.owner,
+            botPresent = botPresent,
+            manageable = manageable,
+            imported = mapping != null,
+            enabled = mapping?.get(ExternalCalendarsTable.enabled) ?: false,
+            externalCalendarId = mapping?.get(ExternalCalendarsTable.id)?.toString(),
+            calendarId = mapping?.get(ExternalCalendarsTable.calendarId)?.toString(),
+            lastSyncAt = mapping?.get(ExternalCalendarsTable.lastSyncAt)?.toString(),
+            lastError = mapping?.get(ExternalCalendarsTable.lastError),
+            inviteUrl = inviteUrl.takeIf { !botPresent && manageable },
+        )
+    }
+
+    /**
+     * Parses the decimal permissions bitfield from `/users/@me/guilds`. Discord
+     * sends an unsigned 64-bit value, so use [BigInteger] rather than a signed
+     * `Long` and treat anything unparseable as "no permission".
+     */
+    private fun hasManageGuildPermission(permissions: String?): Boolean {
+        val raw = permissions?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        return try {
+            BigInteger(raw).testBit(ManageGuildPermissionBit)
+        } catch (_: NumberFormatException) {
+            false
+        }
+    }
 
     private fun inviteUrl(): String? {
         val clientId = settings.discord.clientId.takeIf { it.isNotBlank() } ?: return null
@@ -469,6 +495,7 @@ class DiscordImportService(
         const val ReauthMessage = "external connection must be reconnected"
         const val MaxLastErrorLength = 500
         const val HttpStatusCodeNotFound = 404
+        const val ManageGuildPermissionBit = 5
         const val DiscordInviteUrl = "https://discord.com/oauth2/authorize"
         const val DiscordInvitePermissions = "1024"
     }

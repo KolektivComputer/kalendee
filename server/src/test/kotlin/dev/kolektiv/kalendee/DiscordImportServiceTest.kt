@@ -95,11 +95,11 @@ class DiscordImportServiceTest {
         val before = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
         assertEquals("guild-1", before.id)
         assertTrue(before.botPresent)
+        assertTrue(before.manageable)
         assertFalse(before.imported)
         assertFalse(before.enabled)
         assertNull(before.externalCalendarId)
-        val invite = assertNotNull(before.inviteUrl)
-        assertEquals("discord-client", Url(invite).parameters["client_id"])
+        assertNull(before.inviteUrl)
 
         val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
         val after = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
@@ -115,7 +115,111 @@ class DiscordImportServiceTest {
         val guild = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
 
         assertFalse(guild.botPresent)
+        assertTrue(guild.manageable)
         assertFalse(guild.imported)
+        assertNull(guild.inviteUrl)
+    }
+
+    @Test
+    fun guildListingIncludesBotPresentButUnmanageableGuilds() = testApplication {
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok("[${guildJson("guild-2", permissions = "1024")}]") },
+                botGuilds = { ok("[${guildJson("guild-2")}]") },
+            ),
+        )
+
+        val guild = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
+
+        assertEquals("guild-2", guild.id)
+        assertTrue(guild.botPresent)
+        assertFalse(guild.manageable)
+        assertNull(guild.inviteUrl)
+    }
+
+    @Test
+    fun guildListingExcludesUnmanageableGuildsWithoutBot() = testApplication {
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok("[${guildJson("guild-2", permissions = "1024")}]") },
+                botGuilds = { ok("[]") },
+            ),
+        )
+
+        assertTrue(fixture.imports.guilds(fixture.user.id, fixture.connectionId).isEmpty())
+    }
+
+    @Test
+    fun guildListingIncludesManageableGuildWithoutBotAndInvite() = testApplication {
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok("[${guildJson("guild-2", permissions = "32")}]") },
+                botGuilds = { ok("[]") },
+            ),
+        )
+
+        val guild = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
+
+        assertEquals("guild-2", guild.id)
+        assertFalse(guild.botPresent)
+        assertTrue(guild.manageable)
+        val invite = assertNotNull(guild.inviteUrl)
+        assertEquals("discord-client", Url(invite).parameters["client_id"])
+    }
+
+    @Test
+    fun manageabilityParsesOwnerManageGuildBitAndLargePermissions() = testApplication {
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = {
+                    ok(
+                        "[" +
+                            guildJson("owner", owner = true) + "," +
+                            guildJson("bit", permissions = "32") + "," +
+                            guildJson("other-bit", permissions = "1024") + "," +
+                            guildJson("big", permissions = "18446744073709551615") + "," +
+                            guildJson("overflow", permissions = "9223372036854775808") + "," +
+                            guildJson("garbage", permissions = "not-a-number") +
+                            "]",
+                    )
+                },
+                botGuilds = { ok("[]") },
+            ),
+        )
+
+        val listed = fixture.imports.guilds(fixture.user.id, fixture.connectionId).associateBy { it.id }
+
+        assertEquals(setOf("owner", "bit", "big"), listed.keys)
+        assertTrue(listed.getValue("owner").manageable)
+        assertTrue(listed.getValue("bit").manageable)
+        assertTrue(listed.getValue("big").manageable)
+        assertFalse(listed.getValue("owner").botPresent)
+        val invite = assertNotNull(listed.getValue("owner").inviteUrl)
+        assertEquals("discord-client", Url(invite).parameters["client_id"])
+    }
+
+    @Test
+    fun importedGuildStaysListedAfterLosingBotAndManageability() = testApplication {
+        var userGuilds = "[${guildJson("guild-1", permissions = "32")}]"
+        var botGuilds = "[${guildJson("guild-1")}]"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok(userGuilds) },
+                botGuilds = { ok(botGuilds) },
+                scheduledEvents = { ok("[]") },
+            ),
+        )
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        assertTrue(summary.imported)
+
+        userGuilds = "[${guildJson("guild-1", permissions = "1024")}]"
+        botGuilds = "[]"
+        val guild = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
+
+        assertTrue(guild.imported)
+        assertEquals(summary.externalCalendarId, guild.externalCalendarId)
+        assertFalse(guild.botPresent)
+        assertFalse(guild.manageable)
         assertNull(guild.inviteUrl)
     }
 
@@ -473,6 +577,15 @@ class DiscordImportServiceTest {
         append('}')
     }
 
+    private fun guildJson(
+        id: String,
+        owner: Boolean = false,
+        permissions: String? = null,
+    ): String {
+        val permissionField = if (permissions != null) ",\"permissions\":\"$permissions\"" else ""
+        return "{\"id\":\"$id\",\"name\":\"$id\",\"icon\":null,\"owner\":$owner$permissionField}"
+    }
+
     private fun discordTestConfig(botToken: String?): Map<String, String> = mapOf(
         "oauth.discord.clientId" to "discord-client",
         "oauth.discord.clientSecret" to "discord-secret",
@@ -483,7 +596,7 @@ class DiscordImportServiceTest {
     private fun ok(body: String): Pair<HttpStatusCode, String> = HttpStatusCode.OK to body
 
     private companion object {
-        val UserGuildsJson = """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash"}]"""
+        val UserGuildsJson = """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash","owner":true}]"""
         val IdentityJson = """{"id":"discord-1","username":"mey","global_name":"Mey"}"""
         val TokenJson =
             """{"access_token":"access-1","refresh_token":"refresh-1","expires_in":604800,""" +

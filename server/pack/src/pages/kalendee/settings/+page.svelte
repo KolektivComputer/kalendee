@@ -1080,89 +1080,87 @@
                     {#if guildsByConnection[connection.id]}
                       <ul class="flex flex-col gap-2">
                         {#each guildsByConnection[connection.id] ?? [] as guild (guild.id)}
-                          <li class="rounded-box border border-base-300 bg-base-100 p-3">
-                            <div class="flex flex-wrap items-start gap-3">
+                          <li class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span
+                              class="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-base-300 bg-base-100 py-1 pr-3 pl-1"
+                            >
                               {#if guild.iconUrl}
-                                <img src={guild.iconUrl} alt="" class="h-9 w-9 shrink-0 rounded-full object-cover" />
+                                <img
+                                  src={guild.iconUrl}
+                                  alt=""
+                                  class="h-6 w-6 shrink-0 rounded-full object-cover"
+                                />
                               {:else}
                                 <span
-                                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-base-content/20 text-sm font-semibold"
+                                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-base-content/20 text-xs font-semibold"
                                   aria-hidden="true"
                                 >
                                   {guildInitials(guild.name)}
                                 </span>
                               {/if}
-                              <div class="min-w-0 flex-1">
-                                <div class="flex flex-wrap items-center gap-2">
-                                  <span class="truncate font-medium">{guild.name}</span>
-                                  {#if guild.imported}
-                                    <span class="badge badge-sm {guild.enabled ? 'badge-success' : 'badge-ghost'}">
-                                      {guild.enabled ? "Enabled" : "Paused"}
-                                    </span>
-                                  {/if}
-                                  {#if !guild.botPresent}
-                                    <span class="badge badge-warning badge-sm">Bot missing</span>
-                                  {/if}
-                                </div>
-                                {#if guild.imported && guild.lastSyncAt}
-                                  <p class="settings-hint">Last sync {formatTimestamp(guild.lastSyncAt)}</p>
-                                {/if}
-                                {#if guild.imported && guild.lastError}
-                                  <p class="text-error text-sm">{guild.lastError}</p>
-                                {/if}
-                                {#if !guild.botPresent && guild.inviteUrl}
-                                  <a
-                                    class="link link-primary text-sm"
-                                    href={guild.inviteUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    Add Kalendee bot
-                                  </a>
-                                {/if}
-                              </div>
-                              <div class="flex flex-wrap gap-2">
-                                {#if !guild.imported}
-                                  {#if guild.botPresent}
-                                    <button
-                                      type="button"
-                                      class="btn btn-primary btn-sm"
-                                      disabled={guildPending !== ""}
-                                      onclick={() => void importGuild(connection.id, guild)}
-                                    >
-                                      Import
-                                    </button>
-                                  {:else if !guild.inviteUrl}
-                                    <span class="settings-hint">Ask an admin to configure the bot.</span>
-                                  {/if}
-                                {:else}
-                                  <button
-                                    type="button"
-                                    class="btn btn-sm"
-                                    disabled={guildPending !== ""}
-                                    onclick={() => void toggleGuild(connection.id, guild)}
-                                  >
-                                    {guild.enabled ? "Pause" : "Enable"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="btn btn-sm"
-                                    disabled={guildPending !== ""}
-                                    onclick={() => void syncGuild(connection.id, guild)}
-                                  >
-                                    Sync now
-                                  </button>
-                                  <button
-                                    type="button"
-                                    class="btn btn-ghost btn-sm text-error"
-                                    disabled={guildPending !== ""}
-                                    onclick={() => void removeGuildImport(connection.id, guild)}
-                                  >
-                                    Remove import
-                                  </button>
-                                {/if}
-                              </div>
-                            </div>
+                              <span class="min-w-0 truncate text-sm font-medium">{guild.name}</span>
+                            </span>
+                            {#if guild.imported}
+                              <span class="badge badge-sm {guild.enabled ? 'badge-success' : 'badge-ghost'}">
+                                {guild.enabled ? "Enabled" : "Paused"}
+                              </span>
+                            {/if}
+                            {#if !guild.botPresent}
+                              <span class="badge badge-warning badge-sm">Bot missing</span>
+                            {/if}
+                            {#if !guild.botPresent && guild.manageable && guild.inviteUrl}
+                              <a
+                                class="link link-primary text-sm"
+                                href={guild.inviteUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Add Kalendee bot
+                              </a>
+                            {/if}
+                            {#if !guild.imported}
+                              {#if guild.botPresent}
+                                <button
+                                  type="button"
+                                  class="btn btn-primary btn-sm"
+                                  disabled={guildPending !== ""}
+                                  onclick={() => void importGuild(connection.id, guild)}
+                                >
+                                  Import
+                                </button>
+                              {/if}
+                            {:else}
+                              <button
+                                type="button"
+                                class="btn btn-sm"
+                                disabled={guildPending !== ""}
+                                onclick={() => void toggleGuild(connection.id, guild)}
+                              >
+                                {guild.enabled ? "Pause" : "Enable"}
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-sm"
+                                disabled={guildPending !== ""}
+                                onclick={() => void syncGuild(connection.id, guild)}
+                              >
+                                Sync now
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-ghost btn-sm text-error"
+                                disabled={guildPending !== ""}
+                                onclick={() => void removeGuildImport(connection.id, guild)}
+                              >
+                                Remove import
+                              </button>
+                            {/if}
+                            {#if guild.imported && guild.lastSyncAt}
+                              <p class="settings-hint w-full">Last sync {formatTimestamp(guild.lastSyncAt)}</p>
+                            {/if}
+                            {#if guild.imported && guild.lastError}
+                              <p class="text-error w-full text-sm">{guild.lastError}</p>
+                            {/if}
                           </li>
                         {/each}
                       </ul>

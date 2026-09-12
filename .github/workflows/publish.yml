@@ -53,12 +53,31 @@ jobs:
             echo "::warning::Nexus credentials YURI_CAPITAL_REPO_USERNAME/YURI_CAPITAL_REPO_PASSWORD are not configured; skipping Maven publication."
             exit 0
           fi
-          if printf '%s' "$VERSION" | grep -qi 'SNAPSHOT'; then
+          if printf '%s' "$VERSION" | grep -qi -- '-SNAPSHOT$'; then
             REPO_TASK="YuriSnapshotsRepository"
+            REPO_URL="https://repo.yuri.capital/repository/maven-snapshots"
           else
             REPO_TASK="YuriReleasesRepository"
+            REPO_URL="https://repo.yuri.capital/repository/maven-releases"
           fi
-          ./gradlew ":core:publishAllPublicationsTo${REPO_TASK}" ":app:shared:publishAllPublicationsTo${REPO_TASK}" -Pversion="$VERSION" --stacktrace
+          CORE_POM="$REPO_URL/dev/kolektiv/kalendee/core/$VERSION/core-$VERSION.pom"
+          SHARED_POM="$REPO_URL/dev/kolektiv/kalendee/shared/$VERSION/shared-$VERSION.pom"
+          if curl -sf -u "$YURI_CAPITAL_REPO_USERNAME:$YURI_CAPITAL_REPO_PASSWORD" -o /dev/null "$CORE_POM" \
+            && curl -sf -u "$YURI_CAPITAL_REPO_USERNAME:$YURI_CAPITAL_REPO_PASSWORD" -o /dev/null "$SHARED_POM"; then
+            echo "::warning::Kalendee $VERSION is already published to $REPO_URL; skipping Maven publication."
+            exit 0
+          fi
+          set +e
+          ./gradlew ":core:publishAllPublicationsTo${REPO_TASK}" ":app:shared:publishAllPublicationsTo${REPO_TASK}" -Pversion="$VERSION" --stacktrace 2>&1 | tee "$RUNNER_TEMP/publish.log"
+          status="${PIPESTATUS[0]}"
+          set -e
+          if [ "$status" -ne 0 ]; then
+            if grep -qEi 'status code 409|already exists|does not allow updating assets|does not allow redeploy' "$RUNNER_TEMP/publish.log"; then
+              echo "::warning::Publishing kalendee $VERSION reported existing/immutable assets in $REPO_URL; treating as already published."
+            else
+              exit "$status"
+            fi
+          fi
 
   release:
     runs-on: ubuntu-latest
@@ -89,7 +108,7 @@ jobs:
           else
             VERSION="${GITHUB_REF_NAME#v}"
           fi
-          if printf '%s' "$VERSION" | grep -qi 'SNAPSHOT'; then
+          if printf '%s' "$VERSION" | grep -qi -- '-SNAPSHOT$'; then
             echo "::error::Refusing to create a GitHub Release for snapshot version $VERSION."
             exit 1
           fi

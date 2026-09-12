@@ -31,17 +31,19 @@ fun Route.oauthRoutes(connections: ConnectionService, settings: AuthSettings) {
     }
 
     get("/oauth/{provider}/callback") {
+        val currentUser = call.currentUser()
+        val failureRedirect = if (currentUser != null) "/settings?oauth=error" else "/login?oauth=error"
         val providerId = call.parameters["provider"].orEmpty()
         val code = call.request.queryParameters["code"]
         val state = call.request.queryParameters["state"]
         if (code.isNullOrBlank() || state.isNullOrBlank()) {
-            call.respondRedirect("/login?oauth=error")
+            call.respondRedirect(failureRedirect)
             return@get
         }
         val outcome = try {
-            connections.handleCallback(providerId, code, state, call.currentUser()?.id)
+            connections.handleCallback(providerId, code, state, currentUser?.id)
         } catch (_: CalendarException) {
-            call.respondRedirect("/login?oauth=error")
+            call.respondRedirect(failureRedirect)
             return@get
         }
         when (outcome) {

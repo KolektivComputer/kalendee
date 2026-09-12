@@ -77,13 +77,12 @@ app {
 
 # External calendar connections. Providers with a blank client id are disabled.
 oauth {
-    google {
-        clientId = ${?KALENDEE_GOOGLE_CLIENT_ID}
-        clientSecret = ${?KALENDEE_GOOGLE_CLIENT_SECRET}
-    }
-    microsoft {
-        clientId = ${?KALENDEE_MICROSOFT_CLIENT_ID}
-        clientSecret = ${?KALENDEE_MICROSOFT_CLIENT_SECRET}
+    discord {
+        clientId = ${?KALENDEE_DISCORD_CLIENT_ID}
+        clientSecret = ${?KALENDEE_DISCORD_CLIENT_SECRET}
+        # Bot token for reading guild scheduled events. Invite the bot to the
+        # guild first; optional, user linking works without it.
+        botToken = ${?KALENDEE_DISCORD_BOT_TOKEN}
     }
     # Token-encryption keys: KALENDEE_SECRET_KEY is a base64 32-byte key (version 1);
     # KALENDEE_SECRET_KEYS is an optional JSON object for rotation, e.g.

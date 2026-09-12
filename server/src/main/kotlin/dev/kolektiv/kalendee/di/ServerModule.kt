@@ -29,8 +29,8 @@ import dev.kolektiv.kalendee.oauth.OAuthSettings
 import dev.kolektiv.kalendee.oauth.OAuthStateService
 import dev.kolektiv.kalendee.oauth.ProviderRegistry
 import dev.kolektiv.kalendee.oauth.TokenVault
-import dev.kolektiv.kalendee.oauth.providers.GoogleProvider
-import dev.kolektiv.kalendee.oauth.providers.MicrosoftProvider
+import dev.kolektiv.kalendee.oauth.providers.DiscordApi
+import dev.kolektiv.kalendee.oauth.providers.DiscordProvider
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.storage.AvatarStorage
@@ -111,11 +111,11 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { HttpClient(CIO) { expectSuccess = false } } onClose { it?.close() }
     single<TokenVault> { AesGcmTokenVault.from(get()) }
     single { OAuthStateService(database = get(), vault = get(), clock = get()) }
+    single { DiscordApi(http = get(), botToken = get<OAuthSettings>().discord.botToken) }
     single {
         ProviderRegistry(
             providers = listOf(
-                GoogleProvider(settings = get<OAuthSettings>().google, http = get()),
-                MicrosoftProvider(settings = get<OAuthSettings>().microsoft, http = get()),
+                DiscordProvider(settings = get<OAuthSettings>().discord, http = get(), api = get()),
             ),
         )
     }

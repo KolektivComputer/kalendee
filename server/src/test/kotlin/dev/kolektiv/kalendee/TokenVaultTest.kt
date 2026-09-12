@@ -77,8 +77,7 @@ class TokenVaultTest {
     @Test
     fun missingConfigurationFailsClosed() {
         val settings = OAuthSettings(
-            google = ProviderOAuthSettings(clientId = "gid", clientSecret = "gsecret"),
-            microsoft = ProviderOAuthSettings(clientId = "", clientSecret = ""),
+            discord = ProviderOAuthSettings(clientId = "did", clientSecret = "dsecret"),
         )
         val vault = AesGcmTokenVault.from(settings)
         assertSame(UnconfiguredTokenVault, vault)
@@ -123,8 +122,7 @@ class TokenVaultTest {
     }
 
     private fun settings(secretKey: String? = null, secretKeys: String? = null) = OAuthSettings(
-        google = ProviderOAuthSettings(clientId = "gid", clientSecret = "gsecret"),
-        microsoft = ProviderOAuthSettings(clientId = "", clientSecret = ""),
+        discord = ProviderOAuthSettings(clientId = "did", clientSecret = "dsecret"),
         secretKey = secretKey,
         secretKeys = secretKeys,
     )

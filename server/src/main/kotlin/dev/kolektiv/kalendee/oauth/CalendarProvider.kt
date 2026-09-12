@@ -47,13 +47,7 @@ interface OAuthClient {
     suspend fun accountIdentity(tokens: OAuthTokens): ProviderAccount
 }
 
-/**
- * Placeholder for the external-calendar sync engine. Providers return null until a
- * later milestone implements calendar discovery, pull, and push.
- */
-interface CalendarSyncAdapter {
-    val providerId: String
-}
+class OAuthReauthRequiredException(message: String) : RuntimeException(message)
 
 interface CalendarProvider {
     val id: String
@@ -62,8 +56,6 @@ interface CalendarProvider {
     val scopes: List<String>
 
     fun oauthClient(): OAuthClient
-
-    fun syncAdapter(): CalendarSyncAdapter? = null
 }
 
 object Pkce {

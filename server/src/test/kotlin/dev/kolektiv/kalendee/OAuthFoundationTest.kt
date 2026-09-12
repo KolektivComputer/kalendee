@@ -1,10 +1,8 @@
 package dev.kolektiv.kalendee
 
 import com.typesafe.config.ConfigFactory
-import dev.kolektiv.kalendee.api.VerifyEmailBody
 import dev.kolektiv.kalendee.auth.AuthSettings
 import dev.kolektiv.kalendee.auth.LoginUser
-import dev.kolektiv.kalendee.auth.RegisterUser
 import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.oauth.ConnectionService
 import dev.kolektiv.kalendee.oauth.OAuthSettings
@@ -27,6 +25,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.contentType
@@ -51,19 +50,29 @@ import org.koin.ktor.ext.get
 
 class OAuthFoundationTest {
     @Test
-    fun oauthSettingsParseProvidersAndDisableBlankClientIds() {
+    fun oauthSettingsParseDiscordAndDisableBlankClientIds() {
         val settings = OAuthSettings.from(
             MapApplicationConfig(
-                "oauth.google.clientId" to "google-client",
-                "oauth.google.clientSecret" to "google-secret",
-                "oauth.microsoft.clientId" to "  ",
+                "oauth.discord.clientId" to "discord-client",
+                "oauth.discord.clientSecret" to "discord-secret",
+                "oauth.discord.botToken" to "  ",
                 "oauth.secretKey" to oauthTestSecretKey,
             ),
         )
-        assertTrue(settings.google.enabled)
-        assertEquals("google-secret", settings.google.clientSecret)
-        assertFalse(settings.microsoft.enabled)
+        assertTrue(settings.discord.enabled)
+        assertEquals("discord-secret", settings.discord.clientSecret)
+        assertNull(settings.discord.botToken, "blank bot tokens must be treated as absent")
         assertEquals(oauthTestSecretKey, settings.secretKey)
+
+        val disabled = OAuthSettings.from(
+            MapApplicationConfig(
+                "oauth.discord.clientId" to "  ",
+                "oauth.discord.clientSecret" to "discord-secret",
+                "oauth.discord.botToken" to " bot-token ",
+            ),
+        )
+        assertFalse(disabled.discord.enabled)
+        assertEquals("bot-token", disabled.discord.botToken)
     }
 
     @Test
@@ -75,20 +84,20 @@ class OAuthFoundationTest {
                 val pkce = Pkce.generate()
                 val state = states.create(
                     userId = null,
-                    provider = "google",
+                    provider = "discord",
                     pkce = pkce,
-                    redirectUri = "https://kalendee.test/api/v1/oauth/google/callback",
+                    redirectUri = "https://kalendee.test/api/v1/oauth/discord/callback",
                     returnTo = "/settings?tab=connections",
                 )
-                val mismatch = assertFailsWith<CalendarException.Invalid> { states.consume(state, "microsoft") }
+                val mismatch = assertFailsWith<CalendarException.Invalid> { states.consume(state, "google") }
                 assertEquals("oauth state provider mismatch", mismatch.message)
 
-                val record = states.consume(state, "google")
+                val record = states.consume(state, "discord")
                 assertEquals(pkce.verifier, record.codeVerifier)
                 assertEquals("/settings?tab=connections", record.returnTo)
-                assertEquals("google", record.provider)
+                assertEquals("discord", record.provider)
 
-                assertFailsWith<CalendarException.Invalid> { states.consume(state, "google") }
+                assertFailsWith<CalendarException.Invalid> { states.consume(state, "discord") }
             }
         }
     }
@@ -101,65 +110,64 @@ class OAuthFoundationTest {
                 val states = get<OAuthStateService>()
                 val state = states.create(
                     userId = null,
-                    provider = "google",
+                    provider = "discord",
                     pkce = Pkce.generate(),
-                    redirectUri = "https://kalendee.test/api/v1/oauth/google/callback",
+                    redirectUri = "https://kalendee.test/api/v1/oauth/discord/callback",
                     returnTo = null,
                 )
-                assertFailsWith<CalendarException.Invalid> { states.consume("missing-state", "google") }
+                assertFailsWith<CalendarException.Invalid> { states.consume("missing-state", "discord") }
                 val future = object : Clock {
                     override fun now() = Clock.System.now() + 11.minutes
                 }
                 val expired = OAuthStateService(database = get(), vault = get(), clock = future)
-                assertFailsWith<CalendarException.Invalid> { expired.consume(state, "google") }
+                assertFailsWith<CalendarException.Invalid> { expired.consume(state, "discord") }
             }
         }
     }
 
     @Test
     fun sessionLinksProviderAccount() = testApplication {
-        installApi(httpClient = HttpClient(mockGoogleEngine()), extraConfig = oauthTestConfig())
+        val engine = mockDiscordEngine()
+        installApi(httpClient = HttpClient(engine), extraConfig = oauthTestConfig())
         val client = jsonClient(followRedirects = false)
         client.registerAndLogin(username = "mey")
 
-        val start = client.startGoogle()
-        assertEquals("offline", start.authorizationUrl.parameters["access_type"])
-        assertEquals("consent", start.authorizationUrl.parameters["prompt"])
-        assertEquals("true", start.authorizationUrl.parameters["include_granted_scopes"])
+        val start = client.startDiscord()
+        assertEquals("code", start.authorizationUrl.parameters["response_type"])
+        assertEquals("discord-client", start.authorizationUrl.parameters["client_id"])
         assertEquals("S256", start.authorizationUrl.parameters["code_challenge_method"])
+        assertNotNull(start.authorizationUrl.parameters["code_challenge"])
+        assertEquals("identify guilds", start.authorizationUrl.parameters["scope"])
         assertEquals(
-            "https://kalendee.test/api/v1/oauth/google/callback",
+            "https://kalendee.test/api/v1/oauth/discord/callback",
             start.authorizationUrl.parameters["redirect_uri"],
         )
-        val scope = start.authorizationUrl.parameters["scope"].orEmpty()
-        assertTrue("https://www.googleapis.com/auth/calendar" in scope)
 
-        val callback = client.callbackGoogle(start.state)
+        val callback = client.callbackDiscord(start.state)
         assertEquals(HttpStatusCode.Found, callback.status)
         assertEquals("/settings?tab=connections&oauth=ok", callback.headers[HttpHeaders.Location])
         assertNull(callback.headers[HttpHeaders.SetCookie], "an existing session must be kept")
 
         val page = client.settingsPage()
         assertEquals(1, page.connections.size)
-        assertEquals("google", page.connections.single().provider)
-        assertEquals("Google Calendar", page.connections.single().providerName)
-        assertEquals("user@example.com", page.connections.single().accountEmail)
+        assertEquals("discord", page.connections.single().provider)
+        assertEquals("Discord", page.connections.single().providerName)
+        assertNull(page.connections.single().accountEmail)
         assertEquals("OAuth User", page.connections.single().displayName)
         assertEquals("active", page.connections.single().status)
-        assertTrue(page.providers.single { it.id == "google" }.enabled)
-        assertEquals("/api/v1/oauth/google/start", page.providers.single { it.id == "google" }.connectUrl)
-        assertFalse(page.providers.single { it.id == "microsoft" }.enabled)
+        assertTrue(page.providers.single { it.id == "discord" }.enabled)
+        assertEquals("/api/v1/oauth/discord/start", page.providers.single { it.id == "discord" }.connectUrl)
 
-        val asJson = client.get("/api/v1/oauth/google/start?format=json")
+        val asJson = client.get("/api/v1/oauth/discord/start?format=json")
         assertEquals(HttpStatusCode.OK, asJson.status)
-        assertTrue(asJson.bodyAsText().contains("accounts.google.com"), asJson.bodyAsText())
+        assertTrue(asJson.bodyAsText().contains("discord.com/oauth2/authorize"), asJson.bodyAsText())
 
         val action = client.post("${Keel.ACTION_PATH}/kalendee.connectProvider") {
             contentType(ContentType.Application.Json)
-            setBody("""{"providerId":"google","returnTo":"/settings"}""")
+            setBody("""{"providerId":"discord","returnTo":"/settings"}""")
         }
         assertEquals(HttpStatusCode.OK, action.status, action.bodyAsText())
-        assertTrue(action.bodyAsText().contains("accounts.google.com"), action.bodyAsText())
+        assertTrue(action.bodyAsText().contains("discord.com/oauth2/authorize"), action.bodyAsText())
 
         val disconnected = client.post("${Keel.ACTION_PATH}/kalendee.disconnectAccount") {
             contentType(ContentType.Application.Json)
@@ -167,6 +175,28 @@ class OAuthFoundationTest {
         }
         assertEquals(HttpStatusCode.OK, disconnected.status, disconnected.bodyAsText())
         assertTrue(client.settingsPage().connections.isEmpty())
+        assertTrue(
+            engine.requestHistory.any { it.url.encodedPath.endsWith("/oauth2/token/revoke") },
+            "disconnect must try to revoke the Discord authorization",
+        )
+    }
+
+    @Test
+    fun callbackStateBoundToAnotherUserIsRejected() = testApplication {
+        val engine = mockDiscordEngine()
+        installApi(httpClient = HttpClient(engine), extraConfig = oauthTestConfig())
+        val alice = jsonClient(followRedirects = false)
+        alice.registerAndLogin(username = "alice")
+        val start = alice.startDiscord()
+        assertEquals(HttpStatusCode.NoContent, alice.post("/api/v1/auth/logout").status)
+
+        val bob = jsonClient(followRedirects = false)
+        bob.registerAndLogin(username = "bob")
+        val callback = bob.get("/api/v1/oauth/discord/callback?code=mock-code&state=${start.state}")
+        assertEquals(HttpStatusCode.Found, callback.status)
+        assertEquals("/settings?oauth=error", callback.headers[HttpHeaders.Location])
+        assertTrue(bob.settingsPage().connections.isEmpty())
+        assertTrue(engine.requestHistory.isEmpty(), "the mismatched state must be rejected before any token exchange")
     }
 
     @Test
@@ -191,49 +221,14 @@ class OAuthFoundationTest {
     }
 
     @Test
-    fun verifiedEmailMatchSignsInAndLinks() = testApplication {
-        val mail = RecordingMailer()
-        installApi(mailer = mail, httpClient = HttpClient(mockGoogleEngine()), extraConfig = oauthTestConfig())
-        val state = installAnonymousState(returnTo = "/settings?tab=connections")
-
-        val local = jsonClient(followRedirects = false)
-        val registered = local.post("/api/v1/auth/register") {
-            contentType(ContentType.Application.Json)
-            setBody(RegisterUser(username = "mey", password = "password12", email = "User@Example.com"))
-        }
-        assertEquals(HttpStatusCode.Created, registered.status, registered.bodyAsText())
-        val verified = local.post("/api/v1/auth/verify-email") {
-            contentType(ContentType.Application.Json)
-            setBody(VerifyEmailBody(mail.lastVerificationToken()))
-        }
-        assertEquals(HttpStatusCode.OK, verified.status, verified.bodyAsText())
-        local.post("/api/v1/auth/logout")
-
-        val anon = jsonClient(followRedirects = false)
-        val callback = anon.callbackGoogle(state)
-        assertEquals(HttpStatusCode.Found, callback.status, callback.bodyAsText())
-        assertEquals("/settings?tab=connections", callback.headers[HttpHeaders.Location])
-        assertNotNull(callback.headers[HttpHeaders.SetCookie], "sign-in must mint a session cookie")
-
-        val me = anon.get("/api/v1/auth/me")
-        assertEquals(HttpStatusCode.OK, me.status)
-        assertTrue(me.bodyAsText().contains("\"username\":\"mey\""))
-        assertTrue(me.bodyAsText().contains("\"emailVerified\":true"))
-
-        val page = anon.settingsPage()
-        val connection = page.connections.single()
-        assertEquals("user@example.com", connection.accountEmail)
-    }
-
-    @Test
-    fun unknownEmailIsRejectedWhenOAuthRegistrationIsOff() = testApplication {
+    fun unknownAccountIsRejectedWhenOAuthRegistrationIsOff() = testApplication {
         installApi(
-            httpClient = HttpClient(mockGoogleEngine(email = "stranger@example.com")),
+            httpClient = HttpClient(mockDiscordEngine()),
             extraConfig = oauthTestConfig(oauthRegistration = false),
         )
         val state = installAnonymousState()
         val anon = jsonClient(followRedirects = false)
-        val callback = anon.callbackGoogle(state)
+        val callback = anon.callbackDiscord(state)
         assertEquals(HttpStatusCode.Found, callback.status)
         assertEquals("/login?oauth=registration_closed", callback.headers[HttpHeaders.Location])
         assertNull(callback.headers[HttpHeaders.SetCookie])
@@ -243,10 +238,10 @@ class OAuthFoundationTest {
 
     @Test
     fun oauthRegistrationCreatesVerifiedUserWhenOpen() = testApplication {
-        installApi(httpClient = HttpClient(mockGoogleEngine()), extraConfig = oauthTestConfig(oauthRegistration = true))
+        installApi(httpClient = HttpClient(mockDiscordEngine()), extraConfig = oauthTestConfig(oauthRegistration = true))
         val state = installAnonymousState()
         val anon = jsonClient(followRedirects = false)
-        val callback = anon.callbackGoogle(state)
+        val callback = anon.callbackDiscord(state)
         assertEquals(HttpStatusCode.Found, callback.status, callback.bodyAsText())
         assertEquals("/settings?tab=connections&oauth=ok", callback.headers[HttpHeaders.Location])
         assertNotNull(callback.headers[HttpHeaders.SetCookie])
@@ -254,8 +249,8 @@ class OAuthFoundationTest {
         val me = anon.get("/api/v1/auth/me")
         assertEquals(HttpStatusCode.OK, me.status)
         val body = me.bodyAsText()
-        assertTrue(body.contains("\"username\":\"user\""), body)
-        assertTrue(body.contains("\"email\":\"user@example.com\""), body)
+        assertTrue(body.contains("\"username\":\"oauthuser\""), body)
+        assertTrue(body.contains("\"email\":null"), body)
         assertTrue(body.contains("\"emailVerified\":true"), body)
         assertTrue(body.contains("\"admin\":true"), "the first user is an admin")
     }
@@ -264,12 +259,12 @@ class OAuthFoundationTest {
     fun oauthRegistrationStillRespectsClosedRegistration() = testApplication {
         installApi(
             registration = "closed",
-            httpClient = HttpClient(mockGoogleEngine()),
+            httpClient = HttpClient(mockDiscordEngine()),
             extraConfig = oauthTestConfig(oauthRegistration = true),
         )
         val state = installAnonymousState()
         val anon = jsonClient(followRedirects = false)
-        val callback = anon.callbackGoogle(state)
+        val callback = anon.callbackDiscord(state)
         assertEquals(HttpStatusCode.Found, callback.status)
         assertEquals("/login?oauth=registration_closed", callback.headers[HttpHeaders.Location])
         assertNull(callback.headers[HttpHeaders.SetCookie])
@@ -277,16 +272,16 @@ class OAuthFoundationTest {
 
     @Test
     fun duplicateProviderIdentityUpdatesTheExistingConnection() = testApplication {
-        installApi(httpClient = HttpClient(mockGoogleEngine()), extraConfig = oauthTestConfig())
+        installApi(httpClient = HttpClient(mockDiscordEngine()), extraConfig = oauthTestConfig())
         val client = jsonClient(followRedirects = false)
         client.registerAndLogin(username = "mey")
 
-        val first = client.startGoogle()
-        assertEquals(HttpStatusCode.Found, client.callbackGoogle(first.state).status)
+        val first = client.startDiscord()
+        assertEquals(HttpStatusCode.Found, client.callbackDiscord(first.state).status)
         val firstConnection = client.settingsPage().connections.single()
 
-        val second = client.startGoogle()
-        assertEquals(HttpStatusCode.Found, client.callbackGoogle(second.state).status)
+        val second = client.startDiscord()
+        assertEquals(HttpStatusCode.Found, client.callbackDiscord(second.state).status)
         val connections = client.settingsPage().connections
         assertEquals(1, connections.size)
         assertEquals(firstConnection.id, connections.single().id)
@@ -331,9 +326,13 @@ class OAuthFoundationTest {
             assertTrue(Files.exists(file), "missing $file")
             val text = Files.readString(file)
             assertTrue("oauth" in text, "missing oauth block in $file")
+            assertTrue("KALENDEE_DISCORD_CLIENT_ID" in text, "missing discord client id in $file")
+            assertTrue("KALENDEE_DISCORD_BOT_TOKEN" in text, "missing discord bot token in $file")
             assertTrue("KALENDEE_SECRET_KEY" in text, "missing secret key in $file")
             assertTrue("KALENDEE_AUTH_OAUTH_REGISTRATION" in text, "missing oauth registration env in $file")
             assertFalse(text.contains("oauthRegistration = true"), "oauth registration must default to off in $file")
+            assertFalse(text.contains("KALENDEE_GOOGLE_CLIENT_ID"), "google must be removed from $file")
+            assertFalse(text.contains("KALENDEE_MICROSOFT_CLIENT_ID"), "microsoft must be removed from $file")
             val config = ConfigFactory.parseFile(file.toFile()).resolve()
             assertTrue(config.hasPath("auth.oauthRegistration"), "auth.oauthRegistration must resolve in $file")
         }
@@ -342,8 +341,11 @@ class OAuthFoundationTest {
             assertTrue(Files.exists(file), "missing $file")
             val text = Files.readString(file)
             assertTrue("KALENDEE_SECRET_KEY" in text, "missing secret key placeholder in $file")
-            assertTrue("KALENDEE_GOOGLE_CLIENT_ID" in text, "missing google client placeholder in $file")
-            assertTrue("KALENDEE_MICROSOFT_CLIENT_ID" in text, "missing microsoft client placeholder in $file")
+            assertTrue("KALENDEE_DISCORD_CLIENT_ID" in text, "missing discord client placeholder in $file")
+            assertTrue("KALENDEE_DISCORD_CLIENT_SECRET" in text, "missing discord client secret placeholder in $file")
+            assertTrue("KALENDEE_DISCORD_BOT_TOKEN" in text, "missing discord bot token placeholder in $file")
+            assertFalse(text.contains("KALENDEE_GOOGLE_CLIENT_ID"), "google must be removed from $file")
+            assertFalse(text.contains("KALENDEE_MICROSOFT_CLIENT_ID"), "microsoft must be removed from $file")
         }
     }
 
@@ -353,9 +355,9 @@ class OAuthFoundationTest {
             runBlocking {
                 state = get<OAuthStateService>().create(
                     userId = null,
-                    provider = "google",
+                    provider = "discord",
                     pkce = Pkce.generate(),
-                    redirectUri = "https://kalendee.test/api/v1/oauth/google/callback",
+                    redirectUri = "https://kalendee.test/api/v1/oauth/discord/callback",
                     returnTo = returnTo,
                 )
             }
@@ -364,18 +366,18 @@ class OAuthFoundationTest {
         return state ?: error("oauth state was not created")
     }
 
-    private suspend fun HttpClient.startGoogle(): GoogleStart {
-        val start = get("/api/v1/oauth/google/start")
+    private suspend fun HttpClient.startDiscord(): DiscordStart {
+        val start = get("/api/v1/oauth/discord/start")
         assertEquals(HttpStatusCode.Found, start.status, start.bodyAsText())
         val url = Url(start.headers[HttpHeaders.Location] ?: error("missing authorization redirect"))
-        return GoogleStart(
+        return DiscordStart(
             authorizationUrl = url,
             state = url.parameters["state"] ?: error("missing oauth state"),
         )
     }
 
-    private suspend fun HttpClient.callbackGoogle(state: String): HttpResponse =
-        get("/api/v1/oauth/google/callback?code=mock-code&state=$state")
+    private suspend fun HttpClient.callbackDiscord(state: String): HttpResponse =
+        get("/api/v1/oauth/discord/callback?code=mock-code&state=$state")
 
     private suspend fun HttpClient.settingsPage(): SettingsPage {
         val response = get("/settings") { header(KeelHeaders.VISIT, "true") }
@@ -393,41 +395,51 @@ class OAuthFoundationTest {
         return KeelJson.codec.decodeFromJsonElement(AdminPage.serializer(), seed.data)
     }
 
-    private data class GoogleStart(val authorizationUrl: Url, val state: String)
+    private data class DiscordStart(val authorizationUrl: Url, val state: String)
 }
 
 private val oauthTestSecretKey: String = Base64.getEncoder().encodeToString(ByteArray(32) { it.toByte() })
 
 private fun oauthTestConfig(
     oauthRegistration: Boolean = true,
-    googleClientId: String = "google-client",
-    microsoftClientId: String = "",
+    discordClientId: String = "discord-client",
+    discordBotToken: String = "",
 ): Map<String, String> = mapOf(
-    "oauth.google.clientId" to googleClientId,
-    "oauth.google.clientSecret" to "google-secret",
-    "oauth.microsoft.clientId" to microsoftClientId,
-    "oauth.microsoft.clientSecret" to "microsoft-secret",
+    "oauth.discord.clientId" to discordClientId,
+    "oauth.discord.clientSecret" to "discord-secret",
+    "oauth.discord.botToken" to discordBotToken,
     "oauth.secretKey" to oauthTestSecretKey,
     "auth.oauthRegistration" to oauthRegistration.toString(),
 )
 
-private fun mockGoogleEngine(
-    email: String = "user@example.com",
-    externalId: String = "google-1",
+private fun mockDiscordEngine(
+    externalId: String = "discord-1",
+    username: String = "oauthuser",
+    globalName: String? = "OAuth User",
 ): MockEngine = MockEngine { request ->
     val json = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-    when (request.url.host) {
-        "oauth2.googleapis.com" -> respond(
+    val path = request.url.encodedPath
+    when {
+        request.url.host != "discord.com" ->
+            respond("unexpected request to ${request.url}", HttpStatusCode.NotFound)
+        request.method == HttpMethod.Post && path.endsWith("/oauth2/token") -> respond(
             content = """{"access_token":"access-$externalId","refresh_token":"refresh-$externalId",""" +
-                """"expires_in":3600,"scope":"openid email profile","token_type":"Bearer"}""",
+                """"expires_in":604800,"scope":"identify guilds","token_type":"Bearer"}""",
             status = HttpStatusCode.OK,
             headers = json,
         )
-        "openidconnect.googleapis.com" -> respond(
-            content = """{"sub":"$externalId","email":"$email","name":"OAuth User"}""",
+        request.method == HttpMethod.Post && path.endsWith("/oauth2/token/revoke") -> respond(
+            content = "{}",
+            status = HttpStatusCode.OK,
+            headers = json,
+        )
+        request.method == HttpMethod.Get && path.endsWith("/users/@me") -> respond(
+            content = """{"id":"$externalId","username":"$username","global_name":${globalName.jsonOrNull()}}""",
             status = HttpStatusCode.OK,
             headers = json,
         )
         else -> respond("unexpected request to ${request.url}", HttpStatusCode.NotFound)
     }
 }
+
+private fun String?.jsonOrNull(): String = this?.let { "\"$it\"" } ?: "null"

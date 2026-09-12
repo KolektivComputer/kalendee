@@ -15,6 +15,7 @@ import dev.kolektiv.kalendee.db.CalendarConnectionsTable
 import dev.kolektiv.kalendee.db.SessionsTable
 import dev.kolektiv.kalendee.db.UsersTable
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
@@ -131,6 +132,38 @@ class ConnectionService(
         }
     }
 
+    /**
+     * Returns a usable access token for a stored connection, refreshing it when it is
+     * within [RefreshWindow] of expiring. Discord rotates refresh tokens, so the new
+     * access and refresh tokens are persisted. A rejected refresh marks the connection
+     * as needing re-authentication and raises [OAuthReauthRequiredException].
+     */
+    suspend fun validAccessToken(userId: UserId, connectionId: String): String {
+        val uuid = Uuid.parseOrNull(connectionId)
+            ?: throw CalendarException.Invalid("invalid connection id")
+        val material = dbQuery { loadTokenMaterial(userId, uuid) }
+            ?: throw CalendarException.NotFound("connection not found")
+        val now = clock.now()
+        val expiresAt = material.expiresAt
+        if (expiresAt == null || expiresAt > now + RefreshWindow) return material.accessToken
+        val provider = registry.byId(material.provider)
+            ?: throw CalendarException.Invalid("unknown calendar provider")
+        if (!provider.enabled) throw CalendarException.Invalid("provider is not configured")
+        val refreshToken = material.refreshToken
+        if (refreshToken.isNullOrBlank()) {
+            markNeedsReauth(userId, uuid, "connection has no refresh token")
+            throw OAuthReauthRequiredException("external connection must be reconnected")
+        }
+        val refreshed = try {
+            provider.oauthClient().refresh(refreshToken)
+        } catch (cause: OAuthReauthRequiredException) {
+            markNeedsReauth(userId, uuid, cause.message ?: "oauth refresh was rejected")
+            throw cause
+        }
+        dbQuery { persistRefreshedTokens(userId, uuid, material, refreshed, now) }
+        return refreshed.accessToken
+    }
+
     suspend fun handleCallback(
         providerId: String,
         code: String,
@@ -140,6 +173,9 @@ class ConnectionService(
         val provider = registry.require(providerId)
         if (!provider.enabled) throw CalendarException.Invalid("provider is not configured")
         val record = states.consume(state, provider.id)
+        if (record.userId != null && record.userId != currentUserId) {
+            throw CalendarException.Unauthorized("oauth state does not belong to the current session")
+        }
         val client = provider.oauthClient()
         val pkce = PkceChallenge(verifier = record.codeVerifier, challenge = Pkce.challenge(record.codeVerifier))
         val tokens = client.exchange(code, pkce, record.redirectUri)
@@ -148,7 +184,7 @@ class ConnectionService(
         val resolution = dbQuery {
             resolveUser(
                 account = account,
-                requestedUserId = currentUserId ?: record.userId,
+                requestedUserId = record.userId ?: currentUserId,
                 registrationAllowed = registrationAllowed,
             )
         }
@@ -350,6 +386,87 @@ class ConnectionService(
         }
     }
 
+    private data class ConnectionTokenMaterial(
+        val provider: String,
+        val externalAccountId: String,
+        val accessToken: String,
+        val refreshToken: String?,
+        val expiresAt: Instant?,
+    )
+
+    private fun JdbcTransaction.loadTokenMaterial(userId: UserId, connectionId: Uuid): ConnectionTokenMaterial? {
+        val row = CalendarConnectionsTable.selectAll()
+            .where {
+                (CalendarConnectionsTable.id eq connectionId) and
+                    (CalendarConnectionsTable.userId eq userId.toUuid())
+            }
+            .singleOrNull()
+            ?: return null
+        val provider = row[CalendarConnectionsTable.provider]
+        val externalAccountId = row[CalendarConnectionsTable.externalAccountId]
+        val aad = connectionAad(userId, provider, externalAccountId)
+        val accessToken = String(
+            vault.open(
+                SealedToken(
+                    ciphertext = row[CalendarConnectionsTable.accessTokenCiphertext],
+                    nonce = row[CalendarConnectionsTable.accessTokenNonce],
+                    keyVersion = row[CalendarConnectionsTable.tokenKeyVersion],
+                ),
+                aad,
+            ),
+            Charsets.UTF_8,
+        )
+        return ConnectionTokenMaterial(
+            provider = provider,
+            externalAccountId = externalAccountId,
+            accessToken = accessToken,
+            refreshToken = openRefreshToken(row, aad),
+            expiresAt = row[CalendarConnectionsTable.tokenExpiresAt],
+        )
+    }
+
+    private fun JdbcTransaction.persistRefreshedTokens(
+        userId: UserId,
+        connectionId: Uuid,
+        material: ConnectionTokenMaterial,
+        tokens: OAuthTokens,
+        now: Instant,
+    ) {
+        val aad = connectionAad(userId, material.provider, material.externalAccountId)
+        val accessSealed = vault.seal(tokens.accessToken.toByteArray(Charsets.UTF_8), aad)
+        val refreshToken = tokens.refreshToken ?: material.refreshToken
+        val refreshSealed = refreshToken?.let { vault.seal(it.toByteArray(Charsets.UTF_8), aad) }
+        val scopes = tokens.scopes.takeIf { it.isNotEmpty() }?.joinToString(" ")
+        CalendarConnectionsTable.update({
+            (CalendarConnectionsTable.id eq connectionId) and
+                (CalendarConnectionsTable.userId eq userId.toUuid())
+        }) {
+            it[accessTokenCiphertext] = accessSealed.ciphertext
+            it[accessTokenNonce] = accessSealed.nonce
+            it[refreshTokenCiphertext] = refreshSealed?.ciphertext
+            it[refreshTokenNonce] = refreshSealed?.nonce
+            it[tokenKeyVersion] = accessSealed.keyVersion
+            it[tokenExpiresAt] = tokens.expiresAt
+            if (scopes != null) it[CalendarConnectionsTable.scopes] = scopes
+            it[status] = "active"
+            it[lastError] = null
+            it[updatedAt] = now
+        }
+    }
+
+    private suspend fun markNeedsReauth(userId: UserId, connectionId: Uuid, error: String) {
+        dbQuery {
+            CalendarConnectionsTable.update({
+                (CalendarConnectionsTable.id eq connectionId) and
+                    (CalendarConnectionsTable.userId eq userId.toUuid())
+            }) {
+                it[status] = NeedsReauthStatus
+                it[lastError] = error.take(MaxLastErrorLength)
+                it[updatedAt] = clock.now()
+            }
+        }
+    }
+
     private suspend fun revoke(userId: UserId, row: ResultRow) {
         val providerId = row[CalendarConnectionsTable.provider]
         val provider = registry.byId(providerId) ?: return
@@ -393,6 +510,10 @@ class ConnectionService(
         }
 
     companion object {
+        private val RefreshWindow = 5.minutes
+        private const val NeedsReauthStatus = "needs_reauth"
+        private const val MaxLastErrorLength = 500
+
         fun safeReturnTo(raw: String?): String? {
             val value = raw?.trim().orEmpty()
             if (value.isEmpty()) return null

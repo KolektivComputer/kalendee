@@ -162,36 +162,6 @@
     if (!open && dialog.open) dialog.close()
   })
 
-  function close() {
-    open = false
-    title = ""
-    description = ""
-    url = ""
-    allDay = false
-    startDate = ""
-    startTime = "09:00"
-    endDate = ""
-    endTime = "09:30"
-    repeats = false
-    frequency = "WEEKLY"
-    interval = 1
-    untilDate = ""
-    count = ""
-    reminderUseDefaults = true
-    reminderRows = []
-    reminderDefaults = []
-    reminderNotifyAtStart = false
-    reminderLoadError = ""
-    remindersFor = ""
-    attendees = []
-    attendeesOpenRsvp = false
-    attendeesFor = ""
-    attendeesLoadError = ""
-    inviteUsername = ""
-    rsvpStatus = null
-    rsvpMessage = ""
-    copied = false
-  }
 
   $effect(() => {
     if (!open) {
@@ -494,6 +464,39 @@
     } catch {
       // Action errors render through the error props.
     }
+  }
+
+  function close() {
+    open = false
+    title = ""
+    description = ""
+    url = ""
+    allDay = false
+    startDate = ""
+    startTime = "09:00"
+    endDate = ""
+    endTime = "09:30"
+    repeats = false
+    frequency = "WEEKLY"
+    interval = 1
+    untilDate = ""
+    count = ""
+    reminderUseDefaults = true
+    reminderRows = []
+    reminderDefaults = []
+    reminderNotifyAtStart = false
+    reminderLoading = false
+    reminderLoadError = ""
+    remindersFor = ""
+    attendees = []
+    attendeesOpenRsvp = false
+    attendeesFor = ""
+    attendeesLoading = false
+    attendeesLoadError = ""
+    inviteUsername = ""
+    rsvpStatus = null
+    rsvpMessage = ""
+    copied = false
   }
 </script>
 

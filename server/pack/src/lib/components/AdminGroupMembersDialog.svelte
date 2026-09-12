@@ -73,17 +73,6 @@
     if (!open && dialog.open) dialog.close()
   })
 
-  function close() {
-    open = false
-    loadedFor = ""
-    members = []
-    selected = {}
-    search = ""
-    loadError = ""
-    saveError = ""
-    saving = false
-    busyUserId = ""
-  }
 
   $effect(() => {
     if (!open) {
@@ -156,6 +145,18 @@
 
   function saveCustom() {
     void apply(users.filter((user) => selected[user.id]).map((user) => user.id))
+  }
+
+  function close() {
+    open = false
+    loadedFor = ""
+    members = []
+    selected = {}
+    search = ""
+    loadError = ""
+    saveError = ""
+    saving = false
+    busyUserId = ""
   }
 </script>
 

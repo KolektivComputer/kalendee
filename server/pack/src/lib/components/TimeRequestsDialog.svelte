@@ -41,13 +41,6 @@
     if (!open && dialog.open) dialog.close()
   })
 
-  function close() {
-    open = false
-    loadedFor = ""
-    requests = []
-    loadError = ""
-    pendingId = ""
-  }
 
   $effect(() => {
     if (!open) {
@@ -97,6 +90,14 @@
     } finally {
       pendingId = ""
     }
+  }
+
+  function close() {
+    open = false
+    loadedFor = ""
+    requests = []
+    loadError = ""
+    pendingId = ""
   }
 
   function initials(name: string): string {

@@ -79,16 +79,6 @@
     if (!open && dialog.open) dialog.close()
   })
 
-  function close() {
-    open = false
-    loadedFor = ""
-    availability = null
-    loadError = ""
-    requestsEnabled = false
-    slotMinutes = 60
-    accessMode = "inherit"
-    windows = []
-  }
 
   $effect(() => {
     if (!open) {
@@ -133,6 +123,17 @@
     } catch {
       // The action error state renders below the form.
     }
+  }
+
+  function close() {
+    open = false
+    loadedFor = ""
+    availability = null
+    loadError = ""
+    requestsEnabled = false
+    slotMinutes = 60
+    accessMode = "inherit"
+    windows = []
   }
 </script>
 

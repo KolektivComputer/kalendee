@@ -15,6 +15,7 @@ import dev.kolektiv.kalendee.api.faviconRoutes
 import dev.kolektiv.kalendee.api.healthRoutes
 import dev.kolektiv.kalendee.api.holidayRoutes
 import dev.kolektiv.kalendee.api.notificationRoutes
+import dev.kolektiv.kalendee.api.oauthRoutes
 import dev.kolektiv.kalendee.api.publicRoutes
 import dev.kolektiv.kalendee.api.reminderRoutes
 import dev.kolektiv.kalendee.api.rssRoutes
@@ -32,6 +33,7 @@ import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.MailService
 import dev.kolektiv.kalendee.notifications.NotificationService
 import dev.kolektiv.kalendee.organizations.OrganizationTeamService
+import dev.kolektiv.kalendee.oauth.ConnectionService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.web.ShareActions
 import dev.kolektiv.kalendee.plugins.configureKeel
@@ -82,6 +84,7 @@ internal fun Application.configureApplication() {
     val eventInvites by inject<EventInviteService>()
     val avatarStorage by inject<AvatarStorage>()
     val shareActions by inject<ShareActions>()
+    val oauthConnections by inject<ConnectionService>()
     val mail by inject<MailService>()
     val clock by inject<Clock>()
     val demoSeeder by inject<DemoSeeder>()
@@ -125,6 +128,7 @@ internal fun Application.configureApplication() {
             availabilityRoutes(availability)
             publicRoutes(store, shareActions, authService)
             shareRoutes(shareActions)
+            oauthRoutes(oauthConnections, authSettings)
         }
     }
 }

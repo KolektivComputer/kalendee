@@ -67,6 +67,32 @@ data class CalendarSummary(
     val organizationSlug: String? = null,
     val teamId: String? = null,
     val teamName: String? = null,
+    val connectionId: String? = null,
+    val syncDirection: String? = null,
+    val syncStatus: String? = null,
+    val syncError: String? = null,
+)
+
+@KeelType
+@Serializable
+data class ProviderSummary(
+    val id: String,
+    val displayName: String,
+    val enabled: Boolean,
+    val connectUrl: String,
+)
+
+@KeelType
+@Serializable
+data class ConnectionSummary(
+    val id: String,
+    val provider: String,
+    val providerName: String,
+    val accountEmail: String?,
+    val displayName: String?,
+    val status: String,
+    val lastSyncAt: String?,
+    val lastError: String?,
 )
 
 @KeelType
@@ -255,6 +281,7 @@ data class AdminPage(
     val customHolidays: List<CustomHolidaySummary>,
     val groups: List<GroupSummary> = emptyList(),
     val calendars: List<AdminCalendarSummary> = emptyList(),
+    val oauthRegistration: Boolean = false,
 )
 
 @KeelType("kalendee.settings")
@@ -266,6 +293,8 @@ data class SettingsPage(
     val holidayCatalog: List<HolidayCatalogItem>,
     val subscribedHolidayIds: List<String>,
     val customHolidays: List<CustomHolidaySummary>,
+    val providers: List<ProviderSummary> = emptyList(),
+    val connections: List<ConnectionSummary> = emptyList(),
 )
 
 @KeelType
@@ -859,6 +888,92 @@ data class SetRegistrationIn(
 @Serializable
 data class RegistrationOut(
     val registrationOpen: Boolean,
+)
+
+@KeelType
+@Serializable
+data class SetOauthRegistrationIn(
+    val open: Boolean,
+)
+
+@KeelType
+@Serializable
+data class SetOauthRegistrationOut(
+    val oauthRegistrationOpen: Boolean,
+)
+
+@KeelType
+@Serializable
+data class ConnectProviderIn(
+    val providerId: String,
+    val returnTo: String? = null,
+)
+
+@KeelType
+@Serializable
+data class ConnectProviderOut(
+    val url: String,
+)
+
+@KeelType
+@Serializable
+data class DisconnectAccountIn(
+    val connectionId: String,
+)
+
+@KeelType
+@Serializable
+data class DiscordGuildsIn(
+    val connectionId: String,
+)
+
+@KeelType
+@Serializable
+data class DiscordGuildSummary(
+    val id: String,
+    val name: String,
+    val iconUrl: String? = null,
+    val owner: Boolean = false,
+    val botPresent: Boolean = false,
+    val inviteUrl: String? = null,
+    val imported: Boolean = false,
+    val externalCalendarId: String? = null,
+    val calendarId: String? = null,
+    val enabled: Boolean = false,
+    val lastSyncAt: String? = null,
+    val lastError: String? = null,
+)
+
+@KeelType
+@Serializable
+data class DiscordGuildsOut(
+    val guilds: List<DiscordGuildSummary> = emptyList(),
+)
+
+@KeelType
+@Serializable
+data class ImportDiscordGuildIn(
+    val connectionId: String,
+    val guildId: String,
+)
+
+@KeelType
+@Serializable
+data class SyncDiscordImportIn(
+    val externalCalendarId: String,
+)
+
+@KeelType
+@Serializable
+data class SetDiscordImportEnabledIn(
+    val externalCalendarId: String,
+    val enabled: Boolean,
+)
+
+@KeelType
+@Serializable
+data class RemoveDiscordImportIn(
+    val externalCalendarId: String,
 )
 
 @KeelType

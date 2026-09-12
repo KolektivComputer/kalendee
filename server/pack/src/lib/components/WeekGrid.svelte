@@ -148,6 +148,7 @@
     return () => window.removeEventListener("keydown", onKeyDown)
   })
 
+  let contextMenuOpen = $state(false)
   let menu = $state<
     | { kind: "event"; event: EventSummary }
     | { kind: "holiday"; event: EventSummary }
@@ -155,7 +156,6 @@
     | { kind: "timed"; day: number; minutes: number }
     | { kind: "none" }
   >({ kind: "none" })
-  let contextMenuOpen = $state(false)
 
   function closeMenu() {
     contextMenuOpen = false

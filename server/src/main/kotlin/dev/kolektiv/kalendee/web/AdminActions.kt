@@ -28,6 +28,14 @@ class AdminActions(
         RegistrationOut(registrationOpen = auth.isRegistrationOpen())
     }
 
+    @KeelAction("kalendee.setOauthRegistration")
+    suspend fun setOauthRegistration(input: SetOauthRegistrationIn): SetOauthRegistrationOut =
+        mapDomainErrors("open") {
+            requireAdmin(auth, settings)
+            auth.setOAuthRegistrationOpen(input.open)
+            SetOauthRegistrationOut(oauthRegistrationOpen = auth.isOAuthRegistrationOpen())
+        }
+
     @KeelAction("kalendee.setEmailVerification")
     suspend fun setEmailVerification(input: SetEmailVerificationIn): EmailVerificationPolicyOut =
         mapDomainErrors("policy") {

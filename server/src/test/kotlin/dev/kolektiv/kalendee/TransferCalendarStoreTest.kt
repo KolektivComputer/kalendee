@@ -11,7 +11,9 @@ import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.CreateCalendar
 import dev.kolektiv.kalendee.calendar.CreateEvent
 import dev.kolektiv.kalendee.calendar.OrganizationId
+import dev.kolektiv.kalendee.db.CalendarConnectionsTable
 import dev.kolektiv.kalendee.db.CalendarsTable
+import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.organizations.OrganizationRole
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.organizations.OrganizationTeamRole
@@ -23,12 +25,11 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
-import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -366,10 +367,30 @@ class TransferCalendarStoreTest {
         val alice = registerUser(auth, "alice")
         val synced = store.createCalendar(alice.id, CreateCalendar(displayName = "Synced"))
         suspendTransaction(database) {
-            SchemaUtils.create(TestExternalCalendarsTable)
-            TestExternalCalendarsTable.insert {
+            val connectionId = Uuid.random()
+            val now = Clock.System.now()
+            CalendarConnectionsTable.insert {
+                it[id] = connectionId
+                it[CalendarConnectionsTable.userId] = Uuid.parse(alice.id.value)
+                it[provider] = "discord"
+                it[externalAccountId] = "discord-account"
+                it[accessTokenCiphertext] = "sealed"
+                it[accessTokenNonce] = "nonce"
+                it[tokenKeyVersion] = 1
+                it[status] = "active"
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
+            ExternalCalendarsTable.insert {
                 it[id] = Uuid.random()
-                it[calendarId] = Uuid.parse(synced.id.value)
+                it[ExternalCalendarsTable.connectionId] = connectionId
+                it[ExternalCalendarsTable.externalId] = "guild-1"
+                it[ExternalCalendarsTable.calendarId] = Uuid.parse(synced.id.value)
+                it[externalName] = "Synced"
+                it[syncDirection] = "pull"
+                it[enabled] = true
+                it[createdAt] = now
+                it[updatedAt] = now
             }
         }
 
@@ -389,9 +410,4 @@ class TransferCalendarStoreTest {
         val start: Instant = Instant.parse("2026-09-07T10:00:00Z")
         val end: Instant = Instant.parse("2026-09-07T10:30:00Z")
     }
-}
-
-private object TestExternalCalendarsTable : Table("external_calendars") {
-    val id = uuid("id")
-    val calendarId = uuid("calendar_id")
 }

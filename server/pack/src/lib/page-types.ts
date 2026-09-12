@@ -33,6 +33,10 @@ export interface CalendarSummary {
   organizationSlug: string | null
   teamId: string | null
   teamName: string | null
+  connectionId: string | null
+  syncDirection: string | null
+  syncStatus: string | null
+  syncError: string | null
 }
 
 export interface AdminUserSummary {
@@ -91,6 +95,7 @@ export interface AdminPage {
   customHolidays: CustomHolidaySummary[]
   groups: GroupSummary[]
   calendars: AdminCalendarSummary[]
+  oauthRegistration: boolean
 }
 
 export interface DirectoryOrgSummary {
@@ -370,6 +375,24 @@ export interface RsvpPage {
   viewer: Viewer | null
 }
 
+export interface ProviderSummary {
+  id: string
+  displayName: string
+  enabled: boolean
+  connectUrl: string
+}
+
+export interface ConnectionSummary {
+  id: string
+  provider: string
+  providerName: string
+  accountEmail: string | null
+  displayName: string | null
+  status: string
+  lastSyncAt: string | null
+  lastError: string | null
+}
+
 export interface SettingsPage {
   viewer: Viewer
   tab: string
@@ -377,6 +400,8 @@ export interface SettingsPage {
   holidayCatalog: HolidayCatalogItem[]
   subscribedHolidayIds: string[]
   customHolidays: CustomHolidaySummary[]
+  providers: ProviderSummary[]
+  connections: ConnectionSummary[]
 }
 
 export interface VerifyEmailPage {
@@ -545,6 +570,15 @@ export interface CalendarSlotsOut {
   days: AvailabilityDayOut[]
 }
 
+export interface ConnectProviderIn {
+  providerId: string
+  returnTo: string | null
+}
+
+export interface ConnectProviderOut {
+  url: string
+}
+
 export interface CreateCalendarIn {
   displayName: string
   description: string | null
@@ -611,6 +645,33 @@ export interface DeleteOrganizationIn {
 
 export interface DeleteOrganizationTeamIn {
   teamId: string
+}
+
+export interface DisconnectAccountIn {
+  connectionId: string
+}
+
+export interface DiscordGuildsIn {
+  connectionId: string
+}
+
+export interface DiscordGuildSummary {
+  id: string
+  name: string
+  iconUrl: string | null
+  owner: boolean
+  botPresent: boolean
+  inviteUrl: string | null
+  imported: boolean
+  externalCalendarId: string | null
+  calendarId: string | null
+  enabled: boolean
+  lastSyncAt: string | null
+  lastError: string | null
+}
+
+export interface DiscordGuildsOut {
+  guilds: DiscordGuildSummary[]
 }
 
 export interface EventAttendeesIn {
@@ -680,6 +741,11 @@ export interface GrantCalendarToTeamIn {
   calendarId: string
   teamId: string
   permission: string
+}
+
+export interface ImportDiscordGuildIn {
+  connectionId: string
+  guildId: string
 }
 
 export interface InviteToEventIn {
@@ -825,6 +891,10 @@ export interface ReminderSettingsOut {
   notifyAtStart: boolean
 }
 
+export interface RemoveDiscordImportIn {
+  externalCalendarId: string
+}
+
 export interface RemoveEventAttendeeIn {
   eventId: string
   attendeeId: string
@@ -929,6 +999,11 @@ export interface SetCalendarPublicIn {
   enabled: boolean
 }
 
+export interface SetDiscordImportEnabledIn {
+  externalCalendarId: string
+  enabled: boolean
+}
+
 export interface SetEmailVerificationIn {
   policy: string
 }
@@ -946,6 +1021,14 @@ export interface SetEventRemindersIn {
   eventId: string
   offsetsSeconds: number[]
   useDefaults: boolean
+}
+
+export interface SetOauthRegistrationIn {
+  open: boolean
+}
+
+export interface SetOauthRegistrationOut {
+  oauthRegistrationOpen: boolean
 }
 
 export interface SetOrganizationMemberRoleIn {
@@ -994,6 +1077,10 @@ export interface ShareCalendarIn {
   calendarId: string
   username: string
   permission: string
+}
+
+export interface SyncDiscordImportIn {
+  externalCalendarId: string
 }
 
 export interface TransferCalendarIn {
@@ -1133,6 +1220,7 @@ export interface KalendeeActions {
   "kalendee.calendarAvailability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut }
   "kalendee.calendarRequests": { in: CalendarRequestsIn; out: CalendarRequestsOut }
   "kalendee.calendarSlots": { in: CalendarSlotsIn; out: CalendarSlotsOut }
+  "kalendee.connectProvider": { in: ConnectProviderIn; out: ConnectProviderOut }
   "kalendee.createCalendar": { in: CreateCalendarIn; out: CalendarSummary }
   "kalendee.createCustomHoliday": { in: CreateCustomHolidayIn; out: CustomHolidaySummary }
   "kalendee.createEvent": { in: CreateEventIn; out: EventSummary }
@@ -1145,12 +1233,15 @@ export interface KalendeeActions {
   "kalendee.deleteEvent": { in: DeleteEventIn; out: DeletedOut }
   "kalendee.deleteOrganization": { in: DeleteOrganizationIn; out: DeletedOut }
   "kalendee.deleteOrganizationTeam": { in: DeleteOrganizationTeamIn; out: DeletedOut }
+  "kalendee.disconnectAccount": { in: DisconnectAccountIn; out: DeletedOut }
+  "kalendee.discordGuilds": { in: DiscordGuildsIn; out: DiscordGuildsOut }
   "kalendee.eventAttendees": { in: EventAttendeesIn; out: EventAttendeesOut }
   "kalendee.eventReminders": { in: GetEventRemindersIn; out: EventRemindersOut }
   "kalendee.followCalendar": { in: FollowCalendarIn; out: FollowOut }
   "kalendee.friends": { in: FriendsIn; out: FriendsOut }
   "kalendee.getCalendarSharing": { in: GetCalendarSharingIn; out: CalendarSharingOut }
   "kalendee.grantCalendarToTeam": { in: GrantCalendarToTeamIn; out: OrganizationTeamCalendarSummary }
+  "kalendee.importDiscordGuild": { in: ImportDiscordGuildIn; out: DiscordGuildSummary }
   "kalendee.inviteToEvent": { in: InviteToEventIn; out: EventAttendeesOut }
   "kalendee.inviteToOrganization": { in: InviteToOrganizationIn; out: OrganizationInvitationOut }
   "kalendee.login": { in: LoginIn; out: LoginOut }
@@ -1166,6 +1257,7 @@ export interface KalendeeActions {
   "kalendee.publicRsvp": { in: PublicRsvpIn; out: RsvpOut }
   "kalendee.register": { in: RegisterIn; out: RegisterOut }
   "kalendee.reminderSettings": { in: ReminderSettingsIn; out: ReminderSettingsOut }
+  "kalendee.removeDiscordImport": { in: RemoveDiscordImportIn; out: DeletedOut }
   "kalendee.removeEventAttendee": { in: RemoveEventAttendeeIn; out: EventAttendeesOut }
   "kalendee.removeFriend": { in: RemoveFriendIn; out: FriendsOut }
   "kalendee.removeOrganizationMember": { in: RemoveOrganizationMemberIn; out: DeletedOut }
@@ -1183,9 +1275,11 @@ export interface KalendeeActions {
   "kalendee.sendFriendRequest": { in: SendFriendRequestIn; out: FriendRequestOut }
   "kalendee.setCalendarHidden": { in: SetCalendarHiddenIn; out: CalendarSummary }
   "kalendee.setCalendarPublic": { in: SetCalendarPublicIn; out: CalendarSharingOut }
+  "kalendee.setDiscordImportEnabled": { in: SetDiscordImportEnabledIn; out: DiscordGuildSummary }
   "kalendee.setEmailVerification": { in: SetEmailVerificationIn; out: EmailVerificationPolicyOut }
   "kalendee.setEventOpenRsvp": { in: SetEventOpenRsvpIn; out: EventSummary }
   "kalendee.setEventReminders": { in: SetEventRemindersIn; out: EventRemindersOut }
+  "kalendee.setOauthRegistration": { in: SetOauthRegistrationIn; out: SetOauthRegistrationOut }
   "kalendee.setOrganizationMemberRole": { in: SetOrganizationMemberRoleIn; out: OrganizationMemberSummary }
   "kalendee.setOrganizationTeamMemberRole": { in: SetOrganizationTeamMemberRoleIn; out: OrganizationTeamMemberSummary }
   "kalendee.setPublicAccess": { in: SetPublicAccessIn; out: PublicAccessOut }
@@ -1193,6 +1287,7 @@ export interface KalendeeActions {
   "kalendee.setShowHolidays": { in: SetShowHolidaysIn; out: HolidayStateOut }
   "kalendee.setUserPublicAccess": { in: SetUserPublicAccessIn; out: Viewer }
   "kalendee.shareCalendar": { in: ShareCalendarIn; out: CalendarSharingOut }
+  "kalendee.syncDiscordImport": { in: SyncDiscordImportIn; out: DiscordGuildSummary }
   "kalendee.transferCalendar": { in: TransferCalendarIn; out: CalendarSummary }
   "kalendee.unfollowCalendar": { in: UnfollowCalendarIn; out: FollowOut }
   "kalendee.upcomingReminders": { in: UpcomingRemindersIn; out: ReminderInstanceOut[] }

@@ -42,14 +42,6 @@
     if (!open && dialog.open) dialog.close()
   })
 
-  function close() {
-    open = false
-    loadedFor = ""
-    displayName = ""
-    email = ""
-    password = ""
-    admin = false
-  }
 
   $effect(() => {
     if (!open) {
@@ -83,6 +75,15 @@
     } catch {
       // The action error renders below.
     }
+  }
+
+  function close() {
+    open = false
+    loadedFor = ""
+    displayName = ""
+    email = ""
+    password = ""
+    admin = false
   }
 </script>
 

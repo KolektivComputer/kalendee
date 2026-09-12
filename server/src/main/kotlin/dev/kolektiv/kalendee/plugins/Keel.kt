@@ -22,6 +22,8 @@ import dev.kolektiv.kalendee.web.AvailabilityActions
 import dev.kolektiv.kalendee.web.AdminUserSummary
 import dev.kolektiv.kalendee.web.AuthActions
 import dev.kolektiv.kalendee.web.CalendarActions
+import dev.kolektiv.kalendee.web.ConnectionActions
+import dev.kolektiv.kalendee.web.DiscordActions
 import dev.kolektiv.kalendee.web.EventActions
 import dev.kolektiv.kalendee.web.EventInviteActions
 import dev.kolektiv.kalendee.web.FriendshipActions
@@ -74,6 +76,8 @@ fun Application.configureKeel() {
     val bundle by inject<FrontendBundle>()
     val authActions by inject<AuthActions>()
     val calendarActions by inject<CalendarActions>()
+    val connectionActions by inject<ConnectionActions>()
+    val discordActions by inject<DiscordActions>()
     val eventActions by inject<EventActions>()
     val eventInviteActions by inject<EventInviteActions>()
     val holidayActions by inject<HolidayActions>()
@@ -104,6 +108,7 @@ fun Application.configureKeel() {
                 put("service", "Kalendee")
                 put("emailVerificationPolicy", runBlocking { authService.emailVerificationPolicy().wire })
                 put("publicAccess", runBlocking { authService.publicAccess() })
+                put("oauthRegistration", runBlocking { authService.isOAuthRegistrationOpen() })
                 call.currentUser()?.let { user ->
                     putJsonObject("viewer") {
                         val viewer = user.toViewer()
@@ -365,6 +370,7 @@ fun Application.configureKeel() {
                     customHolidays = holidayPrefs.custom.map { it.toSummary() },
                     groups = groupService.listGroups().map { it.toSummary() },
                     calendars = adminCalendarService.listCalendars().map { it.toSummary() },
+                    oauthRegistration = authService.isOAuthRegistrationOpen(),
                 )
             }
             page<SettingsPage>("kalendee.settings", "/settings") {
@@ -375,6 +381,7 @@ fun Application.configureKeel() {
                     "appearance" -> "appearance"
                     "holidays" -> "holidays"
                     "notifications" -> "notifications"
+                    "connections" -> "connections"
                     else -> "account"
                 }
                 head("Settings — Kalendee", description = "Account, appearance, and holiday settings.")
@@ -385,6 +392,8 @@ fun Application.configureKeel() {
                     holidayCatalog = holidayCatalog(),
                     subscribedHolidayIds = holidayPrefs.subscribedIds,
                     customHolidays = holidayPrefs.custom.map { it.toSummary() },
+                    providers = connectionActions.providerSummaries(),
+                    connections = connectionActions.connectionSummaries(user.id),
                 )
             }
             page<LoginPage>("kalendee.login", "/login") {
@@ -451,6 +460,8 @@ fun Application.configureKeel() {
         actions(
             authActions,
             calendarActions,
+            connectionActions,
+            discordActions,
             eventActions,
             eventInviteActions,
             holidayActions,

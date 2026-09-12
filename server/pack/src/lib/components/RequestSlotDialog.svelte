@@ -84,19 +84,6 @@
     if (!open && dialog.open) dialog.close()
   })
 
-  function close() {
-    open = false
-    date = todayIso()
-    slots = null
-    selected = null
-    message = ""
-    name = ""
-    email = ""
-    attempted = false
-    sent = false
-    loadError = ""
-    loadedFor = ""
-  }
 
   $effect(() => {
     if (open && !wasOpen) {
@@ -174,6 +161,20 @@
     } catch {
       // The action error state renders below the form.
     }
+  }
+
+  function close() {
+    open = false
+    date = today
+    loadedFor = ""
+    slots = null
+    selected = null
+    message = ""
+    name = ""
+    email = ""
+    attempted = false
+    sent = false
+    loadError = ""
   }
 </script>
 

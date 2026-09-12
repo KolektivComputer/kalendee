@@ -81,16 +81,6 @@
     if (!open && dialog.open) dialog.close()
   })
 
-  function close() {
-    open = false
-    loadedFor = ""
-    sharing = null
-    loadError = ""
-    inviteUsername = ""
-    invitePermission = "read"
-    publicEnabled = false
-    copied = false
-  }
 
   $effect(() => {
     if (!open) {
@@ -212,6 +202,17 @@
     } catch {
       copied = false
     }
+  }
+
+  function close() {
+    open = false
+    loadedFor = ""
+    sharing = null
+    loadError = ""
+    inviteUsername = ""
+    invitePermission = "read"
+    publicEnabled = false
+    copied = false
   }
 </script>
 

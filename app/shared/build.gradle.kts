@@ -5,7 +5,12 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    id("maven-publish")
 }
+
+// Shared publishing metadata/repositories (POM, Nexus) live in
+// gradle/publishing.gradle.kts; AGP publishes the Android target automatically.
+apply(from = rootProject.file("gradle/publishing.gradle.kts"))
 
 kotlin {
     listOf(
@@ -65,4 +70,10 @@ kotlin {
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+}
+
+// The project group (dev.kolektiv.kalendee) drives the default Compose
+// resources package; pin it to the package App.kt imports.
+compose.resources {
+    packageOfResClass = "kalendee.app.shared.generated.resources"
 }

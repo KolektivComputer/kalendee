@@ -7,5 +7,17 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinJvm) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
+    alias(libs.plugins.kotlinSerialization) apply false
     alias(libs.plugins.ktor) apply false
+}
+
+allprojects {
+    group = providers.gradleProperty("group").get()
+    version = providers.gradleProperty("version").get()
+}
+
+tasks.register("publishAllToMavenLocal") {
+    group = "publishing"
+    description = "Publish library modules to Maven Local."
+    dependsOn(":core:publishToMavenLocal", ":app:shared:publishToMavenLocal")
 }

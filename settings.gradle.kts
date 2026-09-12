@@ -24,6 +24,7 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven("https://repo.yuri.capital/repository/maven-releases/")
     }
 }
 

@@ -661,6 +661,7 @@ export interface DiscordGuildSummary {
   iconUrl: string | null
   owner: boolean
   botPresent: boolean
+  manageable: boolean
   inviteUrl: string | null
   imported: boolean
   externalCalendarId: string | null

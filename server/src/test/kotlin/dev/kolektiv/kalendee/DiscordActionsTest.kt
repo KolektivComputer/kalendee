@@ -59,18 +59,30 @@ class DiscordActionsTest {
             """{"connectionId":"${connection.id}"}""",
             DiscordGuildsOut.serializer(),
         )
-        assertEquals(listOf("guild-1", "guild-2"), listed.guilds.map { it.id }.sorted())
+        assertEquals(listOf("guild-1", "guild-2", "guild-3"), listed.guilds.map { it.id }.sorted())
         val guild = listed.guilds.first { it.id == "guild-1" }
         assertEquals("Kolektiv", guild.name)
         assertTrue(guild.owner)
         assertTrue(guild.botPresent)
+        assertTrue(guild.manageable)
         assertFalse(guild.imported)
-        assertNotNull(guild.iconUrl)
-        val invite = assertNotNull(guild.inviteUrl)
-        assertEquals("discord-client", Url(invite).parameters["client_id"])
+        assertEquals("https://cdn.discordapp.com/icons/guild-1/icon-hash.png?size=128", guild.iconUrl)
+        assertNull(guild.inviteUrl)
         val botMissing = listed.guilds.first { it.id == "guild-2" }
         assertFalse(botMissing.botPresent)
-        assertNotNull(botMissing.inviteUrl)
+        assertTrue(botMissing.manageable)
+        assertEquals(
+            "https://cdn.discordapp.com/icons/guild-2/a_animated-hash.webp?animated=true&size=128",
+            botMissing.iconUrl,
+        )
+        val invite = assertNotNull(botMissing.inviteUrl)
+        assertEquals("discord-client", Url(invite).parameters["client_id"])
+        val botOnly = listed.guilds.first { it.id == "guild-3" }
+        assertTrue(botOnly.botPresent)
+        assertFalse(botOnly.manageable)
+        assertNull(botOnly.inviteUrl)
+        assertNull(botOnly.iconUrl)
+        assertNull(listed.guilds.firstOrNull { it.id == "guild-4" })
 
         val rejected = client.actionErrors(
             "kalendee.importDiscordGuild",
@@ -86,6 +98,7 @@ class DiscordActionsTest {
         )
         assertTrue(imported.imported)
         assertTrue(imported.enabled)
+        assertTrue(imported.manageable)
         assertNotNull(imported.externalCalendarId)
         assertNotNull(imported.calendarId)
         assertNotNull(imported.lastSyncAt)
@@ -122,6 +135,7 @@ class DiscordActionsTest {
         )
         val removedGuild = after.guilds.first { it.id == "guild-1" }
         assertFalse(removedGuild.imported)
+        assertTrue(removedGuild.manageable)
         assertNull(removedGuild.externalCalendarId)
     }
 
@@ -204,8 +218,13 @@ class DiscordActionsTest {
     private companion object {
         val UserGuildsJson =
             """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash","owner":true},""" +
-                """{"id":"guild-2","name":"Another server","icon":null,"owner":false}]"""
-        val BotGuildsJson = """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash"}]"""
+                """{"id":"guild-2","name":"Another server","icon":"a_animated-hash","owner":false,""" +
+                """"permissions":"32"},""" +
+                """{"id":"guild-3","name":"Bot only","icon":null,"owner":false,"permissions":"1024"},""" +
+                """{"id":"guild-4","name":"Unmanageable","icon":null,"owner":false,"permissions":"1024"}]"""
+        val BotGuildsJson =
+            """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash"},""" +
+                """{"id":"guild-3","name":"Bot only","icon":null}]"""
         val IdentityJson = """{"id":"discord-1","username":"mey","global_name":"Mey"}"""
         val TokenJson =
             """{"access_token":"access-1","refresh_token":"refresh-1","expires_in":604800,""" +

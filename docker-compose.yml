@@ -4,8 +4,8 @@
 #   # edit .env: strong passwords, KALENDEE_PUBLIC_URL, ...
 #   docker compose up -d
 #
-# By default this pulls the published image from GHCR. To build this checkout
-# instead, comment out `image:` and uncomment the `build:` block below.
+# By default this pulls the published image from docker.yuri.capital. To build
+# this checkout instead, comment out `image:` and uncomment the `build:` block below.
 #
 # TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...).
 # KALENDEE_COOKIE_SECURE defaults to true; leave it unless you serve plain HTTP.
@@ -14,7 +14,7 @@ name: kalendee
 
 services:
   kalendee:
-    image: ghcr.io/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
+    image: docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
     # build:
     #   context: .
     #   args:

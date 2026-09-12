@@ -194,7 +194,7 @@ README screenshots are captured from the seeded demo data.
 
 ## Docker
 
-Production compose ([`docker-compose.yml`](./docker-compose.yml)) pulls the published image from GHCR and runs PostgreSQL 17 next to it:
+Production compose ([`docker-compose.yml`](./docker-compose.yml)) pulls the published image from docker.yuri.capital and runs PostgreSQL 17 next to it:
 
 ```bash
 cp .env.example .env
@@ -203,7 +203,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-- Image `ghcr.io/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}`; to build the checkout instead, comment out `image:` and uncomment the `build:` block in `docker-compose.yml`.
+- Image `docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}`; to build the checkout instead, comment out `image:` and uncomment the `build:` block in `docker-compose.yml`.
 - Host port `${KALENDEE_HOST_PORT:-8080}` maps to container port 8080.
 - TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...). `KALENDEE_COOKIE_SECURE` defaults to true; leave it unless you serve plain HTTP on purpose.
 - Health check: `curl http://localhost:8080/api/v1/health` → `{"status":"ok"}`.
@@ -237,7 +237,7 @@ The flake exports `nixosModules.default` and `nixosModules.kalendee`. The module
 }
 ```
 
-Options: `enable` (bool), `image` (`ghcr.io/kolektiv/kalendee`), `imageTag` (`latest`; pin a release for reproducibility), `port` (8080; host port to container 8080), `publicUrl` (exported as `KALENDEE_PUBLIC_URL`), `environment` (extra non-secret variables), `environmentFile` (runtime secrets file; never put secrets in the Nix store), `volumes` (extra mounts; a named volume `kalendee-data` is always mounted at `/data`), `extraOptions` (podman/docker flags), and `openFirewall`. Podman is the default container backend; set `virtualisation.oci-containers.backend = "docker";` for Docker. Plain-HTTP deployments need `KALENDEE_COOKIE_SECURE = "false"` via `environment`.
+Options: `enable` (bool), `image` (`docker.yuri.capital/kolektiv/kalendee`), `imageTag` (`latest`; pin a release for reproducibility), `port` (8080; host port to container 8080), `publicUrl` (exported as `KALENDEE_PUBLIC_URL`), `environment` (extra non-secret variables), `environmentFile` (runtime secrets file; never put secrets in the Nix store), `volumes` (extra mounts; a named volume `kalendee-data` is always mounted at `/data`), `extraOptions` (podman/docker flags), and `openFirewall`. Podman is the default container backend; set `virtualisation.oci-containers.backend = "docker";` for Docker. Plain-HTTP deployments need `KALENDEE_COOKIE_SECURE = "false"` via `environment`.
 
 ## Releasing
 
@@ -248,10 +248,10 @@ git tag v1.2.3
 git push origin v1.2.3
 ```
 
-- `.github/workflows/docker.yml` — builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to GHCR with semver and SHA tags; also supports manual `workflow_dispatch`.
+- `.github/workflows/docker.yml` — builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to docker.yuri.capital with semver and SHA tags; also supports manual `workflow_dispatch`.
 - `.github/workflows/publish.yml` — publishes `:core` and `:app:shared` to the Nexus `maven-releases` (or `maven-snapshots` for `SNAPSHOT` versions) with `-Pversion=<version>`, then creates a GitHub Release with `kalendee-server-<version>.jar`, `kalendee-server-<version>.zip`, and `kalendee-<version>.feb`. Manual `workflow_dispatch` takes a `version` input; snapshots are refused for GitHub Releases.
 
-Required secrets: `YURI_CAPITAL_REPO_USERNAME` / `YURI_CAPITAL_REPO_PASSWORD` for Nexus; without them the Maven job skips publication with a warning. GHCR uses the automatic `GITHUB_TOKEN`.
+Required secrets: `YURI_CAPITAL_REPO_USERNAME` / `YURI_CAPITAL_REPO_PASSWORD` for Nexus; without them the Maven job skips publication with a warning. The Docker workflow logs in to `docker.yuri.capital` with `YURI_CAPITAL_DOCKER_USERNAME` / `YURI_CAPITAL_DOCKER_PASSWORD`, falling back to the `YURI_CAPITAL_REPO_*` secrets when the docker-specific secrets are absent.
 
 For local consumption by sibling projects, publish the Kotlin modules to Maven Local: `./gradlew :core:publishToMavenLocal` or `./gradlew publishAllToMavenLocal` (`:core` and `:app:shared`).
 

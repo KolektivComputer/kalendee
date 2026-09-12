@@ -47,7 +47,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/kolektiv/kalendee";
+      default = "docker.yuri.capital/kolektiv/kalendee";
       description = ''
         Container image to run. Change this if you mirror the image or use a
         different registry.

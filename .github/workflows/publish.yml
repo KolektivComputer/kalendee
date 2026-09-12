@@ -1,7 +1,9 @@
 # Required repository secrets (same as the sibling keel repo):
 #   YURI_CAPITAL_REPO_USERNAME / YURI_CAPITAL_REPO_PASSWORD — Nexus credentials
 #   for repo.yuri.capital. The Maven job skips publication with a warning when
-#   they are not configured. GHCR (docker.yml) uses the automatic GITHUB_TOKEN.
+#   they are not configured. The Docker workflow (docker.yml) publishes to
+#   docker.yuri.capital using dedicated YURI_CAPITAL_DOCKER_* secrets when set,
+#   falling back to the YURI_CAPITAL_REPO_* secrets above.
 name: Publish
 
 on:

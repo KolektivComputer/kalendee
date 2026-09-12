@@ -1,20 +1,41 @@
 package dev.kolektiv.kalendee
 
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.server.testing.*
-import kotlin.test.*
+import dev.kolektiv.kalendee.api.DiscoveryResponse
+import dev.kolektiv.kalendee.api.HealthResponse
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.testing.testApplication
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ApplicationTest {
+    @Test
+    fun apiRootReturnsDiscoveryJson() = testApplication {
+        installApi()
+        val client = jsonClient()
+        val response = client.get("/api/v1")
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(
+            DiscoveryResponse(service = "kalendee", api = "/api/v1"),
+            response.body<DiscoveryResponse>(),
+        )
+    }
 
     @Test
-    fun testRoot() = testApplication {
-        application {
-            module()
-        }
-        val response = client.get("/")
+    fun healthPingsPostgres() = testApplication {
+        installApi()
+        val client = jsonClient()
+        val response = client.get("/api/v1/health")
         assertEquals(HttpStatusCode.OK, response.status)
-        assertEquals("Hello, Ktor!", response.bodyAsText())
+        assertEquals(HealthResponse(status = "ok"), response.body())
+    }
+
+    @Test
+    fun calendarsRequireAuth() = testApplication {
+        installApi()
+        val client = jsonClient()
+        val response = client.get("/api/v1/calendars")
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
     }
 }

@@ -34,7 +34,7 @@ internal suspend fun <T> mapDomainErrors(defaultField: String, block: suspend ()
     )
 } catch (cause: CalendarException.NotFound) {
     throw PageValidationException(
-        mapOf(defaultField to listOf(cause.message ?: "not found")),
+        mapOf(fieldFrom(cause.message, defaultField) to listOf(cause.message ?: "not found")),
         Unit,
     )
 } catch (cause: CalendarException.Conflict) {
@@ -49,7 +49,7 @@ internal suspend fun <T> mapDomainErrors(defaultField: String, block: suspend ()
     )
 } catch (cause: CalendarException.Forbidden) {
     throw PageValidationException(
-        mapOf(defaultField to listOf(cause.message ?: "forbidden")),
+        mapOf(fieldFrom(cause.message, defaultField) to listOf(cause.message ?: "forbidden")),
         Unit,
     )
 }
@@ -61,6 +61,16 @@ private fun fieldFrom(message: String?, defaultField: String): String {
         msg.startsWith("email") -> "email"
         msg.startsWith("password") -> "password"
         msg.startsWith("name") -> "name"
+        msg.startsWith("slug") || msg.startsWith("team slug") -> "slug"
+        msg.startsWith("team name") -> "name"
+        msg.startsWith("description") -> "description"
+        msg.startsWith("invalid organization team id") || msg.startsWith("team not found") -> "teamId"
+        msg.startsWith("organization") -> "organizationId"
+        msg.startsWith("cannot transfer") || msg.startsWith("disconnect sync") -> "id"
+        msg.startsWith("team role") -> "role"
+        msg.startsWith("team member") -> "userId"
+        msg.startsWith("team and calendar") -> "calendarId"
+        msg.startsWith("team") || msg.startsWith("cannot manage this team") -> "teamId"
         msg.startsWith("storageQuotaBytes") -> "storageQuotaBytes"
         msg.startsWith("userIds") -> "userIds"
         msg.startsWith("color") -> "color"
@@ -86,6 +96,7 @@ private fun fieldFrom(message: String?, defaultField: String): String {
         msg.startsWith("interval") || msg.startsWith("count") || msg.startsWith("until") ||
             msg.startsWith("unknown recurrence") -> "recurrence"
         msg.startsWith("invalid calendar") || msg.startsWith("event is already in that calendar") -> "calendarId"
+        msg.startsWith("invalid user id") -> "userId"
         msg.startsWith("invalid event") || msg.startsWith("invalid user") -> "id"
         else -> defaultField
     }

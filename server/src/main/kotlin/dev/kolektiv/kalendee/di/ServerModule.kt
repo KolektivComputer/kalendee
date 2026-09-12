@@ -35,6 +35,7 @@ import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
 import dev.kolektiv.kalendee.oauth.providers.DiscordApi
 import dev.kolektiv.kalendee.oauth.providers.DiscordProvider
 import dev.kolektiv.kalendee.organizations.OrganizationService
+import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.storage.AvatarStorage
 import dev.kolektiv.kalendee.storage.LocalAvatarStorage
@@ -53,6 +54,7 @@ import dev.kolektiv.kalendee.web.FriendshipActions
 import dev.kolektiv.kalendee.web.HolidayActions
 import dev.kolektiv.kalendee.web.NotificationActions
 import dev.kolektiv.kalendee.web.OrganizationActions
+import dev.kolektiv.kalendee.web.OrganizationTeamActions
 import dev.kolektiv.kalendee.web.ReminderActions
 import dev.kolektiv.kalendee.web.ShareActions
 import io.ktor.client.HttpClient
@@ -102,12 +104,14 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { AdminCalendarService(database = get(), clock = get()) }
     single { NotificationService(database = get(), clock = get()) }
     single { FriendshipService(database = get(), clock = get()) }
+    single { OrganizationTeamService(database = get(), clock = get()) }
     single {
         OrganizationService(
             database = get(),
             auth = get(),
             notifications = get(),
             mail = get(),
+            teams = get(),
             clock = get(),
         )
     }
@@ -136,7 +140,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
             clock = get(),
         )
     }
-    single<CalendarStore> { PostgresCalendarStore(database = get(), clock = get()) }
+    single<CalendarStore> { PostgresCalendarStore(database = get(), teams = get(), clock = get()) }
     single<ExternalEventStore> { PostgresExternalEventStore(database = get(), clock = get()) }
     single {
         DiscordImportService(
@@ -197,6 +201,15 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
             auth = get(),
             settings = get(),
             database = get(),
+        )
+    }
+    single {
+        OrganizationTeamActions(
+            teams = get(),
+            orgs = get(),
+            store = get(),
+            auth = get(),
+            settings = get(),
         )
     }
     single { EventActions(store = get(), auth = get(), settings = get()) }

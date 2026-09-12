@@ -20,6 +20,9 @@ import dev.kolektiv.kalendee.notifications.Notification
 import dev.kolektiv.kalendee.organizations.Organization
 import dev.kolektiv.kalendee.organizations.OrganizationInvitation
 import dev.kolektiv.kalendee.organizations.OrganizationMember
+import dev.kolektiv.kalendee.organizations.OrganizationTeamCalendarGrant
+import dev.kolektiv.kalendee.organizations.OrganizationTeamMember
+import dev.kolektiv.kalendee.organizations.SubjectTeam
 import dev.kolektiv.keel.KeelType
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
@@ -62,6 +65,8 @@ data class CalendarSummary(
     val organizationId: String? = null,
     val organizationName: String? = null,
     val organizationSlug: String? = null,
+    val teamId: String? = null,
+    val teamName: String? = null,
     val connectionId: String? = null,
     val syncDirection: String? = null,
     val syncStatus: String? = null,
@@ -223,6 +228,7 @@ data class HomePage(
     val customHolidays: List<CustomHolidaySummary>,
     val friends: List<FriendSummary> = emptyList(),
     val friendRequests: List<FriendRequestSummary> = emptyList(),
+    val teams: List<TeamSummary> = emptyList(),
 )
 
 @KeelType("kalendee.publicCalendar")
@@ -572,6 +578,14 @@ data class UpdateCalendarIn(
 @Serializable
 data class DeleteCalendarIn(
     val id: String,
+)
+
+@KeelType
+@Serializable
+data class TransferCalendarIn(
+    val id: String,
+    val organizationId: String? = null,
+    val teamId: String? = null,
 )
 
 @KeelType
@@ -1260,6 +1274,66 @@ data class OrganizationSettingsPage(
     val invitations: List<OrganizationInvitationSummary> = emptyList(),
     val canManageMembers: Boolean = false,
     val canManageOwners: Boolean = false,
+    val teams: List<OrganizationTeamSummary> = emptyList(),
+    val manageableCalendars: List<CalendarOptionSummary> = emptyList(),
+)
+
+@KeelType
+@Serializable
+data class OrganizationTeamMemberSummary(
+    val userId: String,
+    val username: String,
+    val displayName: String,
+    val avatarUrl: String? = null,
+    val role: String,
+    val isSelf: Boolean = false,
+)
+
+@KeelType
+@Serializable
+data class OrganizationTeamCalendarSummary(
+    val calendarId: String,
+    val displayName: String,
+    val color: String,
+    val permission: String,
+)
+
+@KeelType
+@Serializable
+data class OrganizationTeamSummary(
+    val id: String,
+    val organizationId: String,
+    val slug: String,
+    val name: String,
+    val description: String? = null,
+    val isDefault: Boolean = false,
+    val memberCount: Int = 0,
+    val viewerRole: String? = null,
+    val canManageMembers: Boolean = false,
+    val canManageGrants: Boolean = false,
+    val canDelete: Boolean = false,
+    val members: List<OrganizationTeamMemberSummary> = emptyList(),
+    val grants: List<OrganizationTeamCalendarSummary> = emptyList(),
+)
+
+@KeelType
+@Serializable
+data class CalendarOptionSummary(
+    val id: String,
+    val displayName: String,
+    val color: String,
+)
+
+@KeelType
+@Serializable
+data class TeamSummary(
+    val id: String,
+    val organizationId: String,
+    val slug: String,
+    val name: String,
+    val memberCount: Int = 0,
+    val viewerTeamRole: String? = null,
+    val canManageGrants: Boolean = false,
 )
 
 @KeelType
@@ -1418,6 +1492,82 @@ data class OrganizationMembershipOut(
     val role: String,
 )
 
+@KeelType
+@Serializable
+data class OrganizationTeamsIn(
+    val organizationId: String,
+)
+
+@KeelType
+@Serializable
+data class OrganizationTeamsOut(
+    val organizationId: String,
+    val viewerRole: String? = null,
+    val canManageTeams: Boolean = false,
+    val teams: List<OrganizationTeamSummary> = emptyList(),
+    val manageableCalendars: List<CalendarOptionSummary> = emptyList(),
+)
+
+@KeelType
+@Serializable
+data class CreateOrganizationTeamIn(
+    val organizationId: String,
+    val slug: String,
+    val name: String,
+    val description: String? = null,
+)
+
+@KeelType
+@Serializable
+data class UpdateOrganizationTeamIn(
+    val teamId: String,
+    val name: String? = null,
+    val description: String? = null,
+)
+
+@KeelType
+@Serializable
+data class DeleteOrganizationTeamIn(
+    val teamId: String,
+)
+
+@KeelType
+@Serializable
+data class AddOrganizationTeamMemberIn(
+    val teamId: String,
+    val userId: String,
+)
+
+@KeelType
+@Serializable
+data class RemoveOrganizationTeamMemberIn(
+    val teamId: String,
+    val userId: String,
+)
+
+@KeelType
+@Serializable
+data class SetOrganizationTeamMemberRoleIn(
+    val teamId: String,
+    val userId: String,
+    val role: String,
+)
+
+@KeelType
+@Serializable
+data class GrantCalendarToTeamIn(
+    val calendarId: String,
+    val teamId: String,
+    val permission: String,
+)
+
+@KeelType
+@Serializable
+data class RevokeCalendarFromTeamIn(
+    val calendarId: String,
+    val teamId: String,
+)
+
 fun Organization.toSummary(
     role: String? = null,
     memberCount: Int = 0,
@@ -1441,6 +1591,34 @@ fun OrganizationMember.toSummary(viewerId: UserId? = null): OrganizationMemberSu
         role = role.wire,
         isSelf = viewerId != null && viewerId == userId,
     )
+
+fun OrganizationTeamMember.toSummary(viewerId: UserId? = null): OrganizationTeamMemberSummary =
+    OrganizationTeamMemberSummary(
+        userId = userId.value,
+        username = username,
+        displayName = displayName,
+        avatarUrl = avatarVersion?.let { avatarUrl(userId, it) },
+        role = role.wire,
+        isSelf = viewerId != null && viewerId == userId,
+    )
+
+fun OrganizationTeamCalendarGrant.toSummary(): OrganizationTeamCalendarSummary =
+    OrganizationTeamCalendarSummary(
+        calendarId = calendarId.value,
+        displayName = calendarDisplayName,
+        color = calendarColor,
+        permission = permission.wire,
+    )
+
+fun SubjectTeam.toTeamSummary(): TeamSummary = TeamSummary(
+    id = team.id.value,
+    organizationId = team.organizationId.value,
+    slug = team.slug,
+    name = team.name,
+    memberCount = memberCount,
+    viewerTeamRole = viewerRole?.wire,
+    canManageGrants = canManageGrants,
+)
 
 fun OrganizationInvitation.toSummary(user: User? = null): OrganizationInvitationSummary =
     OrganizationInvitationSummary(

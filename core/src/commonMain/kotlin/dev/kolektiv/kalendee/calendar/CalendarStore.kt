@@ -12,6 +12,12 @@ interface CalendarStore {
     suspend fun updateCalendar(id: CalendarId, ownerId: UserId, command: UpdateCalendar): Calendar?
     suspend fun deleteCalendar(id: CalendarId, ownerId: UserId): Boolean
     suspend fun setCalendarHidden(id: CalendarId, userId: UserId, hidden: Boolean): Calendar?
+    suspend fun transferCalendar(
+        id: CalendarId,
+        actorId: UserId,
+        destinationOrganizationId: OrganizationId?,
+        destinationTeamId: OrganizationTeamId? = null,
+    ): Calendar?
 
     suspend fun listShares(calendarId: CalendarId, ownerId: UserId): List<CalendarShare>
     suspend fun addShare(

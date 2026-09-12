@@ -624,9 +624,9 @@
               class="rounded-field text-error data-[highlighted]:bg-error/10"
               onSelect={() => {
                 if (menu.kind !== "event") return
-                const selected = menu.event
+                const target = menu.event
                 closeMenu()
-                onDelete(selected)
+                onDelete(target)
               }}
             >
               <Trash class="h-4 w-4" />
@@ -651,9 +651,9 @@
                           class="rounded-field data-[highlighted]:bg-base-content/10"
                           onSelect={() => {
                             if (menu.kind !== "event") return
-                            const selected = menu.event
+                            const target = menu.event
                             closeMenu()
-                            onMoveToCalendar?.({ event: selected, calendarId: calendar.id })
+                            onMoveToCalendar?.({ event: target, calendarId: calendar.id })
                           }}
                         >
                           {calendar.displayName}

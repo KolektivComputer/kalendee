@@ -8,6 +8,7 @@ import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.CreateCalendar
 import dev.kolektiv.kalendee.calendar.OptionalField
 import dev.kolektiv.kalendee.calendar.OrganizationId
+import dev.kolektiv.kalendee.calendar.OrganizationTeamId
 import dev.kolektiv.kalendee.calendar.UpdateCalendar
 import dev.kolektiv.keel.KeelAction
 
@@ -53,6 +54,23 @@ class CalendarActions(
                 timeZone = input.timeZone,
                 color = input.color,
             ),
+        )?.toSummary(auth) ?: throw CalendarException.NotFound("calendar not found")
+    }
+
+    @KeelAction("kalendee.transferCalendar")
+    suspend fun transfer(input: TransferCalendarIn): CalendarSummary = mapDomainErrors("organizationId") {
+        val user = requireSessionUser(auth, settings)
+        store.transferCalendar(
+            CalendarId.parse(input.id),
+            user.id,
+            input.organizationId
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let(OrganizationId::parse),
+            input.teamId
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let(OrganizationTeamId::parse),
         )?.toSummary(auth) ?: throw CalendarException.NotFound("calendar not found")
     }
 

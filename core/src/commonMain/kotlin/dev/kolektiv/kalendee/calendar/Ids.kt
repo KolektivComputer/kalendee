@@ -45,3 +45,17 @@ value class OrganizationId(val value: String) {
         }
     }
 }
+
+@Serializable
+@JvmInline
+value class OrganizationTeamId(val value: String) {
+    companion object {
+        fun generate(): OrganizationTeamId = OrganizationTeamId(Uuid.random().toString())
+
+        fun parse(raw: String): OrganizationTeamId {
+            val parsed = Uuid.parseOrNull(raw)
+                ?: throw CalendarException.Invalid("invalid organization team id")
+            return OrganizationTeamId(parsed.toString())
+        }
+    }
+}

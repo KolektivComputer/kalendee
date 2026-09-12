@@ -20,6 +20,7 @@ import dev.kolektiv.kalendee.calendar.EventStatus
 import dev.kolektiv.kalendee.calendar.HolidayPrefs
 import dev.kolektiv.kalendee.calendar.InstantRange
 import dev.kolektiv.kalendee.calendar.OrganizationId
+import dev.kolektiv.kalendee.calendar.OrganizationTeamId
 import dev.kolektiv.kalendee.calendar.Recurrence
 import dev.kolektiv.kalendee.calendar.RecurrenceFrequency
 import dev.kolektiv.kalendee.calendar.UpdateCalendar
@@ -33,6 +34,7 @@ import dev.kolektiv.kalendee.calendar.validated
 import dev.kolektiv.kalendee.db.CalendarFollowersTable
 import dev.kolektiv.kalendee.db.CalendarHiddenTable
 import dev.kolektiv.kalendee.db.CalendarSharesTable
+import dev.kolektiv.kalendee.db.CalendarTeamGrantsTable
 import dev.kolektiv.kalendee.db.CalendarsTable
 import dev.kolektiv.kalendee.db.CustomHolidaysTable
 import dev.kolektiv.kalendee.db.EventAttendeesTable
@@ -42,9 +44,14 @@ import dev.kolektiv.kalendee.db.EventsTable
 import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.db.HolidaySubscriptionsTable
 import dev.kolektiv.kalendee.db.OrganizationMembersTable
+import dev.kolektiv.kalendee.db.OrganizationTeamMembersTable
+import dev.kolektiv.kalendee.db.OrganizationTeamsTable
 import dev.kolektiv.kalendee.db.OrganizationsTable
 import dev.kolektiv.kalendee.db.UsersTable
 import dev.kolektiv.kalendee.organizations.OrganizationRole
+import dev.kolektiv.kalendee.organizations.OrganizationTeamRole
+import dev.kolektiv.kalendee.organizations.OrganizationTeamService
+import dev.kolektiv.kalendee.organizations.permissionRank
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -54,6 +61,7 @@ import kotlinx.datetime.TimeZone
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.UuidColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greater
@@ -74,6 +82,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 
 class PostgresCalendarStore(
     private val database: Database,
+    private val teams: OrganizationTeamService,
     private val clock: Clock = Clock.System,
 ) : CalendarStore {
     override suspend fun ping() {
@@ -162,6 +171,9 @@ class PostgresCalendarStore(
                 it[createdAt] = now
                 it[updatedAt] = now
             }
+            if (organizationId != null) {
+                teams.grantAllTeamWriteInTransaction(this, id, organizationId)
+            }
             Calendar(
                 id = id,
                 ownerId = ownerId,
@@ -229,6 +241,89 @@ class PostgresCalendarStore(
             }
             existing.copy(hidden = hidden)
         }
+
+    override suspend fun transferCalendar(
+        id: CalendarId,
+        actorId: UserId,
+        destinationOrganizationId: OrganizationId?,
+        destinationTeamId: OrganizationTeamId?,
+    ): Calendar? = dbQuery {
+        val row = CalendarsTable.selectAll()
+            .where { CalendarsTable.id eq id.toUuid() }
+            .singleOrNull()
+            ?: return@dbQuery null
+
+        val actor = actorId.toUuid()
+        val isCalendarOwner = row[CalendarsTable.ownerId] == actor
+        val sourceOrganizationId = row[CalendarsTable.organizationId]
+        val sourceRole = sourceOrganizationId?.let { orgRole(it, actorId) }
+        val managesSource = isCalendarOwner || isOrganizationManager(sourceRole)
+        if (!managesSource) throw CalendarException.Forbidden("cannot transfer this calendar")
+
+        var destinationOrgId = destinationOrganizationId
+        if (destinationOrganizationId != null) {
+            val organizationExists = OrganizationsTable.selectAll()
+                .where { OrganizationsTable.id eq destinationOrganizationId.toUuid() }
+                .count() > 0
+            if (!organizationExists) throw CalendarException.NotFound("organization not found")
+            if (orgRole(destinationOrganizationId.toUuid(), actorId) == null) {
+                throw CalendarException.Forbidden("not a member of this organization")
+            }
+        } else if (sourceOrganizationId != null && !isCalendarOwner && !isOrganizationManager(sourceRole)) {
+            throw CalendarException.Forbidden("only owners and admins can move an organization calendar")
+        }
+
+        var teamGrantId: OrganizationTeamId? = null
+        if (destinationTeamId != null) {
+            val teamRow = OrganizationTeamsTable.selectAll()
+                .where { OrganizationTeamsTable.id eq destinationTeamId.toUuid() }
+                .singleOrNull()
+                ?: throw CalendarException.NotFound("team not found")
+            val teamOrganizationId = OrganizationId(teamRow[OrganizationTeamsTable.organizationId].toString())
+            if (destinationOrgId != null && destinationOrgId != teamOrganizationId) {
+                throw CalendarException.Invalid("team is not part of this organization")
+            }
+            destinationOrgId = teamOrganizationId
+            if (!canManageTeam(teamOrganizationId, destinationTeamId, actorId)) {
+                throw CalendarException.Forbidden("cannot manage this team")
+            }
+            teamGrantId = destinationTeamId
+        }
+
+        if (hasExternalCalendar(id.toUuid())) {
+            throw CalendarException.Forbidden("disconnect sync before moving this calendar")
+        }
+
+        val now = clock.now()
+        CalendarsTable.update({ CalendarsTable.id eq id.toUuid() }) {
+            it[organizationId] = destinationOrgId?.toUuid()
+            it[ownerId] = actor
+            it[updatedAt] = now
+        }
+
+        if (teamGrantId != null) {
+            CalendarTeamGrantsTable.deleteWhere { CalendarTeamGrantsTable.calendarId eq id.toUuid() }
+            CalendarTeamGrantsTable.insert {
+                it[CalendarTeamGrantsTable.calendarId] = id.toUuid()
+                it[CalendarTeamGrantsTable.teamId] = teamGrantId.toUuid()
+                it[CalendarTeamGrantsTable.permission] = CalendarPermission.WRITE.wire
+                it[createdAt] = now
+            }
+        } else if (destinationOrgId == null) {
+            CalendarTeamGrantsTable.deleteWhere { CalendarTeamGrantsTable.calendarId eq id.toUuid() }
+        } else {
+            replaceWithDefaultTeamWrite(id, destinationOrgId, actorId)
+        }
+
+        CalendarsTable.selectAll()
+            .where { CalendarsTable.id eq id.toUuid() }
+            .single()
+            .toCalendar(
+                permission = CalendarPermission.OWNER,
+                hidden = id in hiddenIds(actorId),
+                ownerScoped = true,
+            )
+    }
 
     override suspend fun listShares(calendarId: CalendarId, ownerId: UserId): List<CalendarShare> = dbQuery {
         if (manageableCalendar(calendarId, ownerId) == null) return@dbQuery emptyList()
@@ -833,6 +928,7 @@ class PostgresCalendarStore(
         val organizationPermission = row[CalendarsTable.organizationId]
             ?.let { organizationId -> orgRole(organizationId, userId) }
             ?.let(::organizationPermission)
+        val teamPermission = teamPermissionFor(calendarId, userId)
         val sharePermission = CalendarSharesTable.selectAll()
             .where {
                 (CalendarSharesTable.calendarId eq calendarId) and
@@ -853,8 +949,40 @@ class PostgresCalendarStore(
         } else {
             null
         }
-        return listOfNotNull(organizationPermission, sharePermission, followPermission)
+        return listOfNotNull(organizationPermission, teamPermission, sharePermission, followPermission)
             .maxByOrNull { permissionRank(it) }
+    }
+
+    private fun JdbcTransaction.teamPermissionFor(calendarId: Uuid, userId: UserId): CalendarPermission? {
+        val teamIds = OrganizationTeamMembersTable.selectAll()
+            .where { OrganizationTeamMembersTable.userId eq userId.toUuid() }
+            .map { it[OrganizationTeamMembersTable.teamId] }
+        if (teamIds.isEmpty()) return null
+        return CalendarTeamGrantsTable.selectAll()
+            .where {
+                (CalendarTeamGrantsTable.calendarId eq calendarId) and
+                    (CalendarTeamGrantsTable.teamId inList teamIds)
+            }
+            .mapNotNull { row -> CalendarPermission.fromWire(row[CalendarTeamGrantsTable.permission]) }
+            .maxByOrNull { permissionRank(it) }
+    }
+
+    private fun JdbcTransaction.teamCalendars(userId: UserId): Map<Uuid, CalendarPermission> {
+        val teamIds = OrganizationTeamMembersTable.selectAll()
+            .where { OrganizationTeamMembersTable.userId eq userId.toUuid() }
+            .map { it[OrganizationTeamMembersTable.teamId] }
+        if (teamIds.isEmpty()) return emptyMap()
+        return CalendarTeamGrantsTable.selectAll()
+            .where { CalendarTeamGrantsTable.teamId inList teamIds }
+            .mapNotNull { row ->
+                val permission = CalendarPermission.fromWire(row[CalendarTeamGrantsTable.permission])
+                    ?: return@mapNotNull null
+                row[CalendarTeamGrantsTable.calendarId] to permission
+            }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, permissions) ->
+                permissions.maxByOrNull { permissionRank(it) } ?: CalendarPermission.READ
+            }
     }
 
     private fun JdbcTransaction.orgRole(organizationId: Uuid, userId: UserId): OrganizationRole? =
@@ -902,15 +1030,22 @@ class PostgresCalendarStore(
         val roles = OrganizationMembersTable.selectAll()
             .where { OrganizationMembersTable.userId eq userId.toUuid() }
             .associate { it[OrganizationMembersTable.organizationId] to it[OrganizationMembersTable.role] }
-        if (roles.isEmpty()) return emptyMap()
-        return CalendarsTable.selectAll()
-            .where { CalendarsTable.organizationId inList roles.keys.toList() }
-            .mapNotNull { row ->
-                val organizationId = row[CalendarsTable.organizationId] ?: return@mapNotNull null
-                val role = roles[organizationId]?.let(OrganizationRole::fromWire) ?: return@mapNotNull null
-                row[CalendarsTable.id] to organizationPermission(role)
-            }
-            .toMap()
+        val permissions = mutableMapOf<Uuid, CalendarPermission>()
+        if (roles.isNotEmpty()) {
+            CalendarsTable.selectAll()
+                .where { CalendarsTable.organizationId inList roles.keys.toList() }
+                .forEach { row ->
+                    val organizationId = row[CalendarsTable.organizationId] ?: return@forEach
+                    val role = roles[organizationId]?.let(OrganizationRole::fromWire) ?: return@forEach
+                    val permission = organizationPermission(role) ?: return@forEach
+                    val calendarId = row[CalendarsTable.id]
+                    permissions[calendarId] = strongest(permissions[calendarId], permission)
+                }
+        }
+        teamCalendars(userId).forEach { (calendarId, permission) ->
+            permissions[calendarId] = strongest(permissions[calendarId], permission)
+        }
+        return permissions
     }
 
     private fun JdbcTransaction.manageableCalendar(id: CalendarId, actorId: UserId): Calendar? {
@@ -939,6 +1074,52 @@ class PostgresCalendarStore(
         }
         return (CalendarsTable.id eq id.toUuid()) and (owned or byOrganization)
     }
+
+    private fun JdbcTransaction.canManageTeam(
+        organizationId: OrganizationId,
+        teamId: OrganizationTeamId,
+        actorId: UserId,
+    ): Boolean {
+        if (isOrganizationManager(orgRole(organizationId.toUuid(), actorId))) return true
+        return OrganizationTeamMembersTable.selectAll()
+            .where {
+                (OrganizationTeamMembersTable.teamId eq teamId.toUuid()) and
+                    (OrganizationTeamMembersTable.userId eq actorId.toUuid()) and
+                    (OrganizationTeamMembersTable.role eq OrganizationTeamRole.MAINTAINER.wire)
+            }
+            .count() > 0
+    }
+
+    /**
+     * Replaces every team grant with a write grant for the organization's
+     * default `all` team so plain members keep read access. Organizations
+     * normally have their `all` team created by the organization service; if it
+     * is missing we recreate it, enroll the current organization members (as
+     * [OrganizationTeamService.ensureDefaults] does), and then grant.
+     */
+    private fun JdbcTransaction.replaceWithDefaultTeamWrite(
+        id: CalendarId,
+        organizationId: OrganizationId,
+        actorId: UserId,
+    ) {
+        CalendarTeamGrantsTable.deleteWhere { CalendarTeamGrantsTable.calendarId eq id.toUuid() }
+        if (teams.grantAllTeamWriteInTransaction(this, id, organizationId)) return
+        teams.ensureDefaultTeamInTransaction(this, organizationId, actorId)
+        OrganizationMembersTable.selectAll()
+            .where { OrganizationMembersTable.organizationId eq organizationId.toUuid() }
+            .map { UserId(it[OrganizationMembersTable.userId].toString()) }
+            .forEach { memberId ->
+                teams.addUserToDefaultTeamInTransaction(this, organizationId, memberId)
+            }
+        check(teams.grantAllTeamWriteInTransaction(this, id, organizationId)) {
+            "failed to grant the default team write access to calendar ${id.value}"
+        }
+    }
+
+    private fun JdbcTransaction.hasExternalCalendar(calendarId: Uuid): Boolean =
+        ExternalCalendarsTable.selectAll()
+            .where { ExternalCalendarsTable.calendarId eq calendarId }
+            .count() > 0
 
     private fun JdbcTransaction.shareRow(calendarId: CalendarId, userId: UserId): CalendarShare =
         (CalendarSharesTable innerJoin UsersTable)
@@ -993,17 +1174,13 @@ private fun Event.requireEtag(expectedEtag: String?) {
     }
 }
 
-private fun organizationPermission(role: OrganizationRole): CalendarPermission = when (role) {
+private fun organizationPermission(role: OrganizationRole): CalendarPermission? = when (role) {
     OrganizationRole.OWNER, OrganizationRole.ADMIN -> CalendarPermission.OWNER
-    OrganizationRole.MEMBER -> CalendarPermission.WRITE
+    OrganizationRole.MEMBER -> null
 }
 
-private fun permissionRank(permission: CalendarPermission): Int = when (permission) {
-    CalendarPermission.OWNER -> 3
-    CalendarPermission.WRITE -> 2
-    CalendarPermission.READ -> 1
-    CalendarPermission.FOLLOW -> 0
-}
+private fun isOrganizationManager(role: OrganizationRole?): Boolean =
+    role == OrganizationRole.OWNER || role == OrganizationRole.ADMIN
 
 private fun strongest(current: CalendarPermission?, candidate: CalendarPermission): CalendarPermission =
     if (current == null || permissionRank(candidate) >= permissionRank(current)) candidate else current
@@ -1030,6 +1207,7 @@ private fun CalendarId.toUuid(): Uuid = Uuid.parse(value)
 private fun EventId.toUuid(): Uuid = Uuid.parse(value)
 private fun UserId.toUuid(): Uuid = Uuid.parse(value)
 private fun OrganizationId.toUuid(): Uuid = Uuid.parse(value)
+private fun OrganizationTeamId.toUuid(): Uuid = Uuid.parse(value)
 
 private fun ResultRow.toCalendar(
     permission: CalendarPermission = CalendarPermission.OWNER,

@@ -42,6 +42,17 @@
     if (!open && dialog.open) dialog.close()
   })
 
+  function close() {
+    open = false
+    loadedFor = ""
+    name = ""
+    unlimited = true
+    quotaMiB = ""
+    initialQuotaMiB = ""
+    initialUnlimited = true
+    localError = ""
+  }
+
   $effect(() => {
     if (!open) {
       loadedFor = ""
@@ -103,17 +114,6 @@
     } catch {
       // The action error renders below.
     }
-  }
-
-  function close() {
-    open = false
-    loadedFor = ""
-    name = ""
-    unlimited = true
-    quotaMiB = ""
-    initialQuotaMiB = ""
-    initialUnlimited = true
-    localError = ""
   }
 </script>
 

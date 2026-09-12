@@ -58,6 +58,7 @@ class KeelAppTest {
         assertTrue(body.contains("\"kalendee.createCalendar\""))
         assertTrue(body.contains("\"kalendee.updateCalendar\""))
         assertTrue(body.contains("\"kalendee.deleteCalendar\""))
+        assertTrue(body.contains("\"kalendee.transferCalendar\""))
         assertTrue(body.contains("\"kalendee.createEvent\""))
         assertTrue(body.contains("\"kalendee.updateEvent\""))
         assertTrue(body.contains("\"kalendee.deleteEvent\""))
@@ -91,6 +92,20 @@ class KeelAppTest {
         assertTrue(body.contains("\"kalendee.removeOrganizationMember\""))
         assertTrue(body.contains("\"kalendee.acceptOrganizationInvitation\""))
         assertTrue(body.contains("\"kalendee.declineOrganizationInvitation\""))
+        assertTrue(body.contains("\"kalendee.organizationTeams\""))
+        assertTrue(body.contains("\"kalendee.createOrganizationTeam\""))
+        assertTrue(body.contains("\"kalendee.updateOrganizationTeam\""))
+        assertTrue(body.contains("\"kalendee.deleteOrganizationTeam\""))
+        assertTrue(body.contains("\"kalendee.addOrganizationTeamMember\""))
+        assertTrue(body.contains("\"kalendee.removeOrganizationTeamMember\""))
+        assertTrue(body.contains("\"kalendee.setOrganizationTeamMemberRole\""))
+        assertTrue(body.contains("\"kalendee.grantCalendarToTeam\""))
+        assertTrue(body.contains("\"kalendee.revokeCalendarFromTeam\""))
+        assertTrue(body.contains("OrganizationTeamSummary"))
+        assertTrue(body.contains("OrganizationTeamMemberSummary"))
+        assertTrue(body.contains("OrganizationTeamCalendarSummary"))
+        assertTrue(body.contains("CalendarOptionSummary"))
+        assertTrue(body.contains("TeamSummary"))
     }
 
     @Test

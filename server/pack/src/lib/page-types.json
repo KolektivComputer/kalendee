@@ -110,6 +110,10 @@
             "in": "RespondOrganizationInvitationIn",
             "out": "OrganizationMembershipOut"
         },
+        "kalendee.addOrganizationTeamMember": {
+            "in": "AddOrganizationTeamMemberIn",
+            "out": "OrganizationTeamMemberSummary"
+        },
         "kalendee.adminCreateGroup": {
             "in": "AdminCreateGroupIn",
             "out": "GroupSummary"
@@ -182,6 +186,10 @@
             "in": "CreateOrganizationIn",
             "out": "OrganizationSummary"
         },
+        "kalendee.createOrganizationTeam": {
+            "in": "CreateOrganizationTeamIn",
+            "out": "OrganizationTeamSummary"
+        },
         "kalendee.declineFriendRequest": {
             "in": "RespondFriendRequestIn",
             "out": "FriendsOut"
@@ -204,6 +212,10 @@
         },
         "kalendee.deleteOrganization": {
             "in": "DeleteOrganizationIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.deleteOrganizationTeam": {
+            "in": "DeleteOrganizationTeamIn",
             "out": "DeletedOut"
         },
         "kalendee.disconnectAccount": {
@@ -233,6 +245,10 @@
         "kalendee.getCalendarSharing": {
             "in": "GetCalendarSharingIn",
             "out": "CalendarSharingOut"
+        },
+        "kalendee.grantCalendarToTeam": {
+            "in": "GrantCalendarToTeamIn",
+            "out": "OrganizationTeamCalendarSummary"
         },
         "kalendee.importDiscordGuild": {
             "in": "ImportDiscordGuildIn",
@@ -274,6 +290,10 @@
             "in": "OrganizationMembersIn",
             "out": "OrganizationMembersOut"
         },
+        "kalendee.organizationTeams": {
+            "in": "OrganizationTeamsIn",
+            "out": "OrganizationTeamsOut"
+        },
         "kalendee.organizations": {
             "in": "OrganizationsIn",
             "out": "OrganizationsOut"
@@ -310,6 +330,10 @@
             "in": "RemoveOrganizationMemberIn",
             "out": "DeletedOut"
         },
+        "kalendee.removeOrganizationTeamMember": {
+            "in": "RemoveOrganizationTeamMemberIn",
+            "out": "DeletedOut"
+        },
         "kalendee.removeShare": {
             "in": "RemoveShareIn",
             "out": "CalendarSharingOut"
@@ -329,6 +353,10 @@
         "kalendee.respondTimeSlot": {
             "in": "RespondTimeSlotIn",
             "out": "RequestTimeSlotOut"
+        },
+        "kalendee.revokeCalendarFromTeam": {
+            "in": "RevokeCalendarFromTeamIn",
+            "out": "DeletedOut"
         },
         "kalendee.revokeOrganizationInvitation": {
             "in": "OrganizationInvitationIn",
@@ -382,6 +410,10 @@
             "in": "SetOrganizationMemberRoleIn",
             "out": "OrganizationMemberSummary"
         },
+        "kalendee.setOrganizationTeamMemberRole": {
+            "in": "SetOrganizationTeamMemberRoleIn",
+            "out": "OrganizationTeamMemberSummary"
+        },
         "kalendee.setPublicAccess": {
             "in": "SetPublicAccessIn",
             "out": "PublicAccessOut"
@@ -405,6 +437,10 @@
         "kalendee.syncDiscordImport": {
             "in": "SyncDiscordImportIn",
             "out": "DiscordGuildSummary"
+        },
+        "kalendee.transferCalendar": {
+            "in": "TransferCalendarIn",
+            "out": "CalendarSummary"
         },
         "kalendee.unfollowCalendar": {
             "in": "UnfollowCalendarIn",
@@ -433,6 +469,10 @@
         "kalendee.updateOrganization": {
             "in": "UpdateOrganizationIn",
             "out": "OrganizationSummary"
+        },
+        "kalendee.updateOrganizationTeam": {
+            "in": "UpdateOrganizationTeamIn",
+            "out": "OrganizationTeamSummary"
         },
         "kalendee.updateReminderSettings": {
             "in": "UpdateReminderSettingsIn",
@@ -487,6 +527,8 @@
                 "organizationId": "string | null",
                 "organizationName": "string | null",
                 "organizationSlug": "string | null",
+                "teamId": "string | null",
+                "teamName": "string | null",
                 "connectionId": "string | null",
                 "syncDirection": "string | null",
                 "syncStatus": "string | null",
@@ -654,6 +696,18 @@
                 "createdAt": "string"
             }
         },
+        "TeamSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "organizationId": "string",
+                "slug": "string",
+                "name": "string",
+                "memberCount": "number",
+                "viewerTeamRole": "string | null",
+                "canManageGrants": "boolean"
+            }
+        },
         "HomePage": {
             "kind": "object",
             "fields": {
@@ -679,7 +733,8 @@
                 "subscribedHolidayIds": "string[]",
                 "customHolidays": "CustomHolidaySummary[]",
                 "friends": "FriendSummary[]",
-                "friendRequests": "FriendRequestSummary[]"
+                "friendRequests": "FriendRequestSummary[]",
+                "teams": "TeamSummary[]"
             }
         },
         "LoginPage": {
@@ -766,6 +821,52 @@
                 "canManageSettings": "boolean"
             }
         },
+        "OrganizationTeamMemberSummary": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "username": "string",
+                "displayName": "string",
+                "avatarUrl": "string | null",
+                "role": "string",
+                "isSelf": "boolean"
+            }
+        },
+        "OrganizationTeamCalendarSummary": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "displayName": "string",
+                "color": "string",
+                "permission": "string"
+            }
+        },
+        "OrganizationTeamSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "organizationId": "string",
+                "slug": "string",
+                "name": "string",
+                "description": "string | null",
+                "isDefault": "boolean",
+                "memberCount": "number",
+                "viewerRole": "string | null",
+                "canManageMembers": "boolean",
+                "canManageGrants": "boolean",
+                "canDelete": "boolean",
+                "members": "OrganizationTeamMemberSummary[]",
+                "grants": "OrganizationTeamCalendarSummary[]"
+            }
+        },
+        "CalendarOptionSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "color": "string"
+            }
+        },
         "OrganizationSettingsPage": {
             "kind": "object",
             "fields": {
@@ -775,7 +876,9 @@
                 "members": "OrganizationMemberSummary[]",
                 "invitations": "OrganizationInvitationSummary[]",
                 "canManageMembers": "boolean",
-                "canManageOwners": "boolean"
+                "canManageOwners": "boolean",
+                "teams": "OrganizationTeamSummary[]",
+                "manageableCalendars": "CalendarOptionSummary[]"
             }
         },
         "PublicProfilePage": {
@@ -901,6 +1004,13 @@
             "fields": {
                 "organization": "OrganizationSummary",
                 "role": "string"
+            }
+        },
+        "AddOrganizationTeamMemberIn": {
+            "kind": "object",
+            "fields": {
+                "teamId": "string",
+                "userId": "string"
             }
         },
         "AdminCreateGroupIn": {
@@ -1150,6 +1260,15 @@
                 "description": "string | null"
             }
         },
+        "CreateOrganizationTeamIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "slug": "string",
+                "name": "string",
+                "description": "string | null"
+            }
+        },
         "DeleteCalendarIn": {
             "kind": "object",
             "fields": {
@@ -1173,6 +1292,12 @@
             "kind": "object",
             "fields": {
                 "organizationId": "string"
+            }
+        },
+        "DeleteOrganizationTeamIn": {
+            "kind": "object",
+            "fields": {
+                "teamId": "string"
             }
         },
         "DisconnectAccountIn": {
@@ -1294,6 +1419,14 @@
                 "friends": "FriendSummary[]"
             }
         },
+        "GrantCalendarToTeamIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "teamId": "string",
+                "permission": "string"
+            }
+        },
         "ImportDiscordGuildIn": {
             "kind": "object",
             "fields": {
@@ -1410,6 +1543,22 @@
                 "members": "OrganizationMemberSummary[]"
             }
         },
+        "OrganizationTeamsIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string"
+            }
+        },
+        "OrganizationTeamsOut": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "viewerRole": "string | null",
+                "canManageTeams": "boolean",
+                "teams": "OrganizationTeamSummary[]",
+                "manageableCalendars": "CalendarOptionSummary[]"
+            }
+        },
         "OrganizationsIn": {
             "kind": "object",
             "fields": {}
@@ -1506,6 +1655,13 @@
                 "userId": "string"
             }
         },
+        "RemoveOrganizationTeamMemberIn": {
+            "kind": "object",
+            "fields": {
+                "teamId": "string",
+                "userId": "string"
+            }
+        },
         "RemoveShareIn": {
             "kind": "object",
             "fields": {
@@ -1547,6 +1703,13 @@
                 "id": "string",
                 "accept": "boolean",
                 "message": "string | null"
+            }
+        },
+        "RevokeCalendarFromTeamIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "teamId": "string"
             }
         },
         "OrganizationInvitationIn": {
@@ -1672,6 +1835,14 @@
                 "role": "string"
             }
         },
+        "SetOrganizationTeamMemberRoleIn": {
+            "kind": "object",
+            "fields": {
+                "teamId": "string",
+                "userId": "string",
+                "role": "string"
+            }
+        },
         "SetPublicAccessIn": {
             "kind": "object",
             "fields": {
@@ -1728,6 +1899,14 @@
             "kind": "object",
             "fields": {
                 "externalCalendarId": "string"
+            }
+        },
+        "TransferCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "organizationId": "string | null",
+                "teamId": "string | null"
             }
         },
         "UnfollowCalendarIn": {
@@ -1805,6 +1984,14 @@
                 "displayName": "string | null",
                 "description": "string | null",
                 "visibility": "string | null"
+            }
+        },
+        "UpdateOrganizationTeamIn": {
+            "kind": "object",
+            "fields": {
+                "teamId": "string",
+                "name": "string | null",
+                "description": "string | null"
             }
         },
         "UpdateReminderSettingsIn": {

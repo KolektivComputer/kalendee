@@ -79,6 +79,17 @@
     if (!open && dialog.open) dialog.close()
   })
 
+  function close() {
+    open = false
+    loadedFor = ""
+    availability = null
+    loadError = ""
+    requestsEnabled = false
+    slotMinutes = 60
+    accessMode = "inherit"
+    windows = []
+  }
+
   $effect(() => {
     if (!open) {
       loadedFor = ""
@@ -125,7 +136,7 @@
   }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box max-w-xl">
     <h3 class="text-lg font-bold">Office hours</h3>
     <p class="py-2 text-base-content/70">
@@ -188,7 +199,7 @@
     {/if}
 
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={() => (open = false)}>Cancel</button>
+      <button type="button" class="btn btn-ghost" onclick={close}>Cancel</button>
       <button type="button" class="btn btn-primary" disabled={busy || !availability} onclick={() => void save()}>
         {saveAvailability.isPending ? "Saving…" : "Save"}
       </button>

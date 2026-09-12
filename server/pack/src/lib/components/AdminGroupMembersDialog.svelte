@@ -73,6 +73,18 @@
     if (!open && dialog.open) dialog.close()
   })
 
+  function close() {
+    open = false
+    loadedFor = ""
+    members = []
+    selected = {}
+    search = ""
+    loadError = ""
+    saveError = ""
+    saving = false
+    busyUserId = ""
+  }
+
   $effect(() => {
     if (!open) {
       loadedFor = ""
@@ -147,7 +159,7 @@
   }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box max-w-lg">
     <h3 class="text-lg font-bold">Members{groupName ? ` of ${groupName}` : ""}</h3>
 
@@ -156,7 +168,7 @@
         The default group includes every user. Membership is implicit and cannot be edited.
       </p>
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost" onclick={() => (open = false)}>Done</button>
+        <button type="button" class="btn btn-ghost" onclick={close}>Done</button>
       </div>
     {:else}
       <p class="py-2 text-base-content/70">
@@ -276,7 +288,7 @@
       {/if}
 
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost" disabled={saving} onclick={() => (open = false)}>Close</button>
+        <button type="button" class="btn btn-ghost" disabled={saving} onclick={close}>Close</button>
         {#if !isAdminGroup}
           <button
             type="button"

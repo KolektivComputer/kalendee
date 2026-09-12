@@ -162,6 +162,37 @@
     if (!open && dialog.open) dialog.close()
   })
 
+  function close() {
+    open = false
+    title = ""
+    description = ""
+    url = ""
+    allDay = false
+    startDate = ""
+    startTime = "09:00"
+    endDate = ""
+    endTime = "09:30"
+    repeats = false
+    frequency = "WEEKLY"
+    interval = 1
+    untilDate = ""
+    count = ""
+    reminderUseDefaults = true
+    reminderRows = []
+    reminderDefaults = []
+    reminderNotifyAtStart = false
+    reminderLoadError = ""
+    remindersFor = ""
+    attendees = []
+    attendeesOpenRsvp = false
+    attendeesFor = ""
+    attendeesLoadError = ""
+    inviteUsername = ""
+    rsvpStatus = null
+    rsvpMessage = ""
+    copied = false
+  }
+
   $effect(() => {
     if (!open) {
       remindersFor = ""
@@ -466,7 +497,7 @@
   }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box">
     <h3 class="text-lg font-bold">
       {mode === "create" ? "New event" : readOnly ? "View event" : "Edit event"}
@@ -775,7 +806,7 @@
             {deletePending ? "Deleting…" : "Delete"}
           </button>
         {/if}
-        <button type="button" class="btn btn-ghost" onclick={() => (open = false)}>{readOnly ? "Close" : "Cancel"}</button>
+        <button type="button" class="btn btn-ghost" onclick={close}>{readOnly ? "Close" : "Cancel"}</button>
         {#if !readOnly}
           <button type="submit" class="btn btn-primary" disabled={pending || reminderPending}>
             {pending || reminderPending ? "Saving…" : mode === "create" ? "Create" : "Save"}

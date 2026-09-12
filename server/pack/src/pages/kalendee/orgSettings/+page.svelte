@@ -342,6 +342,14 @@
     createTeamOpen = true
   }
 
+  function closeCreateTeam() {
+    createTeamOpen = false
+    newTeamName = ""
+    newTeamSlug = ""
+    newTeamDescription = ""
+    teamError = ""
+  }
+
   async function addTeam() {
     if (!canManageTeams || createTeam.isPending) return
     const name = newTeamName.trim()
@@ -360,7 +368,7 @@
       })
       teams = [...teams, created]
       expandedTeamId = created.id
-      createTeamOpen = false
+      closeCreateTeam()
     } catch {
       // Errors render from the action state.
     }
@@ -495,22 +503,29 @@
     deleteTeamOpen = true
   }
 
+  function closeDeleteTeam() {
+    if (deleteTeamPending) return
+    deleteTeamOpen = false
+    deletingTeam = null
+    deleteTeamError = ""
+  }
+
   async function confirmDeleteTeam() {
     const team = deletingTeam
     if (!team || deleteTeamPending) return
     deleteTeamPending = true
     deleteTeamError = ""
+    let deleted = false
     try {
       await deleteTeam.mutateAsync({ teamId: team.id })
       teams = teams.filter((entry) => entry.id !== team.id)
       if (expandedTeamId === team.id) expandedTeamId = ""
-      deleteTeamOpen = false
-      deletingTeam = null
+      deleted = true
     } catch (error) {
       deleteTeamError = actionMessage(error)
-    } finally {
-      deleteTeamPending = false
     }
+    deleteTeamPending = false
+    if (deleted) closeDeleteTeam()
   }
 
   async function revoke(invitation: OrganizationInvitationSummary) {
@@ -536,6 +551,11 @@
     } finally {
       deleting = false
     }
+  }
+
+  function closeDeleteOrg() {
+    deleteOpen = false
+    deleteError = ""
   }
 </script>
 
@@ -1149,7 +1169,7 @@
   {/if}
 </div>
 
-<dialog class="modal" bind:this={deleteDialog} onclose={() => (deleteOpen = false)}>
+<dialog class="modal" bind:this={deleteDialog} onclose={closeDeleteOrg}>
   <div class="modal-box max-w-md">
     <h3 class="text-lg font-bold">Delete {org.displayName}?</h3>
     <p class="py-2 text-base-content/70">
@@ -1159,7 +1179,7 @@
       <p class="text-error text-sm">{deleteError}</p>
     {/if}
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" disabled={deleting} onclick={() => (deleteOpen = false)}>
+      <button type="button" class="btn btn-ghost" disabled={deleting} onclick={closeDeleteOrg}>
         Cancel
       </button>
       <button type="button" class="btn btn-error" disabled={deleting} onclick={() => void confirmDelete()}>
@@ -1170,7 +1190,7 @@
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
-<dialog class="modal" bind:this={createTeamDialog} onclose={() => (createTeamOpen = false)}>
+<dialog class="modal" bind:this={createTeamDialog} onclose={closeCreateTeam}>
   <div class="modal-box max-w-md">
     <h3 class="text-lg font-bold">New team</h3>
     <p class="py-2 text-base-content/70">
@@ -1226,7 +1246,7 @@
         <p class="text-error text-sm">{actionMessage(createTeam.error)}</p>
       {/if}
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost" disabled={createTeam.isPending} onclick={() => (createTeamOpen = false)}>
+        <button type="button" class="btn btn-ghost" disabled={createTeam.isPending} onclick={closeCreateTeam}>
           Cancel
         </button>
         <button type="submit" class="btn btn-primary" disabled={createTeam.isPending}>
@@ -1238,7 +1258,7 @@
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
-<dialog class="modal" bind:this={deleteTeamDialog} onclose={() => (deleteTeamOpen = false)}>
+<dialog class="modal" bind:this={deleteTeamDialog} onclose={closeDeleteTeam}>
   <div class="modal-box max-w-md">
     <h3 class="text-lg font-bold">Delete {deletingTeam?.name}?</h3>
     <p class="py-2 text-base-content/70">
@@ -1252,7 +1272,7 @@
         type="button"
         class="btn btn-ghost"
         disabled={deleteTeamPending}
-        onclick={() => (deleteTeamOpen = false)}
+        onclick={closeDeleteTeam}
       >
         Cancel
       </button>

@@ -84,6 +84,20 @@
     if (!open && dialog.open) dialog.close()
   })
 
+  function close() {
+    open = false
+    date = todayIso()
+    slots = null
+    selected = null
+    message = ""
+    name = ""
+    email = ""
+    attempted = false
+    sent = false
+    loadError = ""
+    loadedFor = ""
+  }
+
   $effect(() => {
     if (open && !wasOpen) {
       wasOpen = true
@@ -163,7 +177,7 @@
   }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box max-w-lg">
     <h3 class="text-lg font-bold">Request a time</h3>
     <p class="py-2 text-base-content/70">
@@ -280,7 +294,7 @@
     {/if}
 
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={() => (open = false)}>
+      <button type="button" class="btn btn-ghost" onclick={close}>
         {sent ? "Done" : "Cancel"}
       </button>
       <button

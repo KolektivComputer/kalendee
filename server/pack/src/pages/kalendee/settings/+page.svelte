@@ -169,6 +169,7 @@
   $effect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return
+      if (document.querySelector("dialog[open]")) return
       event.preventDefault()
       closeSettings()
     }

@@ -42,6 +42,17 @@
     if (!open && dialog.open) dialog.close()
   })
 
+  function close() {
+    open = false
+    loadedFor = ""
+    name = ""
+    unlimited = true
+    quotaMiB = ""
+    initialQuotaMiB = ""
+    initialUnlimited = true
+    localError = ""
+  }
+
   $effect(() => {
     if (!open) {
       loadedFor = ""
@@ -99,14 +110,14 @@
       } else {
         await createGroup.mutateAsync({ name: cleanName, storageQuotaBytes: quota })
       }
-      open = false
+      close()
     } catch {
       // The action error renders below.
     }
   }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box max-w-md">
     <h3 class="text-lg font-bold">{group ? `Edit ${group.name}` : "New group"}</h3>
     <p class="py-2 text-base-content/70">
@@ -169,7 +180,7 @@
       {/if}
 
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost" disabled={pending} onclick={() => (open = false)}>Cancel</button>
+        <button type="button" class="btn btn-ghost" disabled={pending} onclick={close}>Cancel</button>
         <button type="submit" class="btn btn-primary" disabled={pending}>
           {pending ? "Saving…" : group ? "Save" : "Create"}
         </button>

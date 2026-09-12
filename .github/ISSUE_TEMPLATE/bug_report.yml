@@ -75,7 +75,7 @@ body:
       options:
         - label: I searched existing issues and this is not a duplicate.
           required: true
-        - label: I can reproduce this on the latest `master` (or the latest release).
+        - label: I can reproduce this on the latest `main` (or the latest release).
           required: false
         - label: I am willing to submit a pull request for this.
           required: false

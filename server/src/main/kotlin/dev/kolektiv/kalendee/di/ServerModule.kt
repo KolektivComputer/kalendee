@@ -15,7 +15,9 @@ import dev.kolektiv.kalendee.db.DatabaseProvider
 import dev.kolektiv.kalendee.db.DatabaseSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.external.store.ExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.ExternalEventStore
+import dev.kolektiv.kalendee.external.store.PostgresExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.PostgresExternalEventStore
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
@@ -142,12 +144,14 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     }
     single<CalendarStore> { PostgresCalendarStore(database = get(), teams = get(), clock = get()) }
     single<ExternalEventStore> { PostgresExternalEventStore(database = get(), clock = get()) }
+    single<ExternalEventRouteStore> { PostgresExternalEventRouteStore(database = get(), clock = get()) }
     single {
         DiscordImportService(
             database = get(),
             connections = get(),
             store = get(),
             externalEvents = get(),
+            routeStore = get(),
             api = get(),
             settings = get(),
             clock = get(),

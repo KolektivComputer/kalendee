@@ -7,6 +7,8 @@ import dev.kolektiv.kalendee.oauth.discord.DiscordBotNotInGuildException
 import dev.kolektiv.kalendee.oauth.discord.DiscordGuildSummary as DiscordGuild
 import dev.kolektiv.kalendee.oauth.discord.DiscordImportException
 import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
+import dev.kolektiv.kalendee.oauth.discord.DiscordRouteAssignment
+import dev.kolektiv.kalendee.oauth.discord.DiscordSyncSetup as ServiceSyncSetup
 import dev.kolektiv.kalendee.oauth.providers.DiscordApiException
 import dev.kolektiv.kalendee.oauth.providers.DiscordBotNotConfiguredException
 import dev.kolektiv.keel.KeelAction
@@ -22,6 +24,33 @@ class DiscordActions(
         val user = requireSessionUser(auth, settings)
         DiscordGuildsOut(guilds = imports.guilds(user.id, input.connectionId).map { it.toDto() })
     }
+
+    @KeelAction("kalendee.discordSyncSetup")
+    suspend fun discordSyncSetup(input: DiscordSyncSetupIn): DiscordSyncSetupOut =
+        mapDiscordErrors("connectionId") {
+            val user = requireSessionUser(auth, settings)
+            imports.syncSetup(user.id, input.connectionId, input.guildId).toDto()
+        }
+
+    @KeelAction("kalendee.saveDiscordSync")
+    suspend fun saveDiscordSync(input: SaveDiscordSyncIn): DiscordGuildSummary =
+        mapDiscordErrors("calendarId") {
+            val user = requireSessionUser(auth, settings)
+            imports.saveSync(
+                userId = user.id,
+                connectionId = input.connectionId,
+                guildId = input.guildId,
+                defaultCalendarId = input.defaultCalendarId,
+                routes = input.routes.map {
+                    DiscordRouteAssignment(
+                        eventId = it.eventId,
+                        calendarId = it.calendarId,
+                        skipped = it.skipped,
+                    )
+                },
+                enabled = input.enabled,
+            ).toDto()
+        }
 
     @KeelAction("kalendee.importDiscordGuild")
     suspend fun importDiscordGuild(input: ImportDiscordGuildIn): DiscordGuildSummary =
@@ -66,6 +95,27 @@ private fun DiscordGuild.toDto(): DiscordGuildSummary = DiscordGuildSummary(
     imported = imported,
     externalCalendarId = externalCalendarId,
     calendarId = calendarId,
+    enabled = enabled,
+    lastSyncAt = lastSyncAt,
+    lastError = lastError,
+)
+
+private fun ServiceSyncSetup.toDto(): DiscordSyncSetupOut = DiscordSyncSetupOut(
+    defaultCalendarId = defaultCalendarId,
+    calendars = calendars.map {
+        CalendarOptionSummary(id = it.id.value, displayName = it.displayName, color = it.color)
+    },
+    events = events.map { event ->
+        DiscordEventRouteSummary(
+            id = event.id,
+            name = event.name,
+            start = event.start,
+            recurring = event.recurring,
+            calendarId = event.calendarId,
+            skipped = event.skipped,
+        )
+    },
+    imported = imported,
     enabled = enabled,
     lastSyncAt = lastSyncAt,
     lastError = lastError,

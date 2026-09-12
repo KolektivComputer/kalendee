@@ -1,8 +1,10 @@
 package dev.kolektiv.kalendee
 
+import dev.kolektiv.kalendee.web.CalendarSummary
 import dev.kolektiv.kalendee.web.DeletedOut
 import dev.kolektiv.kalendee.web.DiscordGuildsOut
 import dev.kolektiv.kalendee.web.DiscordGuildSummary
+import dev.kolektiv.kalendee.web.DiscordSyncSetupOut
 import dev.kolektiv.kalendee.web.SettingsPage
 import dev.kolektiv.keel.Keel
 import dev.kolektiv.keel.KeelJson
@@ -137,6 +139,128 @@ class DiscordActionsTest {
         assertFalse(removedGuild.imported)
         assertTrue(removedGuild.manageable)
         assertNull(removedGuild.externalCalendarId)
+    }
+
+    @Test
+    fun syncSetupListsEventsAndCalendarsWithoutMapping() = testApplication {
+        installApi(httpClient = HttpClient(discordEngine()), extraConfig = discordActionsConfig())
+        val client = jsonClient(followRedirects = false)
+        client.registerAndLogin(username = "mey")
+        client.connectDiscord()
+        val connection = client.settingsPage(tab = "connections").connections.single()
+        val anime = client.action(
+            "kalendee.createCalendar",
+            """{"displayName":"Anime"}""",
+            CalendarSummary.serializer(),
+        )
+
+        val setup = client.action(
+            "kalendee.discordSyncSetup",
+            """{"connectionId":"${connection.id}","guildId":"guild-1"}""",
+            DiscordSyncSetupOut.serializer(),
+        )
+
+        assertFalse(setup.imported)
+        assertFalse(setup.enabled)
+        assertNull(setup.defaultCalendarId)
+        assertNull(setup.lastSyncAt)
+        assertNull(setup.lastError)
+        assertTrue(setup.calendars.any { it.id == anime.id })
+        val event = setup.events.single()
+        assertEquals("event-1", event.id)
+        assertEquals("Community call", event.name)
+        assertEquals("2026-09-20T14:00:00Z", event.start)
+        assertFalse(event.recurring)
+        assertFalse(event.skipped)
+        assertNull(event.calendarId)
+    }
+
+    @Test
+    fun saveDiscordSyncBootstrapsMappingAndPersistsRoutes() = testApplication {
+        installApi(httpClient = HttpClient(discordEngine()), extraConfig = discordActionsConfig())
+        val client = jsonClient(followRedirects = false)
+        client.registerAndLogin(username = "mey")
+        client.connectDiscord()
+        val connection = client.settingsPage(tab = "connections").connections.single()
+        val anime = client.action(
+            "kalendee.createCalendar",
+            """{"displayName":"Anime"}""",
+            CalendarSummary.serializer(),
+        )
+        val gaming = client.action(
+            "kalendee.createCalendar",
+            """{"displayName":"Gaming"}""",
+            CalendarSummary.serializer(),
+        )
+
+        val saved = client.action(
+            "kalendee.saveDiscordSync",
+            """{"connectionId":"${connection.id}","guildId":"guild-1","defaultCalendarId":"${anime.id}",""" +
+                """"routes":[{"eventId":"event-1","calendarId":"${gaming.id}"}],"enabled":true}""",
+            DiscordGuildSummary.serializer(),
+        )
+
+        assertTrue(saved.imported)
+        assertTrue(saved.enabled)
+        assertNotNull(saved.externalCalendarId)
+        assertEquals(anime.id, saved.calendarId)
+        assertNotNull(saved.lastSyncAt)
+        assertNull(saved.lastError)
+
+        val routed = client.action(
+            "kalendee.discordSyncSetup",
+            """{"connectionId":"${connection.id}","guildId":"guild-1"}""",
+            DiscordSyncSetupOut.serializer(),
+        )
+        assertTrue(routed.imported)
+        assertEquals(anime.id, routed.defaultCalendarId)
+        assertTrue(routed.calendars.any { it.id == anime.id })
+        assertTrue(routed.calendars.any { it.id == gaming.id })
+        val routedEvent = routed.events.single()
+        assertEquals(gaming.id, routedEvent.calendarId)
+        assertFalse(routedEvent.skipped)
+
+        val skipped = client.action(
+            "kalendee.saveDiscordSync",
+            """{"connectionId":"${connection.id}","guildId":"guild-1",""" +
+                """"routes":[{"eventId":"event-1","skipped":true}],"enabled":true}""",
+            DiscordGuildSummary.serializer(),
+        )
+        assertEquals(saved.externalCalendarId, skipped.externalCalendarId)
+
+        val after = client.action(
+            "kalendee.discordSyncSetup",
+            """{"connectionId":"${connection.id}","guildId":"guild-1"}""",
+            DiscordSyncSetupOut.serializer(),
+        )
+        assertTrue(after.events.single().skipped)
+        assertNull(after.events.single().calendarId)
+    }
+
+    @Test
+    fun saveDiscordSyncRejectsCalendarTheUserCannotWrite() = testApplication {
+        installApi(httpClient = HttpClient(discordEngine()), extraConfig = discordActionsConfig())
+        val client = jsonClient(followRedirects = false)
+        client.registerAndLogin(username = "mey")
+        client.connectDiscord()
+        val connection = client.settingsPage(tab = "connections").connections.single()
+
+        val other = jsonClient(followRedirects = false)
+        other.registerAndLogin(username = "bob")
+        val otherCalendar = other.action(
+            "kalendee.createCalendar",
+            """{"displayName":"Bob"}""",
+            CalendarSummary.serializer(),
+        )
+
+        val errors = client.actionErrors(
+            "kalendee.saveDiscordSync",
+            """{"connectionId":"${connection.id}","guildId":"guild-1",""" +
+                """"defaultCalendarId":"${otherCalendar.id}","enabled":true}""",
+        )
+
+        val calendarErrors = assertNotNull(errors["calendarId"]).joinToString(" ")
+        assertTrue("calendar" in calendarErrors, calendarErrors)
     }
 
     private suspend fun HttpClient.connectDiscord(): String {

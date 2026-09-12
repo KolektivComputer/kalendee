@@ -2,13 +2,16 @@ package dev.kolektiv.kalendee.oauth.discord
 
 import dev.kolektiv.kalendee.auth.UserId
 import dev.kolektiv.kalendee.auth.toUuid
+import dev.kolektiv.kalendee.calendar.Calendar
 import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.CreateCalendar
 import dev.kolektiv.kalendee.db.CalendarConnectionsTable
 import dev.kolektiv.kalendee.db.ExternalCalendarsTable
+import dev.kolektiv.kalendee.external.store.ExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.ExternalEventStore
+import dev.kolektiv.kalendee.external.store.RouteTarget
 import dev.kolektiv.kalendee.external.store.StoredExternalEvent
 import dev.kolektiv.kalendee.oauth.ConnectionService
 import dev.kolektiv.kalendee.oauth.OAuthReauthRequiredException
@@ -68,16 +71,47 @@ class DiscordBotNotInGuildException(
 
 class DiscordImportException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
+/** One Discord scheduled event with its effective import destination. */
+data class DiscordEventRouteSummary(
+    val id: String,
+    val name: String,
+    val start: String,
+    val recurring: Boolean,
+    val calendarId: String?,
+    val skipped: Boolean,
+)
+
+/** Setup state for per-event routing of one imported Discord guild. */
+data class DiscordSyncSetup(
+    val defaultCalendarId: String?,
+    val calendars: List<Calendar>,
+    val events: List<DiscordEventRouteSummary>,
+    val imported: Boolean,
+    val enabled: Boolean,
+    val lastSyncAt: String?,
+    val lastError: String?,
+)
+
+/** A requested route for one Discord base event. */
+data class DiscordRouteAssignment(
+    val eventId: String,
+    val calendarId: String?,
+    val skipped: Boolean,
+)
+
 /**
- * Imports Discord guild scheduled events into a mirrored, read-only Kalendee
- * calendar. Pulls happen on demand and through [syncNow]; nothing is ever
- * pushed back to Discord.
+ * Imports Discord guild scheduled events into Kalendee calendars. One guild
+ * source keeps a default target calendar and can route individual base events
+ * to other calendars or skip them; occurrences inherit their series' route.
+ * Pulls happen on demand and through [syncNow]; nothing is ever pushed back to
+ * Discord.
  */
 class DiscordImportService(
     private val database: Database,
     private val connections: ConnectionService,
     private val store: CalendarStore,
     private val externalEvents: ExternalEventStore,
+    private val routeStore: ExternalEventRouteStore,
     private val api: DiscordApi,
     private val settings: OAuthSettings,
     private val clock: Clock = Clock.System,
@@ -194,6 +228,125 @@ class DiscordImportService(
         )
     }
 
+    /**
+     * Routing state for one Discord guild: the current default target calendar,
+     * the calendars a user may route to, and every scheduled event with its
+     * effective destination.
+     */
+    suspend fun syncSetup(userId: UserId, connectionId: String, guildId: String): DiscordSyncSetup {
+        val connection = requireConnection(userId, connectionId)
+        val mapping = dbQuery { mappingRow(connection, guildId) }
+        val externalCalendarId = mapping?.get(ExternalCalendarsTable.id)
+        val defaultCalendarId = mapping?.get(ExternalCalendarsTable.calendarId)?.toString()
+        val configured = externalCalendarId?.let { routeStore.routes(it) }.orEmpty()
+        val events = try {
+            api.scheduledEvents(guildId)
+        } catch (cause: DiscordAuthException) {
+            throw reauthRequired(userId, connectionId, cause)
+        }.sortedBy { it.startInstant() }
+        return DiscordSyncSetup(
+            defaultCalendarId = defaultCalendarId,
+            calendars = writableCalendars(userId, sourceDefault = mapping?.get(ExternalCalendarsTable.calendarId)),
+            events = events.map { event ->
+                val route = configured[event.id]
+                DiscordEventRouteSummary(
+                    id = event.id,
+                    name = event.name,
+                    start = event.scheduledStartTime,
+                    recurring = event.recurrenceRule != null,
+                    calendarId = when (route) {
+                        is RouteTarget.Calendar -> route.calendarId.value
+                        RouteTarget.Skip -> null
+                        null -> defaultCalendarId
+                    },
+                    skipped = route == RouteTarget.Skip,
+                )
+            },
+            imported = mapping != null,
+            enabled = mapping?.get(ExternalCalendarsTable.enabled) ?: false,
+            lastSyncAt = mapping?.get(ExternalCalendarsTable.lastSyncAt)?.toString(),
+            lastError = mapping?.get(ExternalCalendarsTable.lastError),
+        )
+    }
+
+    /**
+     * Persists per-event routes for one Discord guild, bootstrapping the import
+     * mapping (and its auto-created default calendar) through [importGuild] when
+     * the guild has not been imported yet.
+     */
+    suspend fun saveSync(
+        userId: UserId,
+        connectionId: String,
+        guildId: String,
+        defaultCalendarId: String?,
+        routes: List<DiscordRouteAssignment>,
+        enabled: Boolean,
+    ): DiscordGuildSummary {
+        val connection = requireConnection(userId, connectionId)
+        val accessible = store.listCalendars(userId)
+            .filter { it.permission.canWrite }
+            .associateBy { it.id.toUuid() }
+        val managed = dbQuery { managedCalendarIds(accessible.keys.toList()) }
+
+        fun requireTargetCalendar(raw: String, allowManaged: Uuid?): Uuid {
+            val id = Uuid.parseOrNull(raw) ?: throw CalendarException.Invalid("invalid calendar id")
+            if (id !in accessible) throw CalendarException.Forbidden("calendar is not writable")
+            if (id in managed && id != allowManaged) {
+                throw CalendarException.Forbidden("calendar is managed by an external provider")
+            }
+            return id
+        }
+
+        val existing = dbQuery { mappingRow(connection, guildId) }
+        val existingDefault = existing?.get(ExternalCalendarsTable.calendarId)
+        val requestedDefault = defaultCalendarId
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { requireTargetCalendar(it, allowManaged = existingDefault) }
+
+        val mapping = if (existing == null) {
+            importGuild(userId, connectionId, guildId)
+            dbQuery { mappingRow(connection, guildId) }
+                ?: error("discord import mapping disappeared")
+        } else {
+            existing
+        }
+        val externalCalendarId = mapping[ExternalCalendarsTable.id]
+        val currentDefault = mapping[ExternalCalendarsTable.calendarId]
+        val effectiveDefault = requestedDefault ?: currentDefault
+        if (requestedDefault != null && requestedDefault != currentDefault) {
+            dbQuery {
+                ExternalCalendarsTable.update({ ExternalCalendarsTable.id eq externalCalendarId }) {
+                    it[calendarId] = requestedDefault
+                    it[updatedAt] = clock.now()
+                }
+            }
+        }
+
+        val routeEntries = LinkedHashMap<String, RouteTarget>()
+        routes.forEach { assignment ->
+            val eventId = assignment.eventId.trim()
+            if (eventId.isEmpty()) throw CalendarException.Invalid("invalid event id")
+            val target = if (assignment.skipped) {
+                RouteTarget.Skip
+            } else {
+                val raw = assignment.calendarId?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+                RouteTarget.Calendar(
+                    CalendarId(requireTargetCalendar(raw, allowManaged = effectiveDefault).toString()),
+                )
+            }
+            routeEntries[eventId] = target
+        }
+        routeEntries.entries.removeAll { (_, target) ->
+            target is RouteTarget.Calendar && target.calendarId.toUuid() == effectiveDefault
+        }
+        routeStore.replaceRoutes(externalCalendarId, routeEntries)
+
+        setEnabled(userId, externalCalendarId.toString(), enabled)
+        syncNow(userId, externalCalendarId.toString())
+        return guildSummary(userId, externalCalendarId.toString())
+    }
+
     suspend fun syncNow(userId: UserId, externalCalendarId: String) {
         val uuid = Uuid.parseOrNull(externalCalendarId)
             ?: throw CalendarException.Invalid("invalid external calendar id")
@@ -269,17 +422,30 @@ class DiscordImportService(
         val token = connections.validAccessToken(userId, context.connectionId.toString())
         val fetched = api.scheduledEvents(context.guildId)
         val now = clock.now()
-        val mapped = fetched.flatMap { event -> mapDiscordEvent(event, context.guildName, now) }
-        mapped.forEach { event -> externalEvents.upsert(context.calendarId, event) }
-        val stored = externalEvents.listExternal(context.calendarId)
-        val desired = mapped.map { it.uid }.toSet()
-        deleteStaleOccurrences(context, fetched, stored, desired, now)
+        val routes = routeStore.routes(context.externalCalendarId)
+        val mapped = buildList {
+            fetched.forEach { event ->
+                val target = when (val route = routes[event.id]) {
+                    is RouteTarget.Calendar -> route.calendarId
+                    RouteTarget.Skip -> return@forEach
+                    null -> context.calendarId
+                }
+                mapDiscordEvent(event, context.guildName, now).forEach { add(target to it) }
+            }
+        }
+        mapped.forEach { (calendarId, event) ->
+            externalEvents.upsert(context.externalCalendarId, calendarId, event)
+        }
+        val stored = externalEvents.listBySource(context.externalCalendarId)
+        val desired = mapped.map { it.second.uid }.toSet()
+        deleteStaleOccurrences(context, fetched, routes, stored, desired, now)
         reconcileMissingEvents(context, fetched, stored, now)
     }
 
     private suspend fun deleteStaleOccurrences(
         context: SyncContext,
         fetched: List<DiscordScheduledEvent>,
+        routes: Map<String, RouteTarget>,
         stored: List<StoredExternalEvent>,
         desired: Set<String>,
         now: Instant,
@@ -287,15 +453,20 @@ class DiscordImportService(
         val stale = mutableSetOf<String>()
         fetched.forEach { event ->
             val prefix = discordOccurrenceUidPrefix(context.guildId, event.id)
+            val baseUid = discordEventUid(context.guildId, event.id)
+            if (routes[event.id] == RouteTarget.Skip) {
+                stored.filter { it.uid == baseUid || it.uid.startsWith(prefix) }
+                    .forEach { stale += it.uid }
+                return@forEach
+            }
             val recurring = desired.any { it.startsWith(prefix) }
             stored.filter { it.uid.startsWith(prefix) && it.uid !in desired && it.end > now }
                 .forEach { stale += it.uid }
             if (recurring) {
-                val baseUid = discordEventUid(context.guildId, event.id)
                 stored.filter { it.uid == baseUid && it.end > now }.forEach { stale += it.uid }
             }
         }
-        if (stale.isNotEmpty()) externalEvents.deleteByUids(context.calendarId, stale)
+        if (stale.isNotEmpty()) externalEvents.deleteByUids(context.externalCalendarId, stale)
     }
 
     private suspend fun reconcileMissingEvents(
@@ -314,11 +485,11 @@ class DiscordImportService(
             try {
                 val event = api.scheduledEvent(context.guildId, eventId)
                 if (event.status == DiscordScheduledEvent.STATUS_CANCELED) {
-                    rows.forEach { externalEvents.markCancelled(context.calendarId, it.uid) }
+                    rows.forEach { externalEvents.markCancelled(context.externalCalendarId, it.uid) }
                 }
             } catch (cause: DiscordApiHttpException) {
                 if (cause.statusCode == HttpStatusCodeNotFound) {
-                    externalEvents.deleteByUids(context.calendarId, rows.map { it.uid })
+                    externalEvents.deleteByUids(context.externalCalendarId, rows.map { it.uid })
                 } else {
                     throw cause
                 }
@@ -383,6 +554,30 @@ class DiscordImportService(
         CalendarConnectionsTable.selectAll()
             .where { CalendarConnectionsTable.userId eq userId.toUuid() }
             .map { it[CalendarConnectionsTable.id] }
+
+    private fun JdbcTransaction.managedCalendarIds(calendarIds: List<Uuid>): Set<Uuid> {
+        if (calendarIds.isEmpty()) return emptySet()
+        return ExternalCalendarsTable.selectAll()
+            .where { ExternalCalendarsTable.calendarId inList calendarIds }
+            .map { it[ExternalCalendarsTable.calendarId] }
+            .toSet()
+    }
+
+    /**
+     * The calendars a user may route Discord events to: writable calendars that
+     * are not mirrors of some external provider, plus the source's own default
+     * calendar when one exists.
+     */
+    private suspend fun writableCalendars(userId: UserId, sourceDefault: Uuid?): List<Calendar> {
+        val calendars = store.listCalendars(userId).filter { it.permission.canWrite }
+        val managed = dbQuery { managedCalendarIds(calendars.map { it.id.toUuid() }) }
+        return calendars
+            .filter { it.id.toUuid() !in managed || it.id.toUuid() == sourceDefault }
+            .sortedBy { it.displayName.lowercase() }
+    }
+
+    private fun DiscordScheduledEvent.startInstant(): Instant =
+        runCatching { Instant.parse(scheduledStartTime) }.getOrNull() ?: Instant.DISTANT_FUTURE
 
     private data class SyncContext(
         val externalCalendarId: Uuid,

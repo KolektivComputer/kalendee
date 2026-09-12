@@ -675,6 +675,30 @@ export interface DiscordGuildsOut {
   guilds: DiscordGuildSummary[]
 }
 
+export interface DiscordSyncSetupIn {
+  connectionId: string
+  guildId: string
+}
+
+export interface DiscordEventRouteSummary {
+  id: string
+  name: string
+  start: string
+  recurring: boolean
+  calendarId: string | null
+  skipped: boolean
+}
+
+export interface DiscordSyncSetupOut {
+  defaultCalendarId: string | null
+  calendars: CalendarOptionSummary[]
+  events: DiscordEventRouteSummary[]
+  imported: boolean
+  enabled: boolean
+  lastSyncAt: string | null
+  lastError: string | null
+}
+
 export interface EventAttendeesIn {
   eventId: string
 }
@@ -965,6 +989,20 @@ export interface RsvpByTokenIn {
   status: string
 }
 
+export interface DiscordEventRouteIn {
+  eventId: string
+  calendarId: string | null
+  skipped: boolean
+}
+
+export interface SaveDiscordSyncIn {
+  connectionId: string
+  guildId: string
+  defaultCalendarId: string | null
+  routes: DiscordEventRouteIn[]
+  enabled: boolean
+}
+
 export interface SearchUsersIn {
   query: string
 }
@@ -1236,6 +1274,7 @@ export interface KalendeeActions {
   "kalendee.deleteOrganizationTeam": { in: DeleteOrganizationTeamIn; out: DeletedOut }
   "kalendee.disconnectAccount": { in: DisconnectAccountIn; out: DeletedOut }
   "kalendee.discordGuilds": { in: DiscordGuildsIn; out: DiscordGuildsOut }
+  "kalendee.discordSyncSetup": { in: DiscordSyncSetupIn; out: DiscordSyncSetupOut }
   "kalendee.eventAttendees": { in: EventAttendeesIn; out: EventAttendeesOut }
   "kalendee.eventReminders": { in: GetEventRemindersIn; out: EventRemindersOut }
   "kalendee.followCalendar": { in: FollowCalendarIn; out: FollowOut }
@@ -1272,6 +1311,7 @@ export interface KalendeeActions {
   "kalendee.revokeOrganizationInvitation": { in: OrganizationInvitationIn; out: OrganizationInvitationOut }
   "kalendee.rotatePublicLink": { in: RotatePublicLinkIn; out: CalendarSharingOut }
   "kalendee.rsvpByToken": { in: RsvpByTokenIn; out: RsvpOut }
+  "kalendee.saveDiscordSync": { in: SaveDiscordSyncIn; out: DiscordGuildSummary }
   "kalendee.searchUsers": { in: SearchUsersIn; out: UserSearchOut }
   "kalendee.sendFriendRequest": { in: SendFriendRequestIn; out: FriendRequestOut }
   "kalendee.setCalendarHidden": { in: SetCalendarHiddenIn; out: CalendarSummary }

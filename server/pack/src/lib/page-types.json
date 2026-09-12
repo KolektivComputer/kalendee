@@ -226,6 +226,10 @@
             "in": "DiscordGuildsIn",
             "out": "DiscordGuildsOut"
         },
+        "kalendee.discordSyncSetup": {
+            "in": "DiscordSyncSetupIn",
+            "out": "DiscordSyncSetupOut"
+        },
         "kalendee.eventAttendees": {
             "in": "EventAttendeesIn",
             "out": "EventAttendeesOut"
@@ -369,6 +373,10 @@
         "kalendee.rsvpByToken": {
             "in": "RsvpByTokenIn",
             "out": "RsvpOut"
+        },
+        "kalendee.saveDiscordSync": {
+            "in": "SaveDiscordSyncIn",
+            "out": "DiscordGuildSummary"
         },
         "kalendee.searchUsers": {
             "in": "SearchUsersIn",
@@ -1336,6 +1344,36 @@
                 "guilds": "DiscordGuildSummary[]"
             }
         },
+        "DiscordSyncSetupIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string",
+                "guildId": "string"
+            }
+        },
+        "DiscordEventRouteSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "name": "string",
+                "start": "string",
+                "recurring": "boolean",
+                "calendarId": "string | null",
+                "skipped": "boolean"
+            }
+        },
+        "DiscordSyncSetupOut": {
+            "kind": "object",
+            "fields": {
+                "defaultCalendarId": "string | null",
+                "calendars": "CalendarOptionSummary[]",
+                "events": "DiscordEventRouteSummary[]",
+                "imported": "boolean",
+                "enabled": "boolean",
+                "lastSyncAt": "string | null",
+                "lastError": "string | null"
+            }
+        },
         "EventAttendeesIn": {
             "kind": "object",
             "fields": {
@@ -1731,6 +1769,24 @@
             "fields": {
                 "token": "string",
                 "status": "string"
+            }
+        },
+        "DiscordEventRouteIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "calendarId": "string | null",
+                "skipped": "boolean"
+            }
+        },
+        "SaveDiscordSyncIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string",
+                "guildId": "string",
+                "defaultCalendarId": "string | null",
+                "routes": "DiscordEventRouteIn[]",
+                "enabled": "boolean"
             }
         },
         "SearchUsersIn": {

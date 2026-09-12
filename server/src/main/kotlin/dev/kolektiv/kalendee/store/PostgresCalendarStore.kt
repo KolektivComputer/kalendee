@@ -679,6 +679,7 @@ class PostgresCalendarStore(
                 ?: return@dbQuery null
             if (!permission.canWrite) throw CalendarException.Forbidden("read-only calendar")
             requireNotMirrored(row[EventsTable.calendarId])
+            requireNotImported(row)
             val existing = row.toEvent()
             existing.requireEtag(expectedEtag)
             val validated = command.validated(existing.start, existing.end)
@@ -735,6 +736,7 @@ class PostgresCalendarStore(
             ?: return@dbQuery null
         if (!sourcePermission.canWrite) throw CalendarException.Forbidden("read-only calendar")
         requireNotMirrored(row[EventsTable.calendarId])
+        requireNotImported(row)
         val destinationPermission = permissionFor(destinationCalendarId.toUuid(), userId)
             ?: throw CalendarException.NotFound("calendar not found")
         if (!destinationPermission.canWrite) throw CalendarException.Forbidden("read-only calendar")
@@ -832,6 +834,7 @@ class PostgresCalendarStore(
             ?: return@dbQuery false
         if (!permission.canWrite) throw CalendarException.Forbidden("read-only calendar")
         requireNotMirrored(row[EventsTable.calendarId])
+        requireNotImported(row)
         val existing = row.toEvent()
         existing.requireEtag(expectedEtag)
         EventsTable.deleteWhere { EventsTable.id eq id.toUuid() } > 0
@@ -916,6 +919,16 @@ class PostgresCalendarStore(
             .count() > 0
         if (mirrored) {
             throw CalendarException.Forbidden("this calendar syncs from an external provider and is read-only")
+        }
+    }
+
+    /**
+     * Imported events stay read-only even when their route places them in a
+     * user-created calendar: local edits would be overwritten by the next sync.
+     */
+    private fun requireNotImported(row: ResultRow) {
+        if (row[EventsTable.externalCalendarId] != null) {
+            throw CalendarException.Forbidden("this event is imported from an external provider and is read-only")
         }
     }
 

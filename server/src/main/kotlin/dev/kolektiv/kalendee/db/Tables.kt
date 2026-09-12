@@ -322,6 +322,26 @@ object ExternalCalendarsTable : Table("external_calendars") {
     }
 }
 
+object DiscordEventRoutesTable : Table("discord_event_routes") {
+    val id = uuid("id")
+    val externalCalendarId = uuid("external_calendar_id")
+        .references(ExternalCalendarsTable.id, onDelete = ReferenceOption.CASCADE)
+    val eventId = text("event_id")
+    val calendarId = uuid("calendar_id")
+        .references(CalendarsTable.id, onDelete = ReferenceOption.CASCADE)
+        .nullable()
+    val skipped = bool("skipped").default(false)
+    val createdAt = instant("created_at")
+    val updatedAt = instant("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(externalCalendarId, eventId)
+        index(false, calendarId)
+    }
+}
+
 object OAuthStatesTable : Table("oauth_states") {
     val state = text("state")
     val userId = uuid("user_id")

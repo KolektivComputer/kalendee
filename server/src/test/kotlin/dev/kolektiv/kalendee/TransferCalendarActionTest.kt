@@ -1,6 +1,7 @@
 package dev.kolektiv.kalendee
 
 import dev.kolektiv.kalendee.calendar.CalendarId
+import dev.kolektiv.kalendee.calendar.CalendarPermission
 import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.OrganizationId
 import dev.kolektiv.kalendee.organizations.OrganizationRole
@@ -49,14 +50,29 @@ class TransferCalendarActionTest {
         startApplication()
         val alice = jsonClient()
         val aliceUser = alice.registerAndLogin("alice")
+        val bob = jsonClient()
+        val bobUser = bob.registerAndLogin("bob")
 
         val org = alice.createOrganization("acme", "Acme")
+        orgs.addMember(aliceUser.id, OrganizationId(org.id), bobUser.id, OrganizationRole.MEMBER)
         val calendar = alice.createCalendar("Personal")
 
         val movedToOrg = alice.transfer(calendar.id, organizationId = org.id)
         assertEquals(calendar.id, movedToOrg.id)
         assertEquals(org.id, movedToOrg.organizationId)
         assertEquals("owner", movedToOrg.permission)
+
+        val defaultTeamId = requireNotNull(teams.defaultTeamId(OrganizationId(org.id)))
+        val headerHome = alice.visit("/").decodePage(HomePage.serializer())
+        val headerCalendar = headerHome.calendars.single { it.id == calendar.id }
+        assertEquals(org.id, headerCalendar.organizationId)
+        assertEquals("Acme", headerCalendar.organizationName)
+        assertEquals(defaultTeamId.value, headerCalendar.teamId)
+        assertEquals("Everyone", headerCalendar.teamName)
+        assertEquals(
+            CalendarPermission.WRITE,
+            store.getCalendar(CalendarId.parse(calendar.id), bobUser.id)?.permission,
+        )
 
         val design = alice.createTeam(org.id, "design", "Design")
         val movedToTeam = alice.transfer(calendar.id, organizationId = org.id, teamId = design.id)

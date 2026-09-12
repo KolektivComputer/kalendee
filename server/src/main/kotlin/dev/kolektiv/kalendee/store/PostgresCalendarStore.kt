@@ -311,17 +311,7 @@ class PostgresCalendarStore(
         } else if (destinationOrgId == null) {
             CalendarTeamGrantsTable.deleteWhere { CalendarTeamGrantsTable.calendarId eq id.toUuid() }
         } else {
-            val destinationTeamIds = OrganizationTeamsTable.selectAll()
-                .where { OrganizationTeamsTable.organizationId eq destinationOrgId.toUuid() }
-                .map { it[OrganizationTeamsTable.id] }
-            if (destinationTeamIds.isEmpty()) {
-                CalendarTeamGrantsTable.deleteWhere { CalendarTeamGrantsTable.calendarId eq id.toUuid() }
-            } else {
-                CalendarTeamGrantsTable.deleteWhere {
-                    (CalendarTeamGrantsTable.calendarId eq id.toUuid()) and
-                        (CalendarTeamGrantsTable.teamId notInList destinationTeamIds)
-                }
-            }
+            replaceWithDefaultTeamWrite(id, destinationOrgId, actorId)
         }
 
         CalendarsTable.selectAll()
@@ -1083,6 +1073,32 @@ class PostgresCalendarStore(
                     (OrganizationTeamMembersTable.role eq OrganizationTeamRole.MAINTAINER.wire)
             }
             .count() > 0
+    }
+
+    /**
+     * Replaces every team grant with a write grant for the organization's
+     * default `all` team so plain members keep read access. Organizations
+     * normally have their `all` team created by the organization service; if it
+     * is missing we recreate it, enroll the current organization members (as
+     * [OrganizationTeamService.ensureDefaults] does), and then grant.
+     */
+    private fun JdbcTransaction.replaceWithDefaultTeamWrite(
+        id: CalendarId,
+        organizationId: OrganizationId,
+        actorId: UserId,
+    ) {
+        CalendarTeamGrantsTable.deleteWhere { CalendarTeamGrantsTable.calendarId eq id.toUuid() }
+        if (teams.grantAllTeamWriteInTransaction(this, id, organizationId)) return
+        teams.ensureDefaultTeamInTransaction(this, organizationId, actorId)
+        OrganizationMembersTable.selectAll()
+            .where { OrganizationMembersTable.organizationId eq organizationId.toUuid() }
+            .map { UserId(it[OrganizationMembersTable.userId].toString()) }
+            .forEach { memberId ->
+                teams.addUserToDefaultTeamInTransaction(this, organizationId, memberId)
+            }
+        check(teams.grantAllTeamWriteInTransaction(this, id, organizationId)) {
+            "failed to grant the default team write access to calendar ${id.value}"
+        }
     }
 
     /**

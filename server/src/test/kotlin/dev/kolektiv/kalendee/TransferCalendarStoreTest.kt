@@ -210,6 +210,96 @@ class TransferCalendarStoreTest {
     }
 
     @Test
+    fun orgHeaderTransferGrantsDefaultTeamWrite() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var teams: OrganizationTeamService
+        installApi(configure = { store = get(); auth = get(); orgs = get(); teams = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.MEMBER)
+        val design = teams.create(alice.id, org.id, "design", "Design")
+        val calendar = store.createCalendar(alice.id, CreateCalendar(displayName = "Personal"))
+
+        val movedToTeam = requireNotNull(store.transferCalendar(calendar.id, alice.id, org.id, design.id))
+        assertEquals(org.id, movedToTeam.organizationId)
+        assertEquals(1, teams.grants(alice.id, design.id).count { it.calendarId == calendar.id })
+
+        val movedToHeader = requireNotNull(store.transferCalendar(calendar.id, alice.id, org.id))
+        assertEquals(org.id, movedToHeader.organizationId)
+        assertEquals(alice.id, movedToHeader.ownerId)
+
+        val defaultTeamId = requireNotNull(teams.defaultTeamId(org.id))
+        val defaultGrant = teams.grants(alice.id, defaultTeamId).single { it.calendarId == calendar.id }
+        assertEquals(CalendarPermission.WRITE, defaultGrant.permission)
+        assertTrue(teams.grants(alice.id, design.id).none { it.calendarId == calendar.id })
+        assertEquals(CalendarPermission.WRITE, store.getCalendar(calendar.id, bob.id)?.permission)
+    }
+
+    @Test
+    fun orgToOrgHeaderTransferReplacesTeamGrants() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var teams: OrganizationTeamService
+        installApi(configure = { store = get(); auth = get(); orgs = get(); teams = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val source = orgs.create(alice.id, "acme", "Acme")
+        val destination = orgs.create(alice.id, "beta", "Beta")
+        orgs.addMember(alice.id, destination.id, bob.id, OrganizationRole.MEMBER)
+        val design = teams.create(alice.id, source.id, "design", "Design")
+        val calendar = store.createCalendar(
+            alice.id,
+            CreateCalendar(displayName = "Team", organizationId = source.id),
+        )
+        teams.grant(alice.id, calendar.id, design.id, CalendarPermission.WRITE)
+
+        val moved = requireNotNull(store.transferCalendar(calendar.id, alice.id, destination.id))
+        assertEquals(destination.id, moved.organizationId)
+        assertEquals(alice.id, moved.ownerId)
+
+        assertTrue(teams.grants(alice.id, design.id).none { it.calendarId == calendar.id })
+        val defaultTeamId = requireNotNull(teams.defaultTeamId(destination.id))
+        val grant = teams.grants(alice.id, defaultTeamId).single { it.calendarId == calendar.id }
+        assertEquals(CalendarPermission.WRITE, grant.permission)
+        assertEquals(CalendarPermission.WRITE, store.getCalendar(calendar.id, bob.id)?.permission)
+    }
+
+    @Test
+    fun orgHeaderTransferRecreatesMissingDefaultTeam() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var teams: OrganizationTeamService
+        installApi(configure = { store = get(); auth = get(); orgs = get(); teams = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.MEMBER)
+        val defaultTeamId = requireNotNull(teams.defaultTeamId(org.id))
+        assertTrue(teams.delete(alice.id, defaultTeamId))
+        assertNull(teams.defaultTeamId(org.id))
+
+        val calendar = store.createCalendar(alice.id, CreateCalendar(displayName = "Personal"))
+        val moved = requireNotNull(store.transferCalendar(calendar.id, alice.id, org.id))
+        assertEquals(org.id, moved.organizationId)
+
+        val recreated = requireNotNull(teams.defaultTeamId(org.id))
+        val grant = teams.grants(alice.id, recreated).single { it.calendarId == calendar.id }
+        assertEquals(CalendarPermission.WRITE, grant.permission)
+        assertEquals(CalendarPermission.WRITE, store.getCalendar(calendar.id, bob.id)?.permission)
+    }
+
+    @Test
     fun transferPreservesCalendarChildData() = testApplication {
         lateinit var store: CalendarStore
         lateinit var auth: AuthService

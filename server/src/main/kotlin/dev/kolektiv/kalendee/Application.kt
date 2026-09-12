@@ -31,6 +31,7 @@ import dev.kolektiv.kalendee.events.EventInviteService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.MailService
 import dev.kolektiv.kalendee.notifications.NotificationService
+import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.web.ShareActions
 import dev.kolektiv.kalendee.plugins.configureKeel
@@ -70,6 +71,7 @@ internal fun Application.configureApplication() {
     val authService by inject<AuthService>()
     val authSettings by inject<AuthSettings>()
     val groups by inject<GroupService>()
+    val organizationTeams by inject<OrganizationTeamService>()
     val adminUsers by inject<AdminUserService>()
     val adminCalendars by inject<AdminCalendarService>()
     val verification by inject<EmailVerificationService>()
@@ -87,6 +89,10 @@ internal fun Application.configureApplication() {
     runBlocking {
         authService.seedAdmin()
         groups.seedSystemGroups()
+        val backfilledTeams = organizationTeams.ensureDefaults()
+        if (backfilledTeams > 0) {
+            log.info("backfilled default organization teams for {} organizations", backfilledTeams)
+        }
         if (appSettings.seedDemo) {
             if (!appSettings.development) {
                 log.warn(

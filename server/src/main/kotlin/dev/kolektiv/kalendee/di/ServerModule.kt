@@ -24,6 +24,7 @@ import dev.kolektiv.kalendee.mail.Mailer
 import dev.kolektiv.kalendee.mail.SmtpMailer
 import dev.kolektiv.kalendee.notifications.NotificationService
 import dev.kolektiv.kalendee.organizations.OrganizationService
+import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.storage.AvatarStorage
 import dev.kolektiv.kalendee.storage.LocalAvatarStorage
@@ -86,17 +87,19 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { AdminCalendarService(database = get(), clock = get()) }
     single { NotificationService(database = get(), clock = get()) }
     single { FriendshipService(database = get(), clock = get()) }
+    single { OrganizationTeamService(database = get(), clock = get()) }
     single {
         OrganizationService(
             database = get(),
             auth = get(),
             notifications = get(),
             mail = get(),
+            teams = get(),
             clock = get(),
         )
     }
     single { ReminderService(database = get(), store = get(), clock = get()) }
-    single<CalendarStore> { PostgresCalendarStore(database = get(), clock = get()) }
+    single<CalendarStore> { PostgresCalendarStore(database = get(), teams = get(), clock = get()) }
     single {
         EventInviteService(
             database = get(),

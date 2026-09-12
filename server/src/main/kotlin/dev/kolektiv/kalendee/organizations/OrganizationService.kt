@@ -109,6 +109,7 @@ class OrganizationService(
     private val auth: AuthService,
     private val notifications: NotificationService,
     private val mail: MailService,
+    private val teams: OrganizationTeamService,
     private val clock: Clock,
 ) {
     suspend fun create(
@@ -145,6 +146,7 @@ class OrganizationService(
                 it[role] = OrganizationRole.OWNER.wire
                 it[createdAt] = now
             }
+            teams.ensureDefaultTeamInTransaction(this, id, actorId)
             Organization(
                 id = id,
                 slug = normalizedSlug,
@@ -203,6 +205,7 @@ class OrganizationService(
         if (roleOrNull(orgId, actorId) != OrganizationRole.OWNER) {
             throw CalendarException.Forbidden("only an owner can delete an organization")
         }
+        teams.removeTeamsForOrganizationInTransaction(this, orgId)
         OrganizationsTable.deleteWhere { OrganizationsTable.id eq orgId.toUuid() } > 0
     }
 
@@ -284,6 +287,7 @@ class OrganizationService(
             it[OrganizationMembersTable.role] = role.wire
             it[createdAt] = now
         }
+        teams.addUserToDefaultTeamInTransaction(this, orgId, userId)
         OrganizationMember(
             organizationId = orgId,
             userId = userId,
@@ -343,10 +347,14 @@ class OrganizationService(
         if (targetRole == OrganizationRole.OWNER && ownerCount(orgId) <= 1) {
             throw CalendarException.Forbidden("an organization needs at least one owner")
         }
-        OrganizationMembersTable.deleteWhere {
+        val removed = OrganizationMembersTable.deleteWhere {
             (OrganizationMembersTable.organizationId eq orgId.toUuid()) and
                 (OrganizationMembersTable.userId eq userId.toUuid())
         } > 0
+        if (removed) {
+            teams.removeUserFromOrganizationInTransaction(this, orgId, userId)
+        }
+        removed
     }
 
     suspend fun invite(
@@ -548,6 +556,7 @@ class OrganizationService(
                 it[createdAt] = now
             }
         }
+        teams.addUserToDefaultTeamInTransaction(this, orgId, actorId)
         OrganizationInvitationsTable.update({ OrganizationInvitationsTable.id eq row[OrganizationInvitationsTable.id] }) {
             it[status] = OrganizationInvitation.ACCEPTED
             it[respondedAt] = now

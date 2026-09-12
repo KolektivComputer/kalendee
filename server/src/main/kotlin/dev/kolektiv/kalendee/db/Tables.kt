@@ -94,6 +94,53 @@ object OrganizationInvitationsTable : Table("organization_invitations") {
     }
 }
 
+object OrganizationTeamsTable : Table("organization_teams") {
+    val id = uuid("id")
+    val organizationId = uuid("organization_id")
+        .references(OrganizationsTable.id, onDelete = ReferenceOption.CASCADE)
+    val slug = text("slug")
+    val name = text("name")
+    val description = text("description").nullable()
+    val createdAt = instant("created_at")
+    val updatedAt = instant("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(organizationId, slug)
+        index(false, organizationId)
+    }
+}
+
+object OrganizationTeamMembersTable : Table("organization_team_members") {
+    val teamId = uuid("team_id")
+        .references(OrganizationTeamsTable.id, onDelete = ReferenceOption.CASCADE)
+    val userId = uuid("user_id").references(UsersTable.id, onDelete = ReferenceOption.CASCADE)
+    val role = text("role").default("member")
+    val createdAt = instant("created_at")
+
+    override val primaryKey = PrimaryKey(teamId, userId)
+
+    init {
+        index(false, userId)
+    }
+}
+
+object CalendarTeamGrantsTable : Table("calendar_team_grants") {
+    val calendarId = uuid("calendar_id")
+        .references(CalendarsTable.id, onDelete = ReferenceOption.CASCADE)
+    val teamId = uuid("team_id")
+        .references(OrganizationTeamsTable.id, onDelete = ReferenceOption.CASCADE)
+    val permission = text("permission").default("read")
+    val createdAt = instant("created_at")
+
+    override val primaryKey = PrimaryKey(calendarId, teamId)
+
+    init {
+        index(false, teamId)
+    }
+}
+
 object UserGroupsTable : Table("user_groups") {
     val id = uuid("id")
     val name = text("name").uniqueIndex()

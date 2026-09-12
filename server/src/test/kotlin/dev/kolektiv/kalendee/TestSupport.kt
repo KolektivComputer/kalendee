@@ -59,6 +59,7 @@ internal fun writeH2Migrations(dir: Path): Path {
         "V14__groups_quotas.sql",
         "V15__anonymous_slot_requests.sql",
         "V16__organizations.sql",
+        "V18__organization_teams.sql",
     )
     for (name in names) {
         val sql = loader.getResource("db/migration/$name")?.readText()

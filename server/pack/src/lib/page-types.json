@@ -1,0 +1,1702 @@
+{
+    "format": "keel/1",
+    "pagesName": "KalendeePages",
+    "pages": {
+        "kalendee.admin": {
+            "type": "AdminPage",
+            "path": "/__keel-typegen/kalendee/admin",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.directory": {
+            "type": "PublicDirectoryPage",
+            "path": "/__keel-typegen/kalendee/directory",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.home": {
+            "type": "HomePage",
+            "path": "/__keel-typegen/kalendee/home",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.login": {
+            "type": "LoginPage",
+            "path": "/__keel-typegen/kalendee/login",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.notFound": {
+            "type": "NotFoundPage",
+            "path": "/__keel-typegen/kalendee/notFound",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.notifications": {
+            "type": "NotificationsPage",
+            "path": "/__keel-typegen/kalendee/notifications",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.org": {
+            "type": "OrganizationProfilePage",
+            "path": "/__keel-typegen/kalendee/org",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.orgSettings": {
+            "type": "OrganizationSettingsPage",
+            "path": "/__keel-typegen/kalendee/orgSettings",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.profile": {
+            "type": "PublicProfilePage",
+            "path": "/__keel-typegen/kalendee/profile",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.publicCalendar": {
+            "type": "PublicCalendarPage",
+            "path": "/__keel-typegen/kalendee/publicCalendar",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.register": {
+            "type": "RegisterPage",
+            "path": "/__keel-typegen/kalendee/register",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.rsvp": {
+            "type": "RsvpPage",
+            "path": "/__keel-typegen/kalendee/rsvp",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.settings": {
+            "type": "SettingsPage",
+            "path": "/__keel-typegen/kalendee/settings",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.verifyEmail": {
+            "type": "VerifyEmailPage",
+            "path": "/__keel-typegen/kalendee/verifyEmail",
+            "methods": [
+                "GET"
+            ]
+        }
+    },
+    "actions": {
+        "kalendee.acceptFriendRequest": {
+            "in": "RespondFriendRequestIn",
+            "out": "FriendsOut"
+        },
+        "kalendee.acceptOrganizationInvitation": {
+            "in": "RespondOrganizationInvitationIn",
+            "out": "OrganizationMembershipOut"
+        },
+        "kalendee.adminCreateGroup": {
+            "in": "AdminCreateGroupIn",
+            "out": "GroupSummary"
+        },
+        "kalendee.adminDeleteCalendar": {
+            "in": "AdminDeleteCalendarIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.adminDeleteGroup": {
+            "in": "AdminDeleteGroupIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.adminDeleteUser": {
+            "in": "AdminDeleteUserIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.adminGroupMembers": {
+            "in": "AdminGroupMembersIn",
+            "out": "AdminGroupMembersOut"
+        },
+        "kalendee.adminGroups": {
+            "in": "AdminGroupsIn",
+            "out": "AdminGroupsOut"
+        },
+        "kalendee.adminSetCalendarPublic": {
+            "in": "AdminSetCalendarPublicIn",
+            "out": "AdminCalendarSummary"
+        },
+        "kalendee.adminSetGroupMembers": {
+            "in": "AdminSetGroupMembersIn",
+            "out": "AdminGroupMembersOut"
+        },
+        "kalendee.adminUpdateGroup": {
+            "in": "AdminUpdateGroupIn",
+            "out": "GroupSummary"
+        },
+        "kalendee.adminUpdateUser": {
+            "in": "AdminUpdateUserIn",
+            "out": "AdminUserSummary"
+        },
+        "kalendee.calendarAvailability": {
+            "in": "CalendarAvailabilityIn",
+            "out": "CalendarAvailabilityOut"
+        },
+        "kalendee.calendarRequests": {
+            "in": "CalendarRequestsIn",
+            "out": "CalendarRequestsOut"
+        },
+        "kalendee.calendarSlots": {
+            "in": "CalendarSlotsIn",
+            "out": "CalendarSlotsOut"
+        },
+        "kalendee.createCalendar": {
+            "in": "CreateCalendarIn",
+            "out": "CalendarSummary"
+        },
+        "kalendee.createCustomHoliday": {
+            "in": "CreateCustomHolidayIn",
+            "out": "CustomHolidaySummary"
+        },
+        "kalendee.createEvent": {
+            "in": "CreateEventIn",
+            "out": "EventSummary"
+        },
+        "kalendee.createOrganization": {
+            "in": "CreateOrganizationIn",
+            "out": "OrganizationSummary"
+        },
+        "kalendee.declineFriendRequest": {
+            "in": "RespondFriendRequestIn",
+            "out": "FriendsOut"
+        },
+        "kalendee.declineOrganizationInvitation": {
+            "in": "RespondOrganizationInvitationIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.deleteCalendar": {
+            "in": "DeleteCalendarIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.deleteCustomHoliday": {
+            "in": "DeleteCustomHolidayIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.deleteEvent": {
+            "in": "DeleteEventIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.deleteOrganization": {
+            "in": "DeleteOrganizationIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.eventAttendees": {
+            "in": "EventAttendeesIn",
+            "out": "EventAttendeesOut"
+        },
+        "kalendee.eventReminders": {
+            "in": "GetEventRemindersIn",
+            "out": "EventRemindersOut"
+        },
+        "kalendee.followCalendar": {
+            "in": "FollowCalendarIn",
+            "out": "FollowOut"
+        },
+        "kalendee.friends": {
+            "in": "FriendsIn",
+            "out": "FriendsOut"
+        },
+        "kalendee.getCalendarSharing": {
+            "in": "GetCalendarSharingIn",
+            "out": "CalendarSharingOut"
+        },
+        "kalendee.inviteToEvent": {
+            "in": "InviteToEventIn",
+            "out": "EventAttendeesOut"
+        },
+        "kalendee.inviteToOrganization": {
+            "in": "InviteToOrganizationIn",
+            "out": "OrganizationInvitationOut"
+        },
+        "kalendee.login": {
+            "in": "LoginIn",
+            "out": "LoginOut"
+        },
+        "kalendee.logout": {
+            "in": "LogoutIn",
+            "out": "LogoutOut"
+        },
+        "kalendee.markAllNotificationsRead": {
+            "in": "MarkAllNotificationsReadIn",
+            "out": "NotificationStateOut"
+        },
+        "kalendee.markNotificationRead": {
+            "in": "MarkNotificationReadIn",
+            "out": "NotificationStateOut"
+        },
+        "kalendee.moveEvent": {
+            "in": "MoveEventIn",
+            "out": "MoveEventOut"
+        },
+        "kalendee.organizationInvitations": {
+            "in": "OrganizationInvitationsIn",
+            "out": "OrganizationInvitationsOut"
+        },
+        "kalendee.organizationMembers": {
+            "in": "OrganizationMembersIn",
+            "out": "OrganizationMembersOut"
+        },
+        "kalendee.organizations": {
+            "in": "OrganizationsIn",
+            "out": "OrganizationsOut"
+        },
+        "kalendee.publicRequestTimeSlot": {
+            "in": "PublicRequestTimeSlotIn",
+            "out": "RequestTimeSlotOut"
+        },
+        "kalendee.publicRsvp": {
+            "in": "PublicRsvpIn",
+            "out": "RsvpOut"
+        },
+        "kalendee.register": {
+            "in": "RegisterIn",
+            "out": "RegisterOut"
+        },
+        "kalendee.reminderSettings": {
+            "in": "ReminderSettingsIn",
+            "out": "ReminderSettingsOut"
+        },
+        "kalendee.removeEventAttendee": {
+            "in": "RemoveEventAttendeeIn",
+            "out": "EventAttendeesOut"
+        },
+        "kalendee.removeFriend": {
+            "in": "RemoveFriendIn",
+            "out": "FriendsOut"
+        },
+        "kalendee.removeOrganizationMember": {
+            "in": "RemoveOrganizationMemberIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.removeShare": {
+            "in": "RemoveShareIn",
+            "out": "CalendarSharingOut"
+        },
+        "kalendee.requestTimeSlot": {
+            "in": "RequestTimeSlotIn",
+            "out": "RequestTimeSlotOut"
+        },
+        "kalendee.resendVerification": {
+            "in": "ResendVerificationIn",
+            "out": "ResendVerificationOut"
+        },
+        "kalendee.respondEventInvite": {
+            "in": "RespondEventInviteIn",
+            "out": "RsvpOut"
+        },
+        "kalendee.respondTimeSlot": {
+            "in": "RespondTimeSlotIn",
+            "out": "RequestTimeSlotOut"
+        },
+        "kalendee.revokeOrganizationInvitation": {
+            "in": "OrganizationInvitationIn",
+            "out": "OrganizationInvitationOut"
+        },
+        "kalendee.rotatePublicLink": {
+            "in": "RotatePublicLinkIn",
+            "out": "CalendarSharingOut"
+        },
+        "kalendee.rsvpByToken": {
+            "in": "RsvpByTokenIn",
+            "out": "RsvpOut"
+        },
+        "kalendee.searchUsers": {
+            "in": "SearchUsersIn",
+            "out": "UserSearchOut"
+        },
+        "kalendee.sendFriendRequest": {
+            "in": "SendFriendRequestIn",
+            "out": "FriendRequestOut"
+        },
+        "kalendee.setCalendarHidden": {
+            "in": "SetCalendarHiddenIn",
+            "out": "CalendarSummary"
+        },
+        "kalendee.setCalendarPublic": {
+            "in": "SetCalendarPublicIn",
+            "out": "CalendarSharingOut"
+        },
+        "kalendee.setEmailVerification": {
+            "in": "SetEmailVerificationIn",
+            "out": "EmailVerificationPolicyOut"
+        },
+        "kalendee.setEventOpenRsvp": {
+            "in": "SetEventOpenRsvpIn",
+            "out": "EventSummary"
+        },
+        "kalendee.setEventReminders": {
+            "in": "SetEventRemindersIn",
+            "out": "EventRemindersOut"
+        },
+        "kalendee.setOrganizationMemberRole": {
+            "in": "SetOrganizationMemberRoleIn",
+            "out": "OrganizationMemberSummary"
+        },
+        "kalendee.setPublicAccess": {
+            "in": "SetPublicAccessIn",
+            "out": "PublicAccessOut"
+        },
+        "kalendee.setRegistration": {
+            "in": "SetRegistrationIn",
+            "out": "RegistrationOut"
+        },
+        "kalendee.setShowHolidays": {
+            "in": "SetShowHolidaysIn",
+            "out": "HolidayStateOut"
+        },
+        "kalendee.setUserPublicAccess": {
+            "in": "SetUserPublicAccessIn",
+            "out": "Viewer"
+        },
+        "kalendee.shareCalendar": {
+            "in": "ShareCalendarIn",
+            "out": "CalendarSharingOut"
+        },
+        "kalendee.unfollowCalendar": {
+            "in": "UnfollowCalendarIn",
+            "out": "FollowOut"
+        },
+        "kalendee.upcomingReminders": {
+            "in": "UpcomingRemindersIn",
+            "out": "ReminderInstanceOut[]"
+        },
+        "kalendee.updateCalendar": {
+            "in": "UpdateCalendarIn",
+            "out": "CalendarSummary"
+        },
+        "kalendee.updateCalendarAvailability": {
+            "in": "UpdateCalendarAvailabilityIn",
+            "out": "CalendarAvailabilityOut"
+        },
+        "kalendee.updateEvent": {
+            "in": "UpdateEventIn",
+            "out": "EventSummary"
+        },
+        "kalendee.updateHolidaySubscriptions": {
+            "in": "UpdateHolidaySubscriptionsIn",
+            "out": "HolidayStateOut"
+        },
+        "kalendee.updateOrganization": {
+            "in": "UpdateOrganizationIn",
+            "out": "OrganizationSummary"
+        },
+        "kalendee.updateReminderSettings": {
+            "in": "UpdateReminderSettingsIn",
+            "out": "ReminderSettingsOut"
+        },
+        "kalendee.updateSettings": {
+            "in": "UpdateSettingsIn",
+            "out": "Viewer"
+        },
+        "kalendee.updateShare": {
+            "in": "UpdateShareIn",
+            "out": "CalendarSharingOut"
+        },
+        "kalendee.verifyEmail": {
+            "in": "VerifyEmailIn",
+            "out": "VerifyEmailOut"
+        }
+    },
+    "types": {
+        "Viewer": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "username": "string",
+                "displayName": "string",
+                "timeZone": "string",
+                "accent": "string",
+                "admin": "boolean",
+                "email": "string | null",
+                "emailVerified": "boolean",
+                "avatarUrl": "string | null",
+                "publicAccess": "string"
+            }
+        },
+        "CalendarSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "description": "string | null",
+                "timeZone": "string",
+                "color": "string",
+                "hidden": "boolean",
+                "ownerName": "string",
+                "ownerAvatarUrl": "string | null",
+                "permission": "string",
+                "publicLinkEnabled": "boolean",
+                "publicLinkToken": "string | null",
+                "requestsEnabled": "boolean",
+                "accessMode": "string",
+                "effectiveAccessMode": "string",
+                "organizationId": "string | null",
+                "organizationName": "string | null",
+                "organizationSlug": "string | null"
+            }
+        },
+        "AdminUserSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "username": "string",
+                "displayName": "string",
+                "timeZone": "string",
+                "admin": "boolean",
+                "calendars": "CalendarSummary[]",
+                "email": "string | null",
+                "emailVerified": "boolean",
+                "superadmin": "boolean",
+                "storageBytes": "number",
+                "quotaBytes": "number | null",
+                "groups": "string[]"
+            }
+        },
+        "HolidayCatalogItem": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "name": "string",
+                "region": "string"
+            }
+        },
+        "CustomHolidaySummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "title": "string",
+                "month": "number",
+                "day": "number"
+            }
+        },
+        "GroupSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "name": "string",
+                "isSystem": "boolean",
+                "storageQuotaBytes": "number | null",
+                "memberCount": "number"
+            }
+        },
+        "AdminCalendarSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "ownerUsername": "string",
+                "eventCount": "number",
+                "publicLinkEnabled": "boolean"
+            }
+        },
+        "AdminPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer",
+                "registrationOpen": "boolean",
+                "emailVerificationPolicy": "string",
+                "publicAccess": "string",
+                "users": "AdminUserSummary[]",
+                "showHolidays": "boolean",
+                "holidayCatalog": "HolidayCatalogItem[]",
+                "subscribedHolidayIds": "string[]",
+                "customHolidays": "CustomHolidaySummary[]",
+                "groups": "GroupSummary[]",
+                "calendars": "AdminCalendarSummary[]"
+            }
+        },
+        "DirectoryOrgSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "slug": "string",
+                "displayName": "string",
+                "description": "string | null",
+                "avatarUrl": "string | null",
+                "memberCount": "number",
+                "viewerRole": "string | null"
+            }
+        },
+        "DirectoryUserSummary": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "username": "string",
+                "displayName": "string",
+                "avatarUrl": "string | null"
+            }
+        },
+        "DirectoryCalendarSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "token": "string",
+                "ownerName": "string",
+                "ownerUsername": "string | null",
+                "organizationName": "string | null",
+                "color": "string"
+            }
+        },
+        "PublicDirectoryPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null",
+                "publicAccess": "string",
+                "orgs": "DirectoryOrgSummary[]",
+                "users": "DirectoryUserSummary[]",
+                "calendars": "DirectoryCalendarSummary[]"
+            }
+        },
+        "RecurrenceSummary": {
+            "kind": "object",
+            "fields": {
+                "frequency": "string",
+                "interval": "number",
+                "until": "string | null",
+                "count": "number | null"
+            }
+        },
+        "EventSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "calendarId": "string",
+                "title": "string",
+                "description": "string | null",
+                "location": "string | null",
+                "url": "string | null",
+                "start": "string",
+                "end": "string",
+                "allDay": "boolean",
+                "timeZone": "string | null",
+                "status": "string",
+                "recurrence": "RecurrenceSummary | null",
+                "etag": "string",
+                "openRsvp": "boolean",
+                "rsvpStatus": "string | null",
+                "attendeeCount": "number"
+            }
+        },
+        "FriendSummary": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "username": "string",
+                "displayName": "string",
+                "avatarUrl": "string | null"
+            }
+        },
+        "FriendRequestSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "user": "FriendSummary",
+                "createdAt": "string"
+            }
+        },
+        "HomePage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null",
+                "viewingUser": "Viewer | null",
+                "readOnly": "boolean",
+                "registrationOpen": "boolean",
+                "timeZone": "string",
+                "view": "string",
+                "date": "string",
+                "previousDate": "string",
+                "nextDate": "string",
+                "weekStart": "string",
+                "gridStart": "string",
+                "gridEnd": "string",
+                "label": "string",
+                "today": "string",
+                "now": "string",
+                "calendars": "CalendarSummary[]",
+                "events": "EventSummary[]",
+                "showHolidays": "boolean",
+                "holidayCatalog": "HolidayCatalogItem[]",
+                "subscribedHolidayIds": "string[]",
+                "customHolidays": "CustomHolidaySummary[]",
+                "friends": "FriendSummary[]",
+                "friendRequests": "FriendRequestSummary[]"
+            }
+        },
+        "LoginPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null"
+            }
+        },
+        "NotFoundPage": {
+            "kind": "object",
+            "fields": {
+                "path": "string",
+                "title": "string"
+            }
+        },
+        "NotificationSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "kind": "string",
+                "title": "string",
+                "body": "string | null",
+                "href": "string | null",
+                "read": "boolean",
+                "createdAt": "string"
+            }
+        },
+        "NotificationsPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer",
+                "notifications": "NotificationSummary[]",
+                "unreadCount": "number"
+            }
+        },
+        "OrganizationSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "slug": "string",
+                "displayName": "string",
+                "description": "string | null",
+                "visibility": "string",
+                "avatarUrl": "string | null",
+                "role": "string | null",
+                "memberCount": "number"
+            }
+        },
+        "OrganizationInvitationSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "email": "string | null",
+                "userId": "string | null",
+                "username": "string | null",
+                "displayName": "string | null",
+                "role": "string",
+                "status": "string",
+                "createdAt": "string",
+                "expiresAt": "string"
+            }
+        },
+        "OrganizationMemberSummary": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "username": "string",
+                "displayName": "string",
+                "avatarUrl": "string | null",
+                "role": "string",
+                "isSelf": "boolean"
+            }
+        },
+        "OrganizationProfilePage": {
+            "kind": "object",
+            "fields": {
+                "org": "OrganizationSummary",
+                "viewer": "Viewer | null",
+                "viewerRole": "string | null",
+                "pendingInvitation": "OrganizationInvitationSummary | null",
+                "inviteToken": "string | null",
+                "members": "OrganizationMemberSummary[]",
+                "calendars": "CalendarSummary[]",
+                "canManageSettings": "boolean"
+            }
+        },
+        "OrganizationSettingsPage": {
+            "kind": "object",
+            "fields": {
+                "org": "OrganizationSummary",
+                "viewer": "Viewer",
+                "viewerRole": "string",
+                "members": "OrganizationMemberSummary[]",
+                "invitations": "OrganizationInvitationSummary[]",
+                "canManageMembers": "boolean",
+                "canManageOwners": "boolean"
+            }
+        },
+        "PublicProfilePage": {
+            "kind": "object",
+            "fields": {
+                "username": "string",
+                "displayName": "string",
+                "avatarUrl": "string | null",
+                "isSelf": "boolean",
+                "calendars": "CalendarSummary[]",
+                "organizations": "OrganizationSummary[]",
+                "viewer": "Viewer | null"
+            }
+        },
+        "PublicCalendarPage": {
+            "kind": "object",
+            "fields": {
+                "token": "string",
+                "calendar": "CalendarSummary",
+                "events": "EventSummary[]",
+                "viewer": "Viewer | null",
+                "following": "boolean",
+                "view": "string",
+                "date": "string",
+                "previousDate": "string",
+                "nextDate": "string",
+                "weekStart": "string",
+                "gridStart": "string",
+                "gridEnd": "string",
+                "label": "string",
+                "today": "string",
+                "now": "string",
+                "timeZone": "string",
+                "rssPath": "string"
+            }
+        },
+        "RegisterPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null",
+                "registrationOpen": "boolean",
+                "emailVerificationPolicy": "string"
+            }
+        },
+        "RsvpPage": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "token": "string | null",
+                "valid": "boolean",
+                "title": "string | null",
+                "whenText": "string | null",
+                "calendarName": "string | null",
+                "status": "string | null",
+                "requiresName": "boolean",
+                "viewer": "Viewer | null"
+            }
+        },
+        "SettingsPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer",
+                "tab": "string",
+                "showHolidays": "boolean",
+                "holidayCatalog": "HolidayCatalogItem[]",
+                "subscribedHolidayIds": "string[]",
+                "customHolidays": "CustomHolidaySummary[]"
+            }
+        },
+        "VerifyEmailPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null",
+                "token": "string | null"
+            }
+        },
+        "RespondFriendRequestIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string"
+            }
+        },
+        "FriendsOut": {
+            "kind": "object",
+            "fields": {
+                "friends": "FriendSummary[]",
+                "incoming": "FriendRequestSummary[]"
+            }
+        },
+        "RespondOrganizationInvitationIn": {
+            "kind": "object",
+            "fields": {
+                "invitationId": "string | null",
+                "token": "string | null"
+            }
+        },
+        "OrganizationMembershipOut": {
+            "kind": "object",
+            "fields": {
+                "organization": "OrganizationSummary",
+                "role": "string"
+            }
+        },
+        "AdminCreateGroupIn": {
+            "kind": "object",
+            "fields": {
+                "name": "string",
+                "storageQuotaBytes": "number | null"
+            }
+        },
+        "AdminDeleteCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string"
+            }
+        },
+        "DeletedOut": {
+            "kind": "object",
+            "fields": {
+                "ok": "boolean"
+            }
+        },
+        "AdminDeleteGroupIn": {
+            "kind": "object",
+            "fields": {
+                "groupId": "string"
+            }
+        },
+        "AdminDeleteUserIn": {
+            "kind": "object",
+            "fields": {
+                "userId": "string"
+            }
+        },
+        "AdminGroupMembersIn": {
+            "kind": "object",
+            "fields": {
+                "groupId": "string"
+            }
+        },
+        "AdminGroupMemberSummary": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "username": "string",
+                "displayName": "string",
+                "admin": "boolean"
+            }
+        },
+        "AdminGroupMembersOut": {
+            "kind": "object",
+            "fields": {
+                "groupId": "string",
+                "members": "AdminGroupMemberSummary[]"
+            }
+        },
+        "AdminGroupsIn": {
+            "kind": "object",
+            "fields": {}
+        },
+        "AdminGroupsOut": {
+            "kind": "object",
+            "fields": {
+                "groups": "GroupSummary[]"
+            }
+        },
+        "AdminSetCalendarPublicIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "enabled": "boolean"
+            }
+        },
+        "AdminSetGroupMembersIn": {
+            "kind": "object",
+            "fields": {
+                "groupId": "string",
+                "userIds": "string[]"
+            }
+        },
+        "AdminUpdateGroupIn": {
+            "kind": "object",
+            "fields": {
+                "groupId": "string",
+                "name": "string | null",
+                "storageQuotaBytes": "number | null",
+                "clearQuota": "boolean"
+            }
+        },
+        "AdminUpdateUserIn": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "displayName": "string | null",
+                "email": "string | null",
+                "password": "string | null",
+                "admin": "boolean | null"
+            }
+        },
+        "CalendarAvailabilityIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string"
+            }
+        },
+        "AvailabilityWindowIn": {
+            "kind": "object",
+            "fields": {
+                "weekday": "number",
+                "startMinute": "number",
+                "endMinute": "number"
+            }
+        },
+        "CalendarAvailabilityOut": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "requestsEnabled": "boolean",
+                "slotMinutes": "number",
+                "accessMode": "string",
+                "effectiveAccessMode": "string",
+                "timeZone": "string",
+                "windows": "AvailabilityWindowIn[]"
+            }
+        },
+        "CalendarRequestsIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string"
+            }
+        },
+        "TimeSlotRequestSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "calendarId": "string",
+                "calendarName": "string",
+                "requesterUserId": "string | null",
+                "requesterName": "string | null",
+                "requesterUsername": "string | null",
+                "requesterAvatarUrl": "string | null",
+                "requesterEmail": "string | null",
+                "start": "string",
+                "end": "string",
+                "message": "string | null",
+                "status": "string",
+                "createdAt": "string"
+            }
+        },
+        "CalendarRequestsOut": {
+            "kind": "object",
+            "fields": {
+                "requests": "TimeSlotRequestSummary[]"
+            }
+        },
+        "CalendarSlotsIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "from": "string",
+                "to": "string"
+            }
+        },
+        "AvailabilitySlotOut": {
+            "kind": "object",
+            "fields": {
+                "start": "string",
+                "end": "string",
+                "available": "boolean"
+            }
+        },
+        "AvailabilityDayOut": {
+            "kind": "object",
+            "fields": {
+                "date": "string",
+                "slots": "AvailabilitySlotOut[]"
+            }
+        },
+        "CalendarSlotsOut": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "timeZone": "string",
+                "requestsEnabled": "boolean",
+                "days": "AvailabilityDayOut[]"
+            }
+        },
+        "CreateCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "displayName": "string",
+                "description": "string | null",
+                "timeZone": "string | null",
+                "color": "string | null",
+                "organizationId": "string | null"
+            }
+        },
+        "CreateCustomHolidayIn": {
+            "kind": "object",
+            "fields": {
+                "title": "string",
+                "month": "number",
+                "day": "number"
+            }
+        },
+        "RecurrenceIn": {
+            "kind": "object",
+            "fields": {
+                "frequency": "string",
+                "interval": "number",
+                "until": "string | null",
+                "count": "number | null"
+            }
+        },
+        "CreateEventIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "title": "string",
+                "description": "string | null",
+                "location": "string | null",
+                "url": "string | null",
+                "start": "string",
+                "end": "string",
+                "allDay": "boolean",
+                "timeZone": "string | null",
+                "recurrence": "RecurrenceIn | null"
+            }
+        },
+        "CreateOrganizationIn": {
+            "kind": "object",
+            "fields": {
+                "slug": "string",
+                "displayName": "string",
+                "description": "string | null"
+            }
+        },
+        "DeleteCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string"
+            }
+        },
+        "DeleteCustomHolidayIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string"
+            }
+        },
+        "DeleteEventIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "etag": "string | null"
+            }
+        },
+        "DeleteOrganizationIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string"
+            }
+        },
+        "EventAttendeesIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string"
+            }
+        },
+        "EventAttendeeSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "userId": "string | null",
+                "username": "string | null",
+                "displayName": "string | null",
+                "avatarUrl": "string | null",
+                "email": "string | null",
+                "name": "string | null",
+                "status": "string"
+            }
+        },
+        "EventAttendeesOut": {
+            "kind": "object",
+            "fields": {
+                "attendees": "EventAttendeeSummary[]",
+                "openRsvp": "boolean"
+            }
+        },
+        "GetEventRemindersIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string"
+            }
+        },
+        "EventRemindersOut": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "offsetsSeconds": "number[]",
+                "useDefaults": "boolean",
+                "defaultOffsetsSeconds": "number[]",
+                "notifyAtStart": "boolean"
+            }
+        },
+        "FollowCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "token": "string"
+            }
+        },
+        "FollowOut": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "following": "boolean"
+            }
+        },
+        "FriendsIn": {
+            "kind": "object",
+            "fields": {}
+        },
+        "GetCalendarSharingIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string"
+            }
+        },
+        "ShareSummary": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "username": "string",
+                "displayName": "string",
+                "permission": "string"
+            }
+        },
+        "CalendarSharingOut": {
+            "kind": "object",
+            "fields": {
+                "shares": "ShareSummary[]",
+                "publicLinkEnabled": "boolean",
+                "publicLinkToken": "string | null",
+                "followerCount": "number",
+                "friends": "FriendSummary[]"
+            }
+        },
+        "InviteToEventIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "username": "string",
+                "name": "string | null"
+            }
+        },
+        "InviteToOrganizationIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "identifier": "string",
+                "role": "string"
+            }
+        },
+        "OrganizationInvitationOut": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "status": "string"
+            }
+        },
+        "LoginIn": {
+            "kind": "object",
+            "fields": {
+                "username": "string",
+                "password": "string"
+            }
+        },
+        "LoginOut": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null",
+                "verificationRequired": "boolean",
+                "email": "string | null"
+            }
+        },
+        "LogoutIn": {
+            "kind": "object",
+            "fields": {}
+        },
+        "LogoutOut": {
+            "kind": "object",
+            "fields": {
+                "ok": "boolean"
+            }
+        },
+        "MarkAllNotificationsReadIn": {
+            "kind": "object",
+            "fields": {}
+        },
+        "NotificationStateOut": {
+            "kind": "object",
+            "fields": {
+                "unreadCount": "number"
+            }
+        },
+        "MarkNotificationReadIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string"
+            }
+        },
+        "MoveEventIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "calendarId": "string",
+                "scope": "string",
+                "from": "string | null",
+                "etag": "string | null"
+            }
+        },
+        "MoveEventOut": {
+            "kind": "object",
+            "fields": {
+                "events": "EventSummary[]"
+            }
+        },
+        "OrganizationInvitationsIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string"
+            }
+        },
+        "OrganizationInvitationsOut": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "invitations": "OrganizationInvitationSummary[]"
+            }
+        },
+        "OrganizationMembersIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string"
+            }
+        },
+        "OrganizationMembersOut": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "viewerRole": "string | null",
+                "canManageMembers": "boolean",
+                "canManageOwners": "boolean",
+                "members": "OrganizationMemberSummary[]"
+            }
+        },
+        "OrganizationsIn": {
+            "kind": "object",
+            "fields": {}
+        },
+        "OrganizationsOut": {
+            "kind": "object",
+            "fields": {
+                "organizations": "OrganizationSummary[]"
+            }
+        },
+        "PublicRequestTimeSlotIn": {
+            "kind": "object",
+            "fields": {
+                "calendarToken": "string",
+                "name": "string",
+                "email": "string | null",
+                "start": "string",
+                "end": "string",
+                "message": "string | null"
+            }
+        },
+        "RequestTimeSlotOut": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "status": "string"
+            }
+        },
+        "PublicRsvpIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "name": "string",
+                "email": "string | null",
+                "status": "string"
+            }
+        },
+        "RsvpOut": {
+            "kind": "object",
+            "fields": {
+                "status": "string"
+            }
+        },
+        "RegisterIn": {
+            "kind": "object",
+            "fields": {
+                "username": "string",
+                "password": "string",
+                "email": "string | null"
+            }
+        },
+        "RegisterOut": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null",
+                "verificationRequired": "boolean",
+                "email": "string | null"
+            }
+        },
+        "ReminderSettingsIn": {
+            "kind": "object",
+            "fields": {}
+        },
+        "ReminderSettingsOut": {
+            "kind": "object",
+            "fields": {
+                "defaultOffsetsSeconds": "number[]",
+                "notifyAtStart": "boolean"
+            }
+        },
+        "RemoveEventAttendeeIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "attendeeId": "string"
+            }
+        },
+        "RemoveFriendIn": {
+            "kind": "object",
+            "fields": {
+                "userId": "string"
+            }
+        },
+        "RemoveOrganizationMemberIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "userId": "string"
+            }
+        },
+        "RemoveShareIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "userId": "string"
+            }
+        },
+        "RequestTimeSlotIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "start": "string",
+                "end": "string",
+                "message": "string | null"
+            }
+        },
+        "ResendVerificationIn": {
+            "kind": "object",
+            "fields": {
+                "username": "string"
+            }
+        },
+        "ResendVerificationOut": {
+            "kind": "object",
+            "fields": {
+                "ok": "boolean"
+            }
+        },
+        "RespondEventInviteIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "status": "string"
+            }
+        },
+        "RespondTimeSlotIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "accept": "boolean",
+                "message": "string | null"
+            }
+        },
+        "OrganizationInvitationIn": {
+            "kind": "object",
+            "fields": {
+                "invitationId": "string",
+                "organizationId": "string | null"
+            }
+        },
+        "RotatePublicLinkIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string"
+            }
+        },
+        "RsvpByTokenIn": {
+            "kind": "object",
+            "fields": {
+                "token": "string",
+                "status": "string"
+            }
+        },
+        "SearchUsersIn": {
+            "kind": "object",
+            "fields": {
+                "query": "string"
+            }
+        },
+        "UserSearchResult": {
+            "kind": "object",
+            "fields": {
+                "userId": "string",
+                "username": "string",
+                "displayName": "string",
+                "avatarUrl": "string | null",
+                "relationship": "string"
+            }
+        },
+        "UserSearchOut": {
+            "kind": "object",
+            "fields": {
+                "results": "UserSearchResult[]"
+            }
+        },
+        "SendFriendRequestIn": {
+            "kind": "object",
+            "fields": {
+                "username": "string"
+            }
+        },
+        "FriendRequestOut": {
+            "kind": "object",
+            "fields": {
+                "status": "string",
+                "friend": "FriendSummary | null"
+            }
+        },
+        "SetCalendarHiddenIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "hidden": "boolean"
+            }
+        },
+        "SetCalendarPublicIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "enabled": "boolean"
+            }
+        },
+        "SetEmailVerificationIn": {
+            "kind": "object",
+            "fields": {
+                "policy": "string"
+            }
+        },
+        "EmailVerificationPolicyOut": {
+            "kind": "object",
+            "fields": {
+                "policy": "string"
+            }
+        },
+        "SetEventOpenRsvpIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "enabled": "boolean"
+            }
+        },
+        "SetEventRemindersIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "offsetsSeconds": "number[]",
+                "useDefaults": "boolean"
+            }
+        },
+        "SetOrganizationMemberRoleIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "userId": "string",
+                "role": "string"
+            }
+        },
+        "SetPublicAccessIn": {
+            "kind": "object",
+            "fields": {
+                "mode": "string"
+            }
+        },
+        "PublicAccessOut": {
+            "kind": "object",
+            "fields": {
+                "mode": "string"
+            }
+        },
+        "SetRegistrationIn": {
+            "kind": "object",
+            "fields": {
+                "open": "boolean"
+            }
+        },
+        "RegistrationOut": {
+            "kind": "object",
+            "fields": {
+                "registrationOpen": "boolean"
+            }
+        },
+        "SetShowHolidaysIn": {
+            "kind": "object",
+            "fields": {
+                "showHolidays": "boolean"
+            }
+        },
+        "HolidayStateOut": {
+            "kind": "object",
+            "fields": {
+                "showHolidays": "boolean",
+                "subscribedIds": "string[]",
+                "customHolidays": "CustomHolidaySummary[]"
+            }
+        },
+        "SetUserPublicAccessIn": {
+            "kind": "object",
+            "fields": {
+                "mode": "string"
+            }
+        },
+        "ShareCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "username": "string",
+                "permission": "string"
+            }
+        },
+        "UnfollowCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string"
+            }
+        },
+        "UpcomingRemindersIn": {
+            "kind": "object",
+            "fields": {
+                "hours": "number"
+            }
+        },
+        "ReminderInstanceOut": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "calendarId": "string",
+                "calendarName": "string",
+                "calendarColor": "string",
+                "title": "string",
+                "start": "string",
+                "allDay": "boolean",
+                "offsetSeconds": "number",
+                "remindAt": "string"
+            }
+        },
+        "UpdateCalendarIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "description": "string | null",
+                "timeZone": "string",
+                "color": "string"
+            }
+        },
+        "UpdateCalendarAvailabilityIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "requestsEnabled": "boolean",
+                "slotMinutes": "number",
+                "accessMode": "string",
+                "windows": "AvailabilityWindowIn[]"
+            }
+        },
+        "UpdateEventIn": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "title": "string | null",
+                "description": "string | null",
+                "location": "string | null",
+                "url": "string | null",
+                "start": "string | null",
+                "end": "string | null",
+                "allDay": "boolean | null",
+                "recurrence": "RecurrenceIn | null",
+                "clearRecurrence": "boolean",
+                "etag": "string | null"
+            }
+        },
+        "UpdateHolidaySubscriptionsIn": {
+            "kind": "object",
+            "fields": {
+                "subscribedIds": "string[]"
+            }
+        },
+        "UpdateOrganizationIn": {
+            "kind": "object",
+            "fields": {
+                "organizationId": "string",
+                "displayName": "string | null",
+                "description": "string | null",
+                "visibility": "string | null"
+            }
+        },
+        "UpdateReminderSettingsIn": {
+            "kind": "object",
+            "fields": {
+                "defaultOffsetsSeconds": "number[]",
+                "notifyAtStart": "boolean"
+            }
+        },
+        "UpdateSettingsIn": {
+            "kind": "object",
+            "fields": {
+                "displayName": "string",
+                "timeZone": "string",
+                "accent": "string",
+                "email": "string | null",
+                "clearEmail": "boolean"
+            }
+        },
+        "UpdateShareIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "userId": "string",
+                "permission": "string"
+            }
+        },
+        "VerifyEmailIn": {
+            "kind": "object",
+            "fields": {
+                "token": "string"
+            }
+        },
+        "VerifyEmailOut": {
+            "kind": "object",
+            "fields": {
+                "ok": "boolean",
+                "email": "string | null"
+            }
+        }
+    }
+}

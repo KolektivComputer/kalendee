@@ -91,6 +91,14 @@
     }
   }
 
+  function close() {
+    open = false
+    loadedFor = ""
+    requests = []
+    loadError = ""
+    pendingId = ""
+  }
+
   function initials(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean)
     if (parts.length === 0) return "?"
@@ -123,7 +131,7 @@
   }
 </script>
 
-<dialog class="modal" bind:this={dialog} onclose={() => (open = false)}>
+<dialog class="modal" bind:this={dialog} onclose={close}>
   <div class="modal-box max-w-xl">
     <h3 class="text-lg font-bold">Time requests</h3>
     <p class="py-2 text-base-content/70">
@@ -202,7 +210,7 @@
     {/if}
 
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={() => (open = false)}>Close</button>
+      <button type="button" class="btn btn-ghost" onclick={close}>Close</button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>

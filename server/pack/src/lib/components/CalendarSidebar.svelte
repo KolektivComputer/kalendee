@@ -122,6 +122,7 @@
   let friendsOpen = $state(false)
   let availabilityOpen = $state(false)
   let requestsOpen = $state(false)
+  let openMenuId = $state("")
   let displayName = $state("")
   let description = $state("")
   let calendarTimeZone = $state("UTC")
@@ -249,6 +250,7 @@
   }
 
   function openEdit(calendar: CalendarSummary) {
+    openMenuId = ""
     editing = calendar
     displayName = calendar.displayName
     description = calendar.description ?? ""
@@ -258,23 +260,57 @@
   }
 
   function openDelete(calendar: CalendarSummary) {
+    openMenuId = ""
     editing = calendar
     deleteOpen = true
   }
 
   function openShare(calendar: CalendarSummary) {
+    openMenuId = ""
     sharing = calendar
     shareOpen = true
   }
 
   function openAvailability(calendar: CalendarSummary) {
+    openMenuId = ""
     availabilityCalendar = calendar
     availabilityOpen = true
   }
 
   function openRequests(calendar: CalendarSummary) {
+    openMenuId = ""
     requestsCalendar = calendar
     requestsOpen = true
+  }
+
+  function closeCreate() {
+    createOpen = false
+    displayName = ""
+    description = ""
+    calendarTimeZone = timeZone
+    color = nextCalendarColor(calendars.map((calendar) => calendar.color))
+  }
+
+  function closeEdit() {
+    editOpen = false
+    editing = null
+    displayName = ""
+    description = ""
+  }
+
+  function closeDelete() {
+    deleteOpen = false
+    editing = null
+  }
+
+  function closeFriends() {
+    friendsOpen = false
+    friendQuery = ""
+    friendResults = []
+    friendSearched = false
+    friendSearchError = ""
+    searchUsers.reset()
+    sendFriendRequest.reset()
   }
 
   function setPendingCount(calendarId: string, count: number) {
@@ -303,7 +339,16 @@
   {@const canManage = !readOnly && calendar.permission === "owner"}
   {@const canUnfollow = !readOnly && calendar.permission === "follow"}
   <li>
-          <ContextMenu.Root>
+          <ContextMenu.Root
+            open={openMenuId === calendar.id}
+            onOpenChange={(open) => {
+              if (open) {
+                openMenuId = calendar.id
+              } else if (openMenuId === calendar.id) {
+                openMenuId = ""
+              }
+            }}
+          >
             <ContextMenu.Trigger disabled={!canManage && !canUnfollow}>
               {#snippet child({ props })}
                 <div
@@ -369,7 +414,7 @@
             </ContextMenu.Trigger>
             {#if canManage || canUnfollow}
               <ContextMenu.Portal>
-                <ContextMenu.Content class="z-60">
+                <ContextMenu.Content class="z-60" onCloseAutoFocus={(event) => event.preventDefault()}>
                   <ul
                     class="menu menu-sm bg-base-100 rounded-box border-base-300 min-w-44 border p-1 shadow-lg"
                   >
@@ -600,7 +645,7 @@
   </label>
 </div>
 
-<dialog class="modal" bind:this={createDialog} onclose={() => (createOpen = false)}>
+<dialog class="modal" bind:this={createDialog} onclose={closeCreate}>
   <div class="modal-box">
     <h3 class="text-lg font-bold">New calendar</h3>
     <p class="py-2 text-base-content/70">Events you add will live on this calendar.</p>
@@ -615,7 +660,7 @@
           color,
         })
           .then(() => {
-            createOpen = false
+            closeCreate()
           })
           .catch(() => undefined)
       }}
@@ -658,7 +703,7 @@
         {/if}
       </fieldset>
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost" onclick={() => (createOpen = false)}>Cancel</button>
+        <button type="button" class="btn btn-ghost" onclick={closeCreate}>Cancel</button>
         <button type="submit" class="btn btn-primary" disabled={createPending}>
           {createPending ? "Creating…" : "Create"}
         </button>
@@ -668,7 +713,7 @@
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
-<dialog class="modal" bind:this={editDialog} onclose={() => (editOpen = false)}>
+<dialog class="modal" bind:this={editDialog} onclose={closeEdit}>
   <div class="modal-box">
     <h3 class="text-lg font-bold">Edit calendar</h3>
     <p class="py-2 text-base-content/70">Rename it, change its color, or change its time zone.</p>
@@ -685,7 +730,7 @@
           color,
         })
           .then(() => {
-            editOpen = false
+            closeEdit()
           })
           .catch(() => undefined)
       }}
@@ -722,7 +767,7 @@
         <input id="edit-cal-tz" class="input w-full" bind:value={calendarTimeZone} required />
       </fieldset>
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost" onclick={() => (editOpen = false)}>Cancel</button>
+        <button type="button" class="btn btn-ghost" onclick={closeEdit}>Cancel</button>
         <button type="submit" class="btn btn-primary" disabled={updatePending}>
           {updatePending ? "Saving…" : "Save"}
         </button>
@@ -732,12 +777,12 @@
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
-<dialog class="modal" bind:this={deleteDialog} onclose={() => (deleteOpen = false)}>
+<dialog class="modal" bind:this={deleteDialog} onclose={closeDelete}>
   <div class="modal-box">
     <h3 class="text-lg font-bold">Delete {editing?.displayName}?</h3>
     <p class="py-4 text-base-content/70">Events on this calendar will be deleted. This cannot be undone.</p>
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={() => (deleteOpen = false)}>Cancel</button>
+      <button type="button" class="btn btn-ghost" onclick={closeDelete}>Cancel</button>
       <button
         type="button"
         class="btn btn-error"
@@ -746,7 +791,7 @@
           editing &&
           void onDelete(editing.id)
             .then(() => {
-              deleteOpen = false
+              closeDelete()
             })
             .catch(() => undefined)}
       >
@@ -757,7 +802,7 @@
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
-<dialog class="modal" bind:this={friendDialog} onclose={() => (friendsOpen = false)}>
+<dialog class="modal" bind:this={friendDialog} onclose={closeFriends}>
   <div class="modal-box max-w-md">
     <h3 class="text-lg font-bold">Add friend</h3>
     <p class="py-2 text-base-content/70">Search for someone by username or name.</p>
@@ -815,7 +860,7 @@
     {/if}
 
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={() => (friendsOpen = false)}>Done</button>
+      <button type="button" class="btn btn-ghost" onclick={closeFriends}>Done</button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>

@@ -222,6 +222,7 @@
   $effect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return
+      if (hasOpenDialog()) return
       event.preventDefault()
       closeSettings()
     }
@@ -237,6 +238,10 @@
 
   function closeSettings() {
     void router.visit("/")
+  }
+
+  function hasOpenDialog(): boolean {
+    return typeof document !== "undefined" && document.querySelector("dialog[open]") !== null
   }
 
   function refreshViewer() {

@@ -49,6 +49,9 @@ auth {
     emailVerification = ${?KALENDEE_AUTH_EMAIL_VERIFICATION}
     emailVerificationTtlHours = 24
     emailVerificationTtlHours = ${?KALENDEE_AUTH_EMAIL_VERIFICATION_TTL_HOURS}
+    # Allow OAuth sign-ins to create new accounts (still gated by `registration`).
+    oauthRegistration = false
+    oauthRegistration = ${?KALENDEE_AUTH_OAUTH_REGISTRATION}
     argon2 {
         memoryKib = 19456
         memoryKib = ${?KALENDEE_ARGON2_MEMORY_KIB}
@@ -77,6 +80,23 @@ app {
     demoPassword = ${?KALENDEE_DEMO_PASSWORD}
     demoTimezone = "Europe/Berlin"
     demoTimezone = ${?KALENDEE_DEMO_TIMEZONE}
+}
+
+# External calendar connections. Providers with a blank client id are disabled.
+oauth {
+    google {
+        clientId = ${?KALENDEE_GOOGLE_CLIENT_ID}
+        clientSecret = ${?KALENDEE_GOOGLE_CLIENT_SECRET}
+    }
+    microsoft {
+        clientId = ${?KALENDEE_MICROSOFT_CLIENT_ID}
+        clientSecret = ${?KALENDEE_MICROSOFT_CLIENT_SECRET}
+    }
+    # Token-encryption keys: KALENDEE_SECRET_KEY is a base64 32-byte key (version 1);
+    # KALENDEE_SECRET_KEYS is an optional JSON object for rotation, e.g.
+    # { "1": "<base64>", "2": "<base64>" }.
+    secretKey = ${?KALENDEE_SECRET_KEY}
+    secretKeys = ${?KALENDEE_SECRET_KEYS}
 }
 
 mail {

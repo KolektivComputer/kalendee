@@ -62,6 +62,32 @@ data class CalendarSummary(
     val organizationId: String? = null,
     val organizationName: String? = null,
     val organizationSlug: String? = null,
+    val connectionId: String? = null,
+    val syncDirection: String? = null,
+    val syncStatus: String? = null,
+    val syncError: String? = null,
+)
+
+@KeelType
+@Serializable
+data class ProviderSummary(
+    val id: String,
+    val displayName: String,
+    val enabled: Boolean,
+    val connectUrl: String,
+)
+
+@KeelType
+@Serializable
+data class ConnectionSummary(
+    val id: String,
+    val provider: String,
+    val providerName: String,
+    val accountEmail: String?,
+    val displayName: String?,
+    val status: String,
+    val lastSyncAt: String?,
+    val lastError: String?,
 )
 
 @KeelType
@@ -249,6 +275,7 @@ data class AdminPage(
     val customHolidays: List<CustomHolidaySummary>,
     val groups: List<GroupSummary> = emptyList(),
     val calendars: List<AdminCalendarSummary> = emptyList(),
+    val oauthRegistration: Boolean = false,
 )
 
 @KeelType("kalendee.settings")
@@ -260,6 +287,8 @@ data class SettingsPage(
     val holidayCatalog: List<HolidayCatalogItem>,
     val subscribedHolidayIds: List<String>,
     val customHolidays: List<CustomHolidaySummary>,
+    val providers: List<ProviderSummary> = emptyList(),
+    val connections: List<ConnectionSummary> = emptyList(),
 )
 
 @KeelType
@@ -845,6 +874,37 @@ data class SetRegistrationIn(
 @Serializable
 data class RegistrationOut(
     val registrationOpen: Boolean,
+)
+
+@KeelType
+@Serializable
+data class SetOauthRegistrationIn(
+    val open: Boolean,
+)
+
+@KeelType
+@Serializable
+data class SetOauthRegistrationOut(
+    val oauthRegistrationOpen: Boolean,
+)
+
+@KeelType
+@Serializable
+data class ConnectProviderIn(
+    val providerId: String,
+    val returnTo: String? = null,
+)
+
+@KeelType
+@Serializable
+data class ConnectProviderOut(
+    val url: String,
+)
+
+@KeelType
+@Serializable
+data class DisconnectAccountIn(
+    val connectionId: String,
 )
 
 @KeelType

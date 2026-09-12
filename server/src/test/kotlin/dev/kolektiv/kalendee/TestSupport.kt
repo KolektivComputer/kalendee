@@ -59,6 +59,7 @@ internal fun writeH2Migrations(dir: Path): Path {
         "V14__groups_quotas.sql",
         "V15__anonymous_slot_requests.sql",
         "V16__organizations.sql",
+        "V17__external_calendars.sql",
     )
     for (name in names) {
         val sql = loader.getResource("db/migration/$name")?.readText()
@@ -90,6 +91,7 @@ internal fun postgresTestConfig(
     packDir: String,
     adminPassword: String? = null,
     superadminUsername: String? = null,
+    extraConfig: Map<String, String> = emptyMap(),
 ): MapApplicationConfig {
     val entries = mutableListOf(
         "database.url" to h2TestUrl(),
@@ -107,6 +109,7 @@ internal fun postgresTestConfig(
         "storage.localDir" to Files.createTempDirectory("kalendee-avatars").toString(),
         "app.baseUrl" to "https://kalendee.test",
     )
+    entries += extraConfig.entries.map { it.key to it.value }
     return MapApplicationConfig(*entries.toTypedArray())
 }
 
@@ -157,19 +160,22 @@ internal fun ApplicationTestBuilder.installApi(
     adminPassword: String? = null,
     mailer: Mailer? = null,
     superadminUsername: String? = null,
+    httpClient: HttpClient? = null,
+    extraConfig: Map<String, String> = emptyMap(),
     configure: (suspend Application.() -> Unit)? = null,
 ) {
     val pack = Files.createTempDirectory("kalendee-keel-pack")
     writeStubPack(pack)
     environment {
-        config = postgresTestConfig(registration, pack.toString(), adminPassword, superadminUsername)
+        config = postgresTestConfig(registration, pack.toString(), adminPassword, superadminUsername, extraConfig)
     }
     application {
-        val overrides: Module? = if (mailer == null) {
+        val overrides: Module? = if (mailer == null && httpClient == null) {
             null
         } else {
             module {
                 mailer?.let { recording -> single<Mailer> { recording } }
+                httpClient?.let { client -> single { client } }
             }
         }
         configureKoin(extra = overrides)
@@ -205,7 +211,8 @@ internal class RecordingMailer : Mailer {
     }
 }
 
-internal fun ClientProvider.jsonClient() = createClient {
+internal fun ClientProvider.jsonClient(followRedirects: Boolean = true) = createClient {
+    this.followRedirects = followRedirects
     install(HttpCookies)
     install(ContentNegotiation) {
         json(

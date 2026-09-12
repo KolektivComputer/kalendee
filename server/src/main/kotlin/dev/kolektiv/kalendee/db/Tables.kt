@@ -28,6 +28,7 @@ object UsersTable : Table("users") {
     val createdAt = instant("created_at")
     val updatedAt = instant("updated_at")
     val email = text("email").nullable()
+    val emailNormalized = text("email_normalized").nullable().uniqueIndex()
     val emailVerified = bool("email_verified")
     val avatarKey = text("avatar_key").nullable()
     val avatarUpdatedAt = instant("avatar_updated_at").nullable()
@@ -204,6 +205,12 @@ object EventsTable : Table("events") {
     val recurrenceCount = integer("recurrence_count").nullable()
     val etag = text("etag")
     val openRsvp = bool("open_rsvp").default(false)
+    val externalCalendarId = uuid("external_calendar_id")
+        .references(ExternalCalendarsTable.id, onDelete = ReferenceOption.SET_NULL)
+        .nullable()
+    val externalUid = text("external_uid").nullable()
+    val externalEtag = text("external_etag").nullable()
+    val externalUpdatedAt = instant("external_updated_at").nullable()
     val createdAt = instant("created_at")
     val updatedAt = instant("updated_at")
 
@@ -211,6 +218,97 @@ object EventsTable : Table("events") {
 
     init {
         index(false, calendarId, startAt, endAt)
+        uniqueIndex(externalCalendarId, externalUid)
+    }
+}
+
+object CalendarConnectionsTable : Table("calendar_connections") {
+    val id = uuid("id")
+    val userId = uuid("user_id").references(UsersTable.id, onDelete = ReferenceOption.CASCADE)
+    val provider = text("provider")
+    val externalAccountId = text("external_account_id")
+    val accountEmail = text("account_email").nullable()
+    val displayName = text("display_name").nullable()
+    val accessTokenCiphertext = text("access_token_ciphertext")
+    val accessTokenNonce = text("access_token_nonce")
+    val refreshTokenCiphertext = text("refresh_token_ciphertext").nullable()
+    val refreshTokenNonce = text("refresh_token_nonce").nullable()
+    val tokenKeyVersion = integer("token_key_version").default(1)
+    val tokenExpiresAt = instant("token_expires_at").nullable()
+    val scopes = text("scopes").nullable()
+    val status = text("status").default("active")
+    val lastSyncAt = instant("last_sync_at").nullable()
+    val lastError = text("last_error").nullable()
+    val createdAt = instant("created_at")
+    val updatedAt = instant("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(userId, provider, externalAccountId)
+        index(false, userId)
+    }
+}
+
+object ExternalCalendarsTable : Table("external_calendars") {
+    val id = uuid("id")
+    val connectionId = uuid("connection_id")
+        .references(CalendarConnectionsTable.id, onDelete = ReferenceOption.CASCADE)
+    val externalId = text("external_id")
+    val calendarId = uuid("calendar_id")
+        .references(CalendarsTable.id, onDelete = ReferenceOption.CASCADE)
+        .uniqueIndex()
+    val externalName = text("external_name").nullable()
+    val syncDirection = text("sync_direction").default("pull")
+    val enabled = bool("enabled").default(true)
+    val syncToken = text("sync_token").nullable()
+    val lastSyncAt = instant("last_sync_at").nullable()
+    val lastError = text("last_error").nullable()
+    val createdAt = instant("created_at")
+    val updatedAt = instant("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(connectionId, externalId)
+        index(false, connectionId)
+    }
+}
+
+object OAuthStatesTable : Table("oauth_states") {
+    val state = text("state")
+    val userId = uuid("user_id")
+        .references(UsersTable.id, onDelete = ReferenceOption.CASCADE)
+        .nullable()
+    val provider = text("provider")
+    val codeVerifierCiphertext = text("code_verifier_ciphertext")
+    val codeVerifierNonce = text("code_verifier_nonce")
+    val redirectUri = text("redirect_uri")
+    val returnTo = text("return_to").nullable()
+    val createdAt = instant("created_at")
+    val expiresAt = instant("expires_at")
+    val usedAt = instant("used_at").nullable()
+
+    override val primaryKey = PrimaryKey(state)
+
+    init {
+        index(false, expiresAt)
+    }
+}
+
+object ExternalEventTombstonesTable : Table("external_event_tombstones") {
+    val id = uuid("id")
+    val externalCalendarId = uuid("external_calendar_id")
+        .references(ExternalCalendarsTable.id, onDelete = ReferenceOption.CASCADE)
+    val externalUid = text("external_uid")
+    val deletedAt = instant("deleted_at")
+    val uploadedAt = instant("uploaded_at").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(externalCalendarId, externalUid)
+        index(false, externalCalendarId, uploadedAt)
     }
 }
 

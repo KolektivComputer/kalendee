@@ -31,6 +31,10 @@ export interface CalendarSummary {
   organizationId: string | null
   organizationName: string | null
   organizationSlug: string | null
+  connectionId: string | null
+  syncDirection: string | null
+  syncStatus: string | null
+  syncError: string | null
 }
 
 export interface AdminUserSummary {
@@ -89,6 +93,7 @@ export interface AdminPage {
   customHolidays: CustomHolidaySummary[]
   groups: GroupSummary[]
   calendars: AdminCalendarSummary[]
+  oauthRegistration: boolean
 }
 
 export interface DirectoryOrgSummary {
@@ -317,6 +322,24 @@ export interface RsvpPage {
   viewer: Viewer | null
 }
 
+export interface ProviderSummary {
+  id: string
+  displayName: string
+  enabled: boolean
+  connectUrl: string
+}
+
+export interface ConnectionSummary {
+  id: string
+  provider: string
+  providerName: string
+  accountEmail: string | null
+  displayName: string | null
+  status: string
+  lastSyncAt: string | null
+  lastError: string | null
+}
+
 export interface SettingsPage {
   viewer: Viewer
   tab: string
@@ -324,6 +347,8 @@ export interface SettingsPage {
   holidayCatalog: HolidayCatalogItem[]
   subscribedHolidayIds: string[]
   customHolidays: CustomHolidaySummary[]
+  providers: ProviderSummary[]
+  connections: ConnectionSummary[]
 }
 
 export interface VerifyEmailPage {
@@ -487,6 +512,15 @@ export interface CalendarSlotsOut {
   days: AvailabilityDayOut[]
 }
 
+export interface ConnectProviderIn {
+  providerId: string
+  returnTo: string | null
+}
+
+export interface ConnectProviderOut {
+  url: string
+}
+
 export interface CreateCalendarIn {
   displayName: string
   description: string | null
@@ -542,6 +576,10 @@ export interface DeleteEventIn {
 
 export interface DeleteOrganizationIn {
   organizationId: string
+}
+
+export interface DisconnectAccountIn {
+  connectionId: string
 }
 
 export interface EventAttendeesIn {
@@ -851,6 +889,14 @@ export interface SetEventRemindersIn {
   useDefaults: boolean
 }
 
+export interface SetOauthRegistrationIn {
+  open: boolean
+}
+
+export interface SetOauthRegistrationOut {
+  oauthRegistrationOpen: boolean
+}
+
 export interface SetOrganizationMemberRoleIn {
   organizationId: string
   userId: string
@@ -1017,6 +1063,7 @@ export interface KalendeeActions {
   "kalendee.calendarAvailability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut }
   "kalendee.calendarRequests": { in: CalendarRequestsIn; out: CalendarRequestsOut }
   "kalendee.calendarSlots": { in: CalendarSlotsIn; out: CalendarSlotsOut }
+  "kalendee.connectProvider": { in: ConnectProviderIn; out: ConnectProviderOut }
   "kalendee.createCalendar": { in: CreateCalendarIn; out: CalendarSummary }
   "kalendee.createCustomHoliday": { in: CreateCustomHolidayIn; out: CustomHolidaySummary }
   "kalendee.createEvent": { in: CreateEventIn; out: EventSummary }
@@ -1027,6 +1074,7 @@ export interface KalendeeActions {
   "kalendee.deleteCustomHoliday": { in: DeleteCustomHolidayIn; out: DeletedOut }
   "kalendee.deleteEvent": { in: DeleteEventIn; out: DeletedOut }
   "kalendee.deleteOrganization": { in: DeleteOrganizationIn; out: DeletedOut }
+  "kalendee.disconnectAccount": { in: DisconnectAccountIn; out: DeletedOut }
   "kalendee.eventAttendees": { in: EventAttendeesIn; out: EventAttendeesOut }
   "kalendee.eventReminders": { in: GetEventRemindersIn; out: EventRemindersOut }
   "kalendee.followCalendar": { in: FollowCalendarIn; out: FollowOut }
@@ -1064,6 +1112,7 @@ export interface KalendeeActions {
   "kalendee.setEmailVerification": { in: SetEmailVerificationIn; out: EmailVerificationPolicyOut }
   "kalendee.setEventOpenRsvp": { in: SetEventOpenRsvpIn; out: EventSummary }
   "kalendee.setEventReminders": { in: SetEventRemindersIn; out: EventRemindersOut }
+  "kalendee.setOauthRegistration": { in: SetOauthRegistrationIn; out: SetOauthRegistrationOut }
   "kalendee.setOrganizationMemberRole": { in: SetOrganizationMemberRoleIn; out: OrganizationMemberSummary }
   "kalendee.setPublicAccess": { in: SetPublicAccessIn; out: PublicAccessOut }
   "kalendee.setRegistration": { in: SetRegistrationIn; out: RegistrationOut }

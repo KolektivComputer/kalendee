@@ -23,6 +23,14 @@ import dev.kolektiv.kalendee.mail.MailSettings
 import dev.kolektiv.kalendee.mail.Mailer
 import dev.kolektiv.kalendee.mail.SmtpMailer
 import dev.kolektiv.kalendee.notifications.NotificationService
+import dev.kolektiv.kalendee.oauth.AesGcmTokenVault
+import dev.kolektiv.kalendee.oauth.ConnectionService
+import dev.kolektiv.kalendee.oauth.OAuthSettings
+import dev.kolektiv.kalendee.oauth.OAuthStateService
+import dev.kolektiv.kalendee.oauth.ProviderRegistry
+import dev.kolektiv.kalendee.oauth.TokenVault
+import dev.kolektiv.kalendee.oauth.providers.GoogleProvider
+import dev.kolektiv.kalendee.oauth.providers.MicrosoftProvider
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.storage.AvatarStorage
@@ -34,6 +42,7 @@ import dev.kolektiv.kalendee.web.AdminActions
 import dev.kolektiv.kalendee.web.AuthActions
 import dev.kolektiv.kalendee.web.AvailabilityActions
 import dev.kolektiv.kalendee.web.CalendarActions
+import dev.kolektiv.kalendee.web.ConnectionActions
 import dev.kolektiv.kalendee.web.EventActions
 import dev.kolektiv.kalendee.web.EventInviteActions
 import dev.kolektiv.kalendee.web.FriendshipActions
@@ -42,6 +51,8 @@ import dev.kolektiv.kalendee.web.NotificationActions
 import dev.kolektiv.kalendee.web.OrganizationActions
 import dev.kolektiv.kalendee.web.ReminderActions
 import dev.kolektiv.kalendee.web.ShareActions
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import io.ktor.server.application.ApplicationEnvironment
 import kotlin.time.Clock
 import org.koin.dsl.module
@@ -50,6 +61,7 @@ import org.koin.dsl.onClose
 fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) = module {
     single { DatabaseSettings.from(environment.config) }
     single { AuthSettings.from(environment.config, developmentMode) }
+    single { OAuthSettings.from(environment.config) }
     single { AppSettings.from(environment.config, developmentMode) }
     single { MailSettings.from(environment.config) }
     single<Mailer> {
@@ -96,6 +108,30 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
         )
     }
     single { ReminderService(database = get(), store = get(), clock = get()) }
+    single { HttpClient(CIO) { expectSuccess = false } } onClose { it?.close() }
+    single<TokenVault> { AesGcmTokenVault.from(get()) }
+    single { OAuthStateService(database = get(), vault = get(), clock = get()) }
+    single {
+        ProviderRegistry(
+            providers = listOf(
+                GoogleProvider(settings = get<OAuthSettings>().google, http = get()),
+                MicrosoftProvider(settings = get<OAuthSettings>().microsoft, http = get()),
+            ),
+        )
+    }
+    single {
+        ConnectionService(
+            database = get(),
+            vault = get(),
+            states = get(),
+            registry = get(),
+            auth = get(),
+            authSettings = get(),
+            hasher = get(),
+            appSettings = get(),
+            clock = get(),
+        )
+    }
     single<CalendarStore> { PostgresCalendarStore(database = get(), clock = get()) }
     single {
         EventInviteService(
@@ -137,6 +173,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { loadFrontendBundle(environment) } onClose { it?.close() }
     single { AuthActions(auth = get(), settings = get(), verification = get(), loginAlerts = get()) }
     single { CalendarActions(store = get(), auth = get(), settings = get()) }
+    single { ConnectionActions(connections = get(), auth = get(), settings = get()) }
     single {
         OrganizationActions(
             orgs = get(),

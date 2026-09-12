@@ -162,6 +162,10 @@
             "in": "CalendarSlotsIn",
             "out": "CalendarSlotsOut"
         },
+        "kalendee.connectProvider": {
+            "in": "ConnectProviderIn",
+            "out": "ConnectProviderOut"
+        },
         "kalendee.createCalendar": {
             "in": "CreateCalendarIn",
             "out": "CalendarSummary"
@@ -200,6 +204,10 @@
         },
         "kalendee.deleteOrganization": {
             "in": "DeleteOrganizationIn",
+            "out": "DeletedOut"
+        },
+        "kalendee.disconnectAccount": {
+            "in": "DisconnectAccountIn",
             "out": "DeletedOut"
         },
         "kalendee.eventAttendees": {
@@ -350,6 +358,10 @@
             "in": "SetEventRemindersIn",
             "out": "EventRemindersOut"
         },
+        "kalendee.setOauthRegistration": {
+            "in": "SetOauthRegistrationIn",
+            "out": "SetOauthRegistrationOut"
+        },
         "kalendee.setOrganizationMemberRole": {
             "in": "SetOrganizationMemberRoleIn",
             "out": "OrganizationMemberSummary"
@@ -454,7 +466,11 @@
                 "effectiveAccessMode": "string",
                 "organizationId": "string | null",
                 "organizationName": "string | null",
-                "organizationSlug": "string | null"
+                "organizationSlug": "string | null",
+                "connectionId": "string | null",
+                "syncDirection": "string | null",
+                "syncStatus": "string | null",
+                "syncError": "string | null"
             }
         },
         "AdminUserSummary": {
@@ -524,7 +540,8 @@
                 "subscribedHolidayIds": "string[]",
                 "customHolidays": "CustomHolidaySummary[]",
                 "groups": "GroupSummary[]",
-                "calendars": "AdminCalendarSummary[]"
+                "calendars": "AdminCalendarSummary[]",
+                "oauthRegistration": "boolean"
             }
         },
         "DirectoryOrgSummary": {
@@ -797,6 +814,28 @@
                 "viewer": "Viewer | null"
             }
         },
+        "ProviderSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "enabled": "boolean",
+                "connectUrl": "string"
+            }
+        },
+        "ConnectionSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "provider": "string",
+                "providerName": "string",
+                "accountEmail": "string | null",
+                "displayName": "string | null",
+                "status": "string",
+                "lastSyncAt": "string | null",
+                "lastError": "string | null"
+            }
+        },
         "SettingsPage": {
             "kind": "object",
             "fields": {
@@ -805,7 +844,9 @@
                 "showHolidays": "boolean",
                 "holidayCatalog": "HolidayCatalogItem[]",
                 "subscribedHolidayIds": "string[]",
-                "customHolidays": "CustomHolidaySummary[]"
+                "customHolidays": "CustomHolidaySummary[]",
+                "providers": "ProviderSummary[]",
+                "connections": "ConnectionSummary[]"
             }
         },
         "VerifyEmailPage": {
@@ -1026,6 +1067,19 @@
                 "days": "AvailabilityDayOut[]"
             }
         },
+        "ConnectProviderIn": {
+            "kind": "object",
+            "fields": {
+                "providerId": "string",
+                "returnTo": "string | null"
+            }
+        },
+        "ConnectProviderOut": {
+            "kind": "object",
+            "fields": {
+                "url": "string"
+            }
+        },
         "CreateCalendarIn": {
             "kind": "object",
             "fields": {
@@ -1099,6 +1153,12 @@
             "kind": "object",
             "fields": {
                 "organizationId": "string"
+            }
+        },
+        "DisconnectAccountIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string"
             }
         },
         "EventAttendeesIn": {
@@ -1521,6 +1581,18 @@
                 "eventId": "string",
                 "offsetsSeconds": "number[]",
                 "useDefaults": "boolean"
+            }
+        },
+        "SetOauthRegistrationIn": {
+            "kind": "object",
+            "fields": {
+                "open": "boolean"
+            }
+        },
+        "SetOauthRegistrationOut": {
+            "kind": "object",
+            "fields": {
+                "oauthRegistrationOpen": "boolean"
             }
         },
         "SetOrganizationMemberRoleIn": {

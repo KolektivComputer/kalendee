@@ -445,6 +445,28 @@ class DiscordImportService(
         val desired = mapped.map { it.second.uid }.toSet()
         deleteStaleOccurrences(context, fetched, routes, stored, desired, now)
         reconcileMissingEvents(context, fetched, stored, now)
+        applyExceptions(context, fetched)
+    }
+
+    /**
+     * Expansion above always rewrites the occurrence rows to their original
+     * times, so Discord's overrides are applied afterwards. Rows are matched
+     * by the exception id Kalendee stored when it created the exception;
+     * exceptions created directly in Discord have no original start in any
+     * response and cannot be correlated (zero rows updated).
+     */
+    private suspend fun applyExceptions(context: SyncContext, fetched: List<DiscordScheduledEvent>) {
+        fetched.forEach { event ->
+            event.exceptions.forEach { exception ->
+                externalEvents.applyException(
+                    externalCalendarId = context.externalCalendarId,
+                    exceptionId = exception.exceptionId,
+                    start = exception.scheduledStartTime?.let { parseInstant(it) },
+                    end = exception.scheduledEndTime?.let { parseInstant(it) },
+                    cancelled = exception.isCanceled,
+                )
+            }
+        }
     }
 
     private suspend fun deleteStaleOccurrences(
@@ -465,8 +487,13 @@ class DiscordImportService(
                 return@forEach
             }
             val recurring = desired.any { it.startsWith(prefix) }
-            stored.filter { it.uid.startsWith(prefix) && it.uid !in desired && it.end > now }
-                .forEach { stale += it.uid }
+            // Rows with an exception keep an override that may move them
+            // outside the materialization window; never treat them as stale,
+            // because the original start encoded in the uid is the only
+            // correlation we have.
+            stored.filter {
+                it.uid.startsWith(prefix) && it.uid !in desired && it.end > now && it.exceptionId == null
+            }.forEach { stale += it.uid }
             if (recurring) {
                 stored.filter { it.uid == baseUid && it.end > now }.forEach { stale += it.uid }
             }
@@ -615,6 +642,8 @@ class DiscordImportService(
 
     private fun DiscordScheduledEvent.startInstant(): Instant =
         runCatching { Instant.parse(scheduledStartTime) }.getOrNull() ?: Instant.DISTANT_FUTURE
+
+    private fun parseInstant(raw: String): Instant? = runCatching { Instant.parse(raw) }.getOrNull()
 
     private data class SyncContext(
         val externalCalendarId: Uuid,

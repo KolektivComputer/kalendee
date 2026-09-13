@@ -66,7 +66,7 @@ For a server full of sample data, set `KALENDEE_SEED_DEMO=true` and log in as `d
 
 Current catalog versions are in `gradle/libs.versions.toml` (Kotlin, AGP, Compose Multiplatform, Ktor). Kotlin official code style is on (`kotlin.code.style=official`).
 
-The server's Discord REST client is Kord (soft fork), `dev.kord:kord-rest:0.18.1-kalendee.2`, resolved from `mavenLocal()` during development. The fork clone lives at `../kord` (branch `kalendee/recurrence`, patch `/tmp/kord-kalendee.patch`). A fresh checkout or CI build needs the fork artifact first: run `./gradlew :server:publishToMavenLocal` (or `:common:publishToMavenLocal :rest:publishToMavenLocal`) in the clone, or publish the fork to `repo.yuri.capital` maven-releases for CI/Docker.
+The server's Discord REST client is Kord (soft fork), `dev.kord:kord-rest:0.18.1-kalendee.2`, resolved from `mavenLocal()` during development. The fork lives at https://github.com/KolektivComputer/kord (branch `kalendee/recurrence`; local clone `../kord`, patch `/tmp/kord-kalendee.patch`). A fresh checkout or CI build needs the fork artifact first: run `./gradlew :server:publishToMavenLocal` (or `:common:publishToMavenLocal :rest:publishToMavenLocal`) in the clone; CI/Docker needs the fork's artifacts published to `repo.yuri.capital` maven-releases.
 
 ## Getting the code
 

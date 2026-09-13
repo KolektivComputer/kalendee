@@ -14,6 +14,7 @@ import dev.kolektiv.kalendee.calendar.RecurrenceFrequency
 import dev.kolektiv.kalendee.db.EventAttendeesTable
 import dev.kolektiv.kalendee.db.EventReminderSettingsTable
 import dev.kolektiv.kalendee.db.EventRemindersTable
+import dev.kolektiv.kalendee.db.EventsTable
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,6 +32,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+import org.jetbrains.exposed.v1.jdbc.update
 import org.koin.ktor.ext.get
 
 class MoveEventStoreTest {
@@ -278,12 +280,20 @@ class MoveEventStoreTest {
                 it[offsetSeconds] = 600
                 it[createdAt] = now
             }
+            EventsTable.update({ EventsTable.id eq Uuid.parse(event.id.value) }) {
+                it[EventsTable.rsvpOverride] = false
+                it[EventsTable.anonymousRsvpOverride] = true
+            }
         }
 
         val result = requireNotNull(
             store.moveEvent(event.id, alice.id, destination.id, occurrenceStart = start + 1.days),
         )
         val newId = result[1].id
+        assertEquals(false, result[1].rsvpOverride)
+        assertEquals(true, result[1].anonymousRsvpOverride)
+        assertEquals(false, result[1].rsvpEnabled)
+        assertEquals(true, result[1].openRsvp)
 
         suspendTransaction(database) {
             val attendees = EventAttendeesTable.selectAll()
@@ -307,6 +317,12 @@ class MoveEventStoreTest {
                 .toList()
             assertEquals(1, reminders.size)
             assertEquals(600, reminders.single()[EventRemindersTable.offsetSeconds])
+
+            val movedEvent = EventsTable.selectAll()
+                .where { EventsTable.id eq Uuid.parse(newId.value) }
+                .single()
+            assertEquals(false, movedEvent[EventsTable.rsvpOverride])
+            assertEquals(true, movedEvent[EventsTable.anonymousRsvpOverride])
 
             val sourceAttendees = EventAttendeesTable.selectAll()
                 .where { EventAttendeesTable.eventId eq Uuid.parse(event.id.value) }

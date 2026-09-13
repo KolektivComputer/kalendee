@@ -201,6 +201,7 @@ class EventInviteApiTest {
         val event = alice.createEvent(calendar.id.value, "Planning", EventStart, EventEnd)
         alice.share(calendar.id.value, "bob", "write")
         alice.share(calendar.id.value, "dave", "read")
+        assertEquals(HttpStatusCode.OK, alice.setCalendarRsvp(calendar.id.value, rsvpEnabled = true).status)
         assertEquals(HttpStatusCode.OK, bob.inviteByUsername(event.id.value, "carol").status)
 
         val attendees = bob.attendees(event.id.value)
@@ -226,7 +227,7 @@ class EventInviteApiTest {
     }
 
     @Test
-    fun readShareAndFollowerViewersCanRsvp() = testApplication {
+    fun readShareAndFollowerViewersCanRsvpWhenCalendarRsvpEnabled() = testApplication {
         installApi()
         val alice = jsonClient()
         alice.registerAndLogin("alice")
@@ -240,6 +241,13 @@ class EventInviteApiTest {
         val calendar = alice.createCalendar("Work")
         val event = alice.createEvent(calendar.id.value, "Planning", EventStart, EventEnd)
         alice.share(calendar.id.value, "bob", "read")
+
+        // Viewers who are not invited are rejected while the calendar has RSVP disabled.
+        val disabled = bob.respondToInvite(event.id.value, "yes")
+        assertEquals(HttpStatusCode.UnprocessableEntity, disabled.status)
+        assertTrue(disabled.bodyAsText().contains("RSVP is not enabled"))
+
+        assertEquals(HttpStatusCode.OK, alice.setCalendarRsvp(calendar.id.value, rsvpEnabled = true).status)
 
         val respondBob = bob.respondToInvite(event.id.value, "yes")
         assertEquals(HttpStatusCode.OK, respondBob.status)
@@ -274,7 +282,83 @@ class EventInviteApiTest {
     }
 
     @Test
-    fun openRsvpOnPublicCalendarAcceptsAnonymousResponses() = testApplication {
+    fun eventRsvpOverrideBeatsCalendarSettingForViewers() = testApplication {
+        installApi()
+        val alice = jsonClient()
+        alice.registerAndLogin("alice")
+        val bob = jsonClient()
+        bob.registerAndLogin("bob")
+        val carol = jsonClient()
+        carol.registerAndLogin("carol")
+        val dave = jsonClient()
+        dave.registerAndLogin("dave")
+
+        val calendar = alice.createCalendar("Work")
+        val event = alice.createEvent(calendar.id.value, "Planning", EventStart, EventEnd)
+        alice.share(calendar.id.value, "bob", "read")
+        alice.share(calendar.id.value, "carol", "read")
+        alice.share(calendar.id.value, "dave", "read")
+
+        // Per-event on beats calendar off.
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, rsvpOverride = true).status,
+        )
+        assertEquals(HttpStatusCode.OK, bob.respondToInvite(event.id.value, "yes").status)
+
+        // Per-event off beats calendar on.
+        assertEquals(HttpStatusCode.OK, alice.setCalendarRsvp(calendar.id.value, rsvpEnabled = true).status)
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, rsvpOverride = false).status,
+        )
+        assertEquals(HttpStatusCode.UnprocessableEntity, carol.respondToInvite(event.id.value, "yes").status)
+
+        // Clearing the override inherits the calendar setting.
+        assertEquals(HttpStatusCode.OK, alice.setEventRsvpOverrides(event.id.value).status)
+        assertEquals(HttpStatusCode.OK, carol.respondToInvite(event.id.value, "yes").status)
+
+        // Calendar off with a per-event on still allows a fresh viewer.
+        assertEquals(HttpStatusCode.OK, alice.setCalendarRsvp(calendar.id.value, rsvpEnabled = false).status)
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, rsvpOverride = true).status,
+        )
+        assertEquals(HttpStatusCode.OK, dave.respondToInvite(event.id.value, "maybe").status)
+    }
+
+    @Test
+    fun rsvpOverridesRequireWriteAccess() = testApplication {
+        installApi()
+        val alice = jsonClient()
+        alice.registerAndLogin("alice")
+        val bob = jsonClient()
+        bob.registerAndLogin("bob")
+        val carol = jsonClient()
+        carol.registerAndLogin("carol")
+
+        val calendar = alice.createCalendar("Work")
+        val event = alice.createEvent(calendar.id.value, "Planning", EventStart, EventEnd)
+        alice.share(calendar.id.value, "bob", "read")
+
+        assertEquals(
+            HttpStatusCode.Forbidden,
+            bob.setEventRsvpOverrides(event.id.value, rsvpOverride = true).status,
+        )
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, rsvpOverride = true).status,
+        )
+
+        alice.share(calendar.id.value, "carol", "write")
+        assertEquals(
+            HttpStatusCode.OK,
+            carol.setEventRsvpOverrides(event.id.value, rsvpOverride = false).status,
+        )
+    }
+
+    @Test
+    fun anonymousRsvpFollowsEffectiveAnonymousFlagAndRequiresEmail() = testApplication {
         val mail = RecordingMailer()
         installApi(mailer = mail)
         val alice = jsonClient()
@@ -289,12 +373,12 @@ class EventInviteApiTest {
             anonymous.publicRsvp(event.id.value, "Guest", "guest@example.com", "yes").status,
         )
 
-        val enabled = alice.put("/api/v1/events/${event.id.value}/open-rsvp") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"enabled":true}""")
-        }
+        // The per-event anonymous override turns responses on.
+        val enabled = alice.setEventRsvpOverrides(event.id.value, anonymousRsvpOverride = true)
         assertEquals(HttpStatusCode.OK, enabled.status)
-        assertTrue(enabled.body<EventSummary>().openRsvp)
+        val summary = enabled.body<EventSummary>()
+        assertTrue(summary.openRsvp)
+        assertEquals(true, summary.anonymousRsvpOverride)
 
         assertEquals(
             HttpStatusCode.BadRequest,
@@ -303,6 +387,14 @@ class EventInviteApiTest {
         assertEquals(
             HttpStatusCode.BadRequest,
             anonymous.publicRsvp(event.id.value, "  ", "guest@example.com", "yes").status,
+        )
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            anonymous.publicRsvp(event.id.value, "Guest", null, "yes").status,
+        )
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            anonymous.publicRsvp(event.id.value, "Guest", "  ", "yes").status,
         )
 
         val first = anonymous.publicRsvp(event.id.value, "Guest", "guest@example.com", "yes")
@@ -323,9 +415,22 @@ class EventInviteApiTest {
         assertEquals("Guest Two", attendees.attendees.single().name)
         assertEquals("maybe", attendees.attendees.single().status)
 
+        // A per-event off beats the calendar-wide anonymous flag.
+        assertEquals(HttpStatusCode.OK, alice.setCalendarRsvp(calendar.id.value, anonymousRsvpEnabled = true).status)
         assertEquals(
             HttpStatusCode.OK,
-            anonymous.publicRsvp(event.id.value, "Anon", null, "no").status,
+            alice.setEventRsvpOverrides(event.id.value, anonymousRsvpOverride = false).status,
+        )
+        assertEquals(
+            HttpStatusCode.Forbidden,
+            anonymous.publicRsvp(event.id.value, "Guest Three", "guest3@example.com", "no").status,
+        )
+
+        // Clearing the override inherits the calendar-wide anonymous flag.
+        assertEquals(HttpStatusCode.OK, alice.setEventRsvpOverrides(event.id.value).status)
+        assertEquals(
+            HttpStatusCode.OK,
+            anonymous.publicRsvp(event.id.value, "Guest Three", "guest3@example.com", "no").status,
         )
         assertEquals(2, alice.attendees(event.id.value).attendees.size)
     }
@@ -347,10 +452,7 @@ class EventInviteApiTest {
         assertEquals(HttpStatusCode.OK, updated.status)
         assertEquals(
             HttpStatusCode.OK,
-            alice.put("/api/v1/events/${event.id.value}/open-rsvp") {
-                contentType(ContentType.Application.Json)
-                setBody("""{"enabled":true}""")
-            }.status,
+            alice.setEventRsvpOverrides(event.id.value, anonymousRsvpOverride = true).status,
         )
 
         assertEquals(
@@ -422,6 +524,34 @@ private suspend fun HttpClient.respondToInvite(eventId: String, status: String):
         contentType(ContentType.Application.Json)
         setBody("""{"eventId":"$eventId","status":"$status"}""")
     }
+
+private suspend fun HttpClient.setCalendarRsvp(
+    calendarId: String,
+    rsvpEnabled: Boolean = false,
+    anonymousRsvpEnabled: Boolean = false,
+): HttpResponse = put("/api/v1/calendars/$calendarId/rsvp-settings") {
+    contentType(ContentType.Application.Json)
+    setBody(
+        buildJsonObject {
+            put("rsvpEnabled", rsvpEnabled)
+            put("anonymousRsvpEnabled", anonymousRsvpEnabled)
+        }.toString(),
+    )
+}
+
+private suspend fun HttpClient.setEventRsvpOverrides(
+    eventId: String,
+    rsvpOverride: Boolean? = null,
+    anonymousRsvpOverride: Boolean? = null,
+): HttpResponse = put("/api/v1/events/$eventId/rsvp-settings") {
+    contentType(ContentType.Application.Json)
+    setBody(
+        buildJsonObject {
+            if (rsvpOverride != null) put("rsvpOverride", rsvpOverride)
+            if (anonymousRsvpOverride != null) put("anonymousRsvpOverride", anonymousRsvpOverride)
+        }.toString(),
+    )
+}
 
 private suspend fun HttpClient.attendees(eventId: String): EventAttendeesOut {
     val response = get("/api/v1/events/$eventId/attendees")

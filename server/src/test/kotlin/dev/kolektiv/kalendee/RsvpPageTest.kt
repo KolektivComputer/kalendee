@@ -28,7 +28,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.put
 
 class RsvpPageTest {
     @Test
@@ -66,24 +68,60 @@ class RsvpPageTest {
     }
 
     @Test
-    fun openRsvpPageRequiresNameForAnonymous() = testApplication {
+    fun anonymousRsvpPageValidityFollowsEffectiveAnonymousFlag() = testApplication {
         installApi()
         val alice = jsonClient()
         alice.registerAndLogin("alice")
         val calendar = alice.createCalendar("Work")
         val event = alice.createEvent(calendar.id.value, "Open house", EventStart, EventEnd)
-        assertEquals(HttpStatusCode.OK, alice.enableOpenRsvp(event.id.value))
 
-        val anonymous = jsonClient().get("/rsvp/${event.id.value}") {
+        val anonymous = jsonClient()
+        val disabled = anonymous.get("/rsvp/${event.id.value}") {
             header(KeelHeaders.VISIT, "true")
         }.rsvpPage()
-        assertTrue(anonymous.valid)
-        assertTrue(anonymous.requiresName)
-        assertNull(anonymous.viewer)
-        assertNull(anonymous.token)
-        assertEquals("Open house", anonymous.title)
-        assertEquals("Work", anonymous.calendarName)
-        assertTrue(anonymous.whenText?.contains("2026-09-07") == true)
+        assertFalse(disabled.valid)
+
+        // Calendar-level anonymous RSVP opens the page.
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setCalendarRsvp(calendar.id.value, anonymousRsvpEnabled = true).status,
+        )
+        val calendarWide = anonymous.get("/rsvp/${event.id.value}") {
+            header(KeelHeaders.VISIT, "true")
+        }.rsvpPage()
+        assertTrue(calendarWide.valid)
+        assertTrue(calendarWide.requiresName)
+        assertNull(calendarWide.viewer)
+        assertNull(calendarWide.token)
+        assertEquals("Open house", calendarWide.title)
+        assertEquals("Work", calendarWide.calendarName)
+        assertTrue(calendarWide.whenText?.contains("2026-09-07") == true)
+
+        // A per-event off beats the calendar-wide flag.
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, anonymousRsvpOverride = false).status,
+        )
+        assertFalse(
+            anonymous.get("/rsvp/${event.id.value}") {
+                header(KeelHeaders.VISIT, "true")
+            }.rsvpPage().valid,
+        )
+
+        // A per-event on beats a calendar-wide off.
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setCalendarRsvp(calendar.id.value, anonymousRsvpEnabled = false).status,
+        )
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, anonymousRsvpOverride = true).status,
+        )
+        assertTrue(
+            anonymous.get("/rsvp/${event.id.value}") {
+                header(KeelHeaders.VISIT, "true")
+            }.rsvpPage().valid,
+        )
 
         val bob = jsonClient()
         bob.registerAndLogin("bob")
@@ -93,6 +131,63 @@ class RsvpPageTest {
         assertTrue(signedIn.valid)
         assertFalse(signedIn.requiresName)
         assertEquals("bob", signedIn.viewer?.username)
+    }
+
+    @Test
+    fun signedInRsvpPageFollowsEffectiveRsvpEnabled() = testApplication {
+        installApi()
+        val alice = jsonClient()
+        alice.registerAndLogin("alice")
+        val calendar = alice.createCalendar("Work")
+        val event = alice.createEvent(calendar.id.value, "Planning", EventStart, EventEnd)
+
+        val bob = jsonClient()
+        bob.registerAndLogin("bob")
+
+        assertFalse(
+            bob.get("/rsvp/${event.id.value}") {
+                header(KeelHeaders.VISIT, "true")
+            }.rsvpPage().valid,
+        )
+
+        // Calendar-level signed-in RSVP opens the page for signed-in viewers only.
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setCalendarRsvp(calendar.id.value, rsvpEnabled = true).status,
+        )
+        assertTrue(
+            bob.get("/rsvp/${event.id.value}") {
+                header(KeelHeaders.VISIT, "true")
+            }.rsvpPage().valid,
+        )
+        assertFalse(
+            jsonClient().get("/rsvp/${event.id.value}") {
+                header(KeelHeaders.VISIT, "true")
+            }.rsvpPage().valid,
+        )
+
+        // A per-event off beats the calendar-wide flag.
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, rsvpOverride = false).status,
+        )
+        assertFalse(
+            bob.get("/rsvp/${event.id.value}") {
+                header(KeelHeaders.VISIT, "true")
+            }.rsvpPage().valid,
+        )
+
+        // A per-event on beats a calendar-wide off.
+        assertEquals(HttpStatusCode.OK, alice.setCalendarRsvp(calendar.id.value).status)
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, rsvpOverride = true).status,
+        )
+        assertTrue(
+            bob.get("/rsvp/${event.id.value}") {
+                header(KeelHeaders.VISIT, "true")
+            }.rsvpPage().valid,
+        )
     }
 
     @Test
@@ -128,7 +223,10 @@ class RsvpPageTest {
         assertEquals("not-a-uuid", garbage.eventId)
 
         alice.setCalendarAccessMode(calendar.id.value, "signed_in")
-        assertEquals(HttpStatusCode.OK, alice.enableOpenRsvp(event.id.value))
+        assertEquals(
+            HttpStatusCode.OK,
+            alice.setEventRsvpOverrides(event.id.value, anonymousRsvpOverride = true).status,
+        )
         val restricted = anonymous.get("/rsvp/${event.id.value}") {
             header(KeelHeaders.VISIT, "true")
         }.rsvpPage()
@@ -191,11 +289,33 @@ private suspend fun HttpClient.registerWithEmail(username: String, email: String
     check(response.status == HttpStatusCode.Created) { "register failed: ${response.status}" }
 }
 
-private suspend fun HttpClient.enableOpenRsvp(eventId: String): HttpStatusCode =
-    put("/api/v1/events/$eventId/open-rsvp") {
-        contentType(ContentType.Application.Json)
-        setBody("""{"enabled":true}""")
-    }.status
+private suspend fun HttpClient.setEventRsvpOverrides(
+    eventId: String,
+    rsvpOverride: Boolean? = null,
+    anonymousRsvpOverride: Boolean? = null,
+): HttpResponse = put("/api/v1/events/$eventId/rsvp-settings") {
+    contentType(ContentType.Application.Json)
+    setBody(
+        buildJsonObject {
+            if (rsvpOverride != null) put("rsvpOverride", rsvpOverride)
+            if (anonymousRsvpOverride != null) put("anonymousRsvpOverride", anonymousRsvpOverride)
+        }.toString(),
+    )
+}
+
+private suspend fun HttpClient.setCalendarRsvp(
+    calendarId: String,
+    rsvpEnabled: Boolean = false,
+    anonymousRsvpEnabled: Boolean = false,
+): HttpResponse = put("/api/v1/calendars/$calendarId/rsvp-settings") {
+    contentType(ContentType.Application.Json)
+    setBody(
+        buildJsonObject {
+            put("rsvpEnabled", rsvpEnabled)
+            put("anonymousRsvpEnabled", anonymousRsvpEnabled)
+        }.toString(),
+    )
+}
 
 private suspend fun HttpClient.setCalendarAccessMode(calendarId: String, mode: String) {
     val response = put("/api/v1/calendars/$calendarId/availability") {

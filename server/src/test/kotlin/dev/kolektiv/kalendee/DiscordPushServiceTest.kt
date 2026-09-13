@@ -8,8 +8,10 @@ import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.CalendarPermission
 import dev.kolektiv.kalendee.calendar.CalendarStore
+import dev.kolektiv.kalendee.calendar.EventId
 import dev.kolektiv.kalendee.calendar.OptionalField
 import dev.kolektiv.kalendee.calendar.UpdateEvent
+import dev.kolektiv.kalendee.db.EventsTable
 import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.events.EventUpdateService
 import dev.kolektiv.kalendee.oauth.ConnectionService
@@ -127,13 +129,101 @@ class DiscordPushServiceTest {
     }
 
     @Test
-    fun recurringOccurrenceRejectsReschedule() = testApplication {
+    fun reschedulingOccurrenceCreatesDiscordExceptionAndUpdatesLocalRow() = testApplication {
+        val start = secondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        val newStart = start + 3.hours
+        val newEnd = newStart + 1.hours
+        val mock = MockDiscord(
+            scheduledEvents = { ok("[${eventJson(start = start, rule = rule)}]") },
+            createException = { ok(exceptionJson(start = newStart, end = newEnd)) },
+        )
+        val fixture = installPushFixture(mock)
+        val imported = fixture.importInto()
+        val occurrence = fixture.store.listEvents(imported.calendar.id, fixture.user.id)
+            .first { it.externalUid?.startsWith("discord:101:201:") == true }
+        assertEquals(start, occurrence.start)
+
+        val updated = fixture.updates.update(
+            occurrence.id,
+            fixture.user.id,
+            UpdateEvent(start = newStart, end = newEnd),
+            expectedEtag = occurrence.etag,
+        )
+
+        assertEquals(newStart, updated.start)
+        assertEquals(newEnd, updated.end)
+        val request = mock.exceptionPosts.single()
+        assertEquals(HttpMethod.Post, request.method)
+        assertEquals("/api/v10/guilds/101/scheduled-events/201/exceptions", request.url.encodedPath)
+        assertEquals("Bot bot-token", request.headers[HttpHeaders.Authorization])
+        val body = (request.body as? OutgoingContent.ByteArrayContent)?.bytes()?.decodeToString().orEmpty()
+        assertTrue("\"original_scheduled_start_time\":\"$start\"" in body, body)
+        assertTrue("\"scheduled_start_time\":\"$newStart\"" in body, body)
+        assertTrue("\"scheduled_end_time\":\"$newEnd\"" in body, body)
+        assertEquals("901", fixture.exceptionId(occurrence.id))
+        assertTrue(mock.patches.isEmpty())
+    }
+
+    @Test
+    fun reschedulingOccurrenceAgainPatchesTheSameException() = testApplication {
+        val start = secondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        val firstStart = start + 3.hours
+        val firstEnd = firstStart + 1.hours
+        val secondStart = start + 5.hours
+        val secondEnd = secondStart + 1.hours
+        val mock = MockDiscord(
+            scheduledEvents = { ok("[${eventJson(start = start, rule = rule)}]") },
+            createException = { ok(exceptionJson(start = firstStart, end = firstEnd)) },
+            modifyException = { ok(exceptionJson(start = secondStart, end = secondEnd)) },
+        )
+        val fixture = installPushFixture(mock)
+        val imported = fixture.importInto()
+        val occurrence = fixture.store.listEvents(imported.calendar.id, fixture.user.id)
+            .first { it.externalUid?.startsWith("discord:101:201:") == true }
+
+        fixture.updates.update(
+            occurrence.id,
+            fixture.user.id,
+            UpdateEvent(start = firstStart, end = firstEnd),
+            expectedEtag = occurrence.etag,
+        )
+        val refreshed = requireNotNull(fixture.store.getEvent(occurrence.id, fixture.user.id))
+        val updated = fixture.updates.update(
+            occurrence.id,
+            fixture.user.id,
+            UpdateEvent(start = secondStart, end = secondEnd),
+            expectedEtag = refreshed.etag,
+        )
+
+        assertEquals(secondStart, updated.start)
+        assertEquals(secondEnd, updated.end)
+        assertEquals(1, mock.exceptionPosts.size)
+        val patch = mock.exceptionPatches.single()
+        assertEquals(HttpMethod.Patch, patch.method)
+        assertEquals(
+            "/api/v10/guilds/101/scheduled-events/201/exceptions/901",
+            patch.url.encodedPath,
+        )
+        val body = (patch.body as? OutgoingContent.ByteArrayContent)?.bytes()?.decodeToString().orEmpty()
+        assertTrue("\"scheduled_start_time\":\"$secondStart\"" in body, body)
+        assertTrue("\"scheduled_end_time\":\"$secondEnd\"" in body, body)
+        assertTrue("\"original_scheduled_start_time\"" !in body, body)
+        assertEquals("901", fixture.exceptionId(occurrence.id))
+    }
+
+    @Test
+    fun disabledImportRejectsOccurrenceReschedule() = testApplication {
         val start = secondsFromNow(1.days)
         val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
         val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
         val mock = MockDiscord(scheduledEvents = { ok("[${eventJson(start = start, rule = rule)}]") })
         val fixture = installPushFixture(mock)
         val imported = fixture.importInto()
+        fixture.imports.setEnabled(fixture.user.id, imported.externalCalendarId, enabled = false)
         val occurrence = fixture.store.listEvents(imported.calendar.id, fixture.user.id)
             .first { it.externalUid?.startsWith("discord:101:201:") == true }
 
@@ -146,7 +236,8 @@ class DiscordPushServiceTest {
             )
         }
 
-        assertTrue("repeats" in failure.message.orEmpty(), failure.message)
+        assertTrue("disabled" in failure.message.orEmpty(), failure.message)
+        assertTrue(mock.exceptionPosts.isEmpty())
         assertTrue(mock.patches.isEmpty())
     }
 
@@ -336,6 +427,14 @@ class DiscordPushServiceTest {
                     .single()
             }
         }
+
+        suspend fun exceptionId(eventId: EventId): String? = withContext(Dispatchers.IO) {
+            suspendTransaction(database) {
+                EventsTable.selectAll()
+                    .where { EventsTable.id eq Uuid.parse(eventId.value) }
+                    .single()[EventsTable.externalExceptionId]
+            }
+        }
     }
 
     private class MockDiscord(
@@ -343,12 +442,26 @@ class DiscordPushServiceTest {
         var botGuilds: () -> Pair<HttpStatusCode, String> = { ok(ManageEventsBotGuildsJson) },
         var scheduledEvents: () -> Pair<HttpStatusCode, String> = { ok("[]") },
         var modifyEvent: (String) -> Pair<HttpStatusCode, String> = { ok(DefaultEventJson) },
+        var createException: () -> Pair<HttpStatusCode, String> = { ok(DefaultExceptionJson) },
+        var modifyException: () -> Pair<HttpStatusCode, String> = { ok(DefaultExceptionJson) },
     ) {
         val requests = mutableListOf<HttpRequestData>()
 
         val patches: List<HttpRequestData>
             get() = requests.filter {
-                it.method == HttpMethod.Patch && "/scheduled-events/" in it.url.encodedPath
+                it.method == HttpMethod.Patch &&
+                    "/scheduled-events/" in it.url.encodedPath &&
+                    "/exceptions/" !in it.url.encodedPath
+            }
+
+        val exceptionPosts: List<HttpRequestData>
+            get() = requests.filter {
+                it.method == HttpMethod.Post && it.url.encodedPath.endsWith("/exceptions")
+            }
+
+        val exceptionPatches: List<HttpRequestData>
+            get() = requests.filter {
+                it.method == HttpMethod.Patch && "/exceptions/" in it.url.encodedPath
             }
 
         val engine: MockEngine = MockEngine { request ->
@@ -361,6 +474,8 @@ class DiscordPushServiceTest {
                 path.endsWith("/users/@me") && authorization.startsWith("Bearer") -> ok(IdentityJson)
                 path.endsWith("/users/@me/guilds") && authorization.startsWith("Bearer") -> userGuilds()
                 path.endsWith("/users/@me/guilds") && authorization.startsWith("Bot") -> botGuilds()
+                request.method == HttpMethod.Post && path.endsWith("/exceptions") -> createException()
+                request.method == HttpMethod.Patch && "/exceptions/" in path -> modifyException()
                 request.method == HttpMethod.Patch && "/scheduled-events/" in path ->
                     modifyEvent(path.substringAfterLast('/'))
                 "/scheduled-events/" in path -> ok(DefaultEventJson)
@@ -440,6 +555,18 @@ class DiscordPushServiceTest {
         append('}')
     }
 
+    private fun exceptionJson(
+        id: String = "901",
+        start: Instant,
+        end: Instant? = start + 1.hours,
+        canceled: Boolean = false,
+    ): String {
+        val endValue = end?.let { "\"$it\"" } ?: "null"
+        return """{"event_id":"201","event_exception_id":"$id",""" +
+            """"scheduled_start_time":"$start",""" +
+            """"scheduled_end_time":$endValue,"is_canceled":$canceled}"""
+    }
+
     private fun guildJson(
         id: String,
         owner: Boolean = false,
@@ -477,6 +604,10 @@ private val DefaultEventJson =
         """"description":"Hello","scheduled_start_time":"2026-09-20T14:00:00Z",""" +
         """"scheduled_end_time":"2026-09-20T15:00:00Z","privacy_level":2,"status":1,""" +
         """"entity_type":3,"entity_id":null,"entity_metadata":{"location":"Lounge"},"user_count":3}"""
+
+private val DefaultExceptionJson =
+    """{"event_id":"201","event_exception_id":"901","scheduled_start_time":"2026-09-20T15:00:00Z",""" +
+        """"scheduled_end_time":"2026-09-20T16:00:00Z","is_canceled":false}"""
 
 private val IdentityJson = """{"id":"302","username":"mey","global_name":"Mey","avatar":null}"""
 

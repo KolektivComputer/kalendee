@@ -14,6 +14,8 @@ data class StoredExternalEvent(
     val start: Instant,
     val end: Instant,
     val status: EventStatus,
+    /** The provider-side exception that overrides this occurrence, if any. */
+    val exceptionId: String? = null,
 )
 
 /**
@@ -32,6 +34,7 @@ data class ExternalEventSource(
     val enabled: Boolean,
     val start: Instant,
     val end: Instant,
+    val externalExceptionId: String? = null,
 )
 
 /**
@@ -59,4 +62,26 @@ interface ExternalEventStore {
      * change. Bumps the local etag so clients refetch.
      */
     suspend fun reschedule(externalCalendarId: Uuid, uid: String, start: Instant, end: Instant)
+
+    /**
+     * Remembers the provider's scheduled-event exception id on one mirrored
+     * occurrence, so later edits can modify the same exception instead of
+     * creating a duplicate.
+     */
+    suspend fun setExceptionId(eventId: EventId, exceptionId: String)
+
+    /**
+     * Re-applies a provider-side exception to the mirrored occurrence that was
+     * created for it. Matches on `(external_calendar_id, external_exception_id)`
+     * and may update zero rows: exceptions created directly in the provider's
+     * client cannot be correlated to an occurrence. Non-null times overwrite
+     * the row's times, [cancelled] sets the status, and the etag is bumped.
+     */
+    suspend fun applyException(
+        externalCalendarId: Uuid,
+        exceptionId: String,
+        start: Instant?,
+        end: Instant?,
+        cancelled: Boolean,
+    )
 }

@@ -159,6 +159,62 @@ class ExternalEventStoreTest {
     }
 
     @Test
+    fun setExceptionIdStoresExceptionOnMirroredOccurrence() = testApplication {
+        val fixture = installFixture()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        val eventId = fixture.importedEventId()
+
+        fixture.external.setExceptionId(eventId, "901")
+
+        assertEquals("901", fixture.rawRows().single()[EventsTable.externalExceptionId])
+        assertEquals("901", fixture.external.findSource(eventId)?.externalExceptionId)
+        assertEquals("901", fixture.external.listBySource(fixture.externalId).single().exceptionId)
+    }
+
+    @Test
+    fun applyExceptionUpdatesMatchingOccurrenceAndBumpsEtag() = testApplication {
+        val fixture = installFixture()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        fixture.external.setExceptionId(fixture.importedEventId(), "901")
+        val before = fixture.rawRows().single()
+
+        val movedStart = start + 3.hours
+        val movedEnd = end + 3.hours
+        fixture.external.applyException(fixture.externalId, "901", movedStart, movedEnd, cancelled = false)
+
+        val moved = fixture.rawRows().single()
+        assertEquals(movedStart, moved[EventsTable.startAt])
+        assertEquals(movedEnd, moved[EventsTable.endAt])
+        assertEquals(EventStatus.CONFIRMED.name, moved[EventsTable.status])
+        assertNotEquals(before[EventsTable.etag], moved[EventsTable.etag])
+
+        fixture.external.applyException(fixture.externalId, "901", null, null, cancelled = true)
+
+        val cancelled = fixture.rawRows().single()
+        assertEquals(EventStatus.CANCELLED.name, cancelled[EventsTable.status])
+        assertEquals(movedStart, cancelled[EventsTable.startAt])
+    }
+
+    @Test
+    fun applyExceptionWithUnknownIdUpdatesNothing() = testApplication {
+        val fixture = installFixture()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        val before = fixture.rawRows().single()
+
+        fixture.external.applyException(
+            fixture.externalId,
+            "unknown",
+            start + 3.hours,
+            end + 3.hours,
+            cancelled = false,
+        )
+
+        val after = fixture.rawRows().single()
+        assertEquals(before[EventsTable.startAt], after[EventsTable.startAt])
+        assertEquals(before[EventsTable.etag], after[EventsTable.etag])
+    }
+
+    @Test
     fun mirroredCalendarRejectsLocalEventMutations() = testApplication {
         val fixture = installFixture()
         val event = importedEvent()

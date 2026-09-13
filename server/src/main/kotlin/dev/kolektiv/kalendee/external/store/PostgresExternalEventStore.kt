@@ -1,12 +1,17 @@
 package dev.kolektiv.kalendee.external.store
 
+import dev.kolektiv.kalendee.auth.UserId
 import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
+import dev.kolektiv.kalendee.calendar.EventId
 import dev.kolektiv.kalendee.calendar.EventStatus
+import dev.kolektiv.kalendee.db.CalendarConnectionsTable
 import dev.kolektiv.kalendee.db.CalendarsTable
 import dev.kolektiv.kalendee.db.EventsTable
+import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.oauth.discord.ImportedCalendarEvent
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,6 +19,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -136,6 +142,49 @@ class PostgresExternalEventStore(
         }
     }
 
+    override suspend fun findSource(eventId: EventId): ExternalEventSource? = dbQuery {
+        (EventsTable innerJoin ExternalCalendarsTable innerJoin CalendarConnectionsTable)
+            .selectAll()
+            .where { EventsTable.id eq eventId.toUuid() }
+            .singleOrNull()
+            ?.let { row ->
+                val externalCalendarId = row[EventsTable.externalCalendarId] ?: return@let null
+                val uid = row[EventsTable.externalUid] ?: return@let null
+                ExternalEventSource(
+                    externalCalendarId = externalCalendarId,
+                    calendarId = CalendarId(row[EventsTable.calendarId].toString()),
+                    uid = uid,
+                    externalId = row[ExternalCalendarsTable.externalId],
+                    provider = row[CalendarConnectionsTable.provider],
+                    ownerId = UserId(row[CalendarConnectionsTable.userId].toString()),
+                    syncDirection = row[ExternalCalendarsTable.syncDirection],
+                    enabled = row[ExternalCalendarsTable.enabled],
+                    start = row[EventsTable.startAt],
+                    end = row[EventsTable.endAt],
+                )
+            }
+    }
+
+    override suspend fun reschedule(externalCalendarId: Uuid, uid: String, start: Instant, end: Instant) {
+        dbQuery {
+            val row = EventsTable.selectAll()
+                .where {
+                    (EventsTable.externalCalendarId eq externalCalendarId) and
+                        (EventsTable.externalUid eq uid)
+                }
+                .singleOrNull()
+                ?: throw CalendarException.NotFound("external event not found")
+            val now = clock.now()
+            EventsTable.update({ EventsTable.id eq row[EventsTable.id] }) {
+                it[startAt] = start
+                it[endAt] = end
+                it[etag] = newEtag()
+                it[externalUpdatedAt] = now
+                it[updatedAt] = now
+            }
+        }
+    }
+
     private fun ResultRow.toStoredExternalEvent(statuses: Map<String, EventStatus>): StoredExternalEvent =
         StoredExternalEvent(
             uid = this[EventsTable.externalUid] ?: "",
@@ -154,3 +203,5 @@ class PostgresExternalEventStore(
 }
 
 private fun CalendarId.toUuid(): Uuid = Uuid.parse(value)
+
+private fun EventId.toUuid(): Uuid = Uuid.parse(value)

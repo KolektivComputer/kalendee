@@ -16,6 +16,7 @@ class CalendarActions(
     private val store: CalendarStore,
     private val auth: AuthService,
     private val settings: AuthSettings,
+    private val syncInfo: CalendarSyncInfoEnricher,
 ) {
     @KeelAction("kalendee.createCalendar")
     suspend fun create(input: CreateCalendarIn): CalendarSummary = mapDomainErrors("displayName") {
@@ -32,13 +33,14 @@ class CalendarActions(
                     ?.takeIf { it.isNotEmpty() }
                     ?.let(OrganizationId::parse),
             ),
-        ).toSummary(auth)
+        ).toSummary(auth).withSyncInfo()
     }
 
     @KeelAction("kalendee.setCalendarHidden")
     suspend fun setHidden(input: SetCalendarHiddenIn): CalendarSummary = mapDomainErrors("id") {
         val user = requireSessionUser(auth, settings)
         store.setCalendarHidden(CalendarId.parse(input.id), user.id, input.hidden)?.toSummary(auth)
+            ?.withSyncInfo()
             ?: throw CalendarException.NotFound("calendar not found")
     }
 
@@ -54,7 +56,7 @@ class CalendarActions(
                 timeZone = input.timeZone,
                 color = input.color,
             ),
-        )?.toSummary(auth) ?: throw CalendarException.NotFound("calendar not found")
+        )?.toSummary(auth)?.withSyncInfo() ?: throw CalendarException.NotFound("calendar not found")
     }
 
     @KeelAction("kalendee.transferCalendar")
@@ -71,7 +73,7 @@ class CalendarActions(
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
                 ?.let(OrganizationTeamId::parse),
-        )?.toSummary(auth) ?: throw CalendarException.NotFound("calendar not found")
+        )?.toSummary(auth)?.withSyncInfo() ?: throw CalendarException.NotFound("calendar not found")
     }
 
     @KeelAction("kalendee.deleteCalendar")
@@ -82,4 +84,7 @@ class CalendarActions(
         }
         DeletedOut()
     }
+
+    private suspend fun CalendarSummary.withSyncInfo(): CalendarSummary =
+        syncInfo.attachSyncInfo(listOf(this)).single()
 }

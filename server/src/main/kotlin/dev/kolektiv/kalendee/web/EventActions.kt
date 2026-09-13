@@ -11,6 +11,7 @@ import dev.kolektiv.kalendee.calendar.OptionalField
 import dev.kolektiv.kalendee.calendar.Recurrence
 import dev.kolektiv.kalendee.calendar.RecurrenceFrequency
 import dev.kolektiv.kalendee.calendar.UpdateEvent
+import dev.kolektiv.kalendee.events.EventUpdateService
 import dev.kolektiv.keel.KeelAction
 import kotlin.time.Instant
 
@@ -18,6 +19,7 @@ class EventActions(
     private val store: CalendarStore,
     private val auth: AuthService,
     private val settings: AuthSettings,
+    private val eventUpdates: EventUpdateService,
 ) {
     @KeelAction("kalendee.createEvent")
     suspend fun create(input: CreateEventIn): EventSummary = mapDomainErrors("title") {
@@ -42,7 +44,7 @@ class EventActions(
     @KeelAction("kalendee.updateEvent")
     suspend fun update(input: UpdateEventIn): EventSummary = mapDomainErrors("title") {
         val user = requireSessionUser(auth, settings)
-        store.updateEvent(
+        eventUpdates.update(
             EventId.parse(input.id),
             user.id,
             UpdateEvent(
@@ -60,7 +62,7 @@ class EventActions(
                 },
             ),
             expectedEtag = input.etag,
-        )?.toSummary() ?: throw CalendarException.NotFound("event not found")
+        ).toSummary()
     }
 
     @KeelAction("kalendee.moveEvent")

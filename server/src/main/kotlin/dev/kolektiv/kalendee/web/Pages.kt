@@ -60,6 +60,8 @@ data class CalendarSummary(
     val publicLinkEnabled: Boolean = false,
     val publicLinkToken: String? = null,
     val requestsEnabled: Boolean = false,
+    val rsvpEnabled: Boolean = false,
+    val anonymousRsvpEnabled: Boolean = false,
     val accessMode: String = "inherit",
     val effectiveAccessMode: String = "public",
     val organizationId: String? = null,
@@ -121,6 +123,9 @@ data class EventSummary(
     val recurrence: RecurrenceSummary?,
     val etag: String,
     val openRsvp: Boolean = false,
+    val rsvpEnabled: Boolean = false,
+    val rsvpOverride: Boolean? = null,
+    val anonymousRsvpOverride: Boolean? = null,
     val rsvpStatus: String? = null,
     val attendeeCount: Int = 0,
     val externalCalendarId: String? = null,
@@ -177,9 +182,32 @@ data class RespondEventInviteIn(
 
 @KeelType
 @Serializable
-data class SetEventOpenRsvpIn(
+data class SetEventRsvpOverridesIn(
     val eventId: String,
-    val enabled: Boolean,
+    val rsvpOverride: Boolean? = null,
+    val anonymousRsvpOverride: Boolean? = null,
+)
+
+@KeelType
+@Serializable
+data class CalendarRsvpSettingsIn(
+    val calendarId: String,
+)
+
+@KeelType
+@Serializable
+data class UpdateCalendarRsvpSettingsIn(
+    val calendarId: String,
+    val rsvpEnabled: Boolean = false,
+    val anonymousRsvpEnabled: Boolean = false,
+)
+
+@KeelType
+@Serializable
+data class CalendarRsvpSettingsOut(
+    val calendarId: String,
+    val rsvpEnabled: Boolean,
+    val anonymousRsvpEnabled: Boolean,
 )
 
 @KeelType
@@ -1722,6 +1750,8 @@ fun Calendar.toSummary(
     publicLinkEnabled = publicLinkEnabled,
     publicLinkToken = publicLinkToken,
     requestsEnabled = requestsEnabled,
+    rsvpEnabled = rsvpEnabled,
+    anonymousRsvpEnabled = anonymousRsvpEnabled,
     accessMode = accessMode.wire,
     effectiveAccessMode = effectiveAccessMode,
     organizationId = organization?.id ?: organizationId?.value,
@@ -1805,6 +1835,9 @@ fun Event.toSummary(): EventSummary = EventSummary(
     recurrence = recurrence?.toSummary(),
     etag = etag,
     openRsvp = openRsvp,
+    rsvpEnabled = rsvpEnabled,
+    rsvpOverride = rsvpOverride,
+    anonymousRsvpOverride = anonymousRsvpOverride,
     rsvpStatus = rsvpStatus,
     attendeeCount = 0,
     externalCalendarId = externalCalendarId?.value,

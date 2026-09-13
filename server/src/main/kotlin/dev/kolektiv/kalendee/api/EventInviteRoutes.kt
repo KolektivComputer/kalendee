@@ -1,6 +1,7 @@
 package dev.kolektiv.kalendee.api
 
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.events.RsvpSettingsService
 import dev.kolektiv.kalendee.plugins.currentUser
 import dev.kolektiv.kalendee.web.RsvpOut
 import dev.kolektiv.kalendee.web.toOut
@@ -15,7 +16,10 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 
-fun Route.eventInviteRoutes(service: EventInviteService) {
+fun Route.eventInviteRoutes(
+    service: EventInviteService,
+    rsvpSettings: RsvpSettingsService,
+) {
     route("/events/{id}") {
         get("/attendees") {
             call.respond(service.attendees(call.eventId(), call.user().id).toOut())
@@ -38,9 +42,32 @@ fun Route.eventInviteRoutes(service: EventInviteService) {
             val body = call.receive<RespondEventBody>()
             call.respond(RsvpOut(service.respond(call.eventId(), call.user().id, body.status).status))
         }
-        put("/open-rsvp") {
-            val body = call.receive<SetOpenRsvpBody>()
-            call.respond(service.setOpenRsvp(call.eventId(), call.user().id, body.enabled).toSummary())
+        put("/rsvp-settings") {
+            val body = call.receive<SetEventRsvpOverridesBody>()
+            call.respond(
+                service.setRsvpOverrides(
+                    eventId = call.eventId(),
+                    actorId = call.user().id,
+                    rsvpOverride = body.rsvpOverride,
+                    anonymousRsvpOverride = body.anonymousRsvpOverride,
+                ).toSummary(),
+            )
+        }
+    }
+    route("/calendars/{id}") {
+        get("/rsvp-settings") {
+            call.respond(rsvpSettings.settings(call.calendarId(), call.user().id).toOut())
+        }
+        put("/rsvp-settings") {
+            val body = call.receive<UpdateCalendarRsvpSettingsBody>()
+            call.respond(
+                rsvpSettings.updateSettings(
+                    calendarId = call.calendarId(),
+                    userId = call.user().id,
+                    rsvpEnabled = body.rsvpEnabled,
+                    anonymousRsvpEnabled = body.anonymousRsvpEnabled,
+                ).toOut(),
+            )
         }
     }
     route("/public/events") {

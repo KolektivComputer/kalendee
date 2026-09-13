@@ -654,6 +654,8 @@ class AvailabilityService(
                     publicLinkEnabled = true,
                     publicLinkToken = row[CalendarsTable.publicLinkToken],
                     requestsEnabled = row[CalendarsTable.requestsEnabled],
+                    rsvpEnabled = row[CalendarsTable.rsvpEnabled],
+                    anonymousRsvpEnabled = row[CalendarsTable.anonymousRsvpEnabled],
                     slotMinutes = row[CalendarsTable.slotMinutes],
                     accessMode = PublicAccessMode.fromWire(row[CalendarsTable.accessMode])
                         ?: PublicAccessMode.INHERIT,

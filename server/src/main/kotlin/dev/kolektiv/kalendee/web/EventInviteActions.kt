@@ -3,15 +3,19 @@ package dev.kolektiv.kalendee.web
 import dev.kolektiv.kalendee.auth.AuthService
 import dev.kolektiv.kalendee.auth.AuthSettings
 import dev.kolektiv.kalendee.auth.sessionToken
+import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.EventId
+import dev.kolektiv.kalendee.events.CalendarRsvpSettings
 import dev.kolektiv.kalendee.events.EventAttendee
 import dev.kolektiv.kalendee.events.EventAttendees
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.events.RsvpSettingsService
 import dev.kolektiv.keel.KeelAction
 import dev.kolektiv.keel.ktor.ActionRequest
 
 class EventInviteActions(
     private val service: EventInviteService,
+    private val rsvpSettings: RsvpSettingsService,
     private val auth: AuthService,
     private val settings: AuthSettings,
 ) {
@@ -45,11 +49,36 @@ class EventInviteActions(
         RsvpOut(service.respond(EventId.parse(input.eventId), user.id, input.status).status)
     }
 
-    @KeelAction("kalendee.setEventOpenRsvp")
-    suspend fun setEventOpenRsvp(input: SetEventOpenRsvpIn): EventSummary = mapDomainErrors("eventId") {
-        val user = requireSessionUser(auth, settings)
-        service.setOpenRsvp(EventId.parse(input.eventId), user.id, input.enabled).toSummary()
-    }
+    @KeelAction("kalendee.setEventRsvpOverrides")
+    suspend fun setEventRsvpOverrides(input: SetEventRsvpOverridesIn): EventSummary =
+        mapDomainErrors("eventId") {
+            val user = requireSessionUser(auth, settings)
+            service.setRsvpOverrides(
+                eventId = EventId.parse(input.eventId),
+                actorId = user.id,
+                rsvpOverride = input.rsvpOverride,
+                anonymousRsvpOverride = input.anonymousRsvpOverride,
+            ).toSummary()
+        }
+
+    @KeelAction("kalendee.calendarRsvpSettings")
+    suspend fun calendarRsvpSettings(input: CalendarRsvpSettingsIn): CalendarRsvpSettingsOut =
+        mapDomainErrors("calendarId") {
+            val user = requireSessionUser(auth, settings)
+            rsvpSettings.settings(CalendarId.parse(input.calendarId), user.id).toOut()
+        }
+
+    @KeelAction("kalendee.updateCalendarRsvpSettings")
+    suspend fun updateCalendarRsvpSettings(input: UpdateCalendarRsvpSettingsIn): CalendarRsvpSettingsOut =
+        mapDomainErrors("calendarId") {
+            val user = requireSessionUser(auth, settings)
+            rsvpSettings.updateSettings(
+                calendarId = CalendarId.parse(input.calendarId),
+                userId = user.id,
+                rsvpEnabled = input.rsvpEnabled,
+                anonymousRsvpEnabled = input.anonymousRsvpEnabled,
+            ).toOut()
+        }
 
     @KeelAction("kalendee.publicRsvp")
     suspend fun publicRsvp(input: PublicRsvpIn): RsvpOut = mapDomainErrors("status") {
@@ -88,4 +117,10 @@ fun EventAttendee.toSummary(): EventAttendeeSummary = EventAttendeeSummary(
     email = email,
     name = name,
     status = status,
+)
+
+fun CalendarRsvpSettings.toOut(): CalendarRsvpSettingsOut = CalendarRsvpSettingsOut(
+    calendarId = calendarId.value,
+    rsvpEnabled = rsvpEnabled,
+    anonymousRsvpEnabled = anonymousRsvpEnabled,
 )

@@ -108,7 +108,6 @@ class EventInviteService(
 
     suspend fun openRsvpInvite(eventId: EventId, viewerId: UserId? = null): InviteLookup? {
         val context = eventContextOrNull(eventId) ?: return null
-        if (!context.openRsvp) return null
         // The unguessable event id is the capability: anonymous visitors only
         // get in when the event is fully public, signed-in visitors may also
         // respond on signed_in calendars.
@@ -118,6 +117,10 @@ class EventInviteService(
                 (access == PublicAccessMode.SIGNED_IN && viewerId != null)
             )
         if (!allowed) return null
+        // Anonymous links need the anonymous flag; signed-in viewers may also
+        // respond when only the signed-in flag is enabled.
+        val canRespond = context.anonymousRsvpEnabled || (viewerId != null && context.rsvpEnabled)
+        if (!canRespond) return null
         return context.toLookup(status = null)
     }
 
@@ -220,7 +223,8 @@ class EventInviteService(
 
     suspend fun respond(eventId: EventId, userId: UserId, status: String): RsvpResult {
         val parsed = EventRsvpStatus.parse(status)
-        // Anyone who can see the event may respond, not just invited attendees.
+        // Invited attendees may always respond; everyone else who can see the
+        // event needs the effective calendar/event rsvp flag.
         val event = store.getEvent(eventId, userId)
             ?: throw CalendarException.NotFound("event not found")
         val context = eventContext(event)
@@ -233,6 +237,9 @@ class EventInviteService(
                         (EventAttendeesTable.userId eq userId.toUuid())
                 }
                 .singleOrNull()
+            if (row == null && !context.rsvpEnabled) {
+                throw CalendarException.Forbidden("RSVP is not enabled for this calendar")
+            }
             if (row != null) {
                 EventAttendeesTable.update({ EventAttendeesTable.id eq row[EventAttendeesTable.id] }) {
                     it[EventAttendeesTable.status] = parsed.wire
@@ -257,14 +264,20 @@ class EventInviteService(
         return RsvpResult(eventId = context.eventId, title = context.title, status = parsed.wire)
     }
 
-    suspend fun setOpenRsvp(eventId: EventId, actorId: UserId, enabled: Boolean): Event {
+    suspend fun setRsvpOverrides(
+        eventId: EventId,
+        actorId: UserId,
+        rsvpOverride: Boolean?,
+        anonymousRsvpOverride: Boolean?,
+    ): Event {
         val event = requireWritable(eventId, actorId)
         if (dbQuery { calendarIsMirrored(event.calendarId) }) {
             throw CalendarException.Forbidden("this calendar syncs from an external provider and is read-only")
         }
         dbQuery {
             EventsTable.update({ EventsTable.id eq eventId.toUuid() }) {
-                it[openRsvp] = enabled
+                it[EventsTable.rsvpOverride] = rsvpOverride
+                it[EventsTable.anonymousRsvpOverride] = anonymousRsvpOverride
             }
         }
         return store.getEvent(eventId, actorId)
@@ -293,18 +306,19 @@ class EventInviteService(
         if (!allowed) {
             throw CalendarException.NotFound("event not found")
         }
-        if (!context.openRsvp) throw CalendarException.Forbidden("this event is not accepting responses")
+        if (!context.anonymousRsvpEnabled) {
+            throw CalendarException.Forbidden("this event is not accepting responses")
+        }
         val normalizedEmail = email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+            ?: throw CalendarException.Invalid("email is required")
         val now = clock.now()
         dbQuery {
-            val existing = normalizedEmail?.let { address ->
-                EventAttendeesTable.selectAll()
-                    .where {
-                        (EventAttendeesTable.eventId eq eventId.toUuid()) and
-                            (EventAttendeesTable.email eq address)
-                    }
-                    .singleOrNull()
-            }
+            val existing = EventAttendeesTable.selectAll()
+                .where {
+                    (EventAttendeesTable.eventId eq eventId.toUuid()) and
+                        (EventAttendeesTable.email eq normalizedEmail)
+                }
+                .singleOrNull()
             if (existing != null) {
                 EventAttendeesTable.update({ EventAttendeesTable.id eq existing[EventAttendeesTable.id] }) {
                     it[EventAttendeesTable.name] = attendeeName
@@ -407,7 +421,10 @@ class EventInviteService(
             calendarTimeZone = row[CalendarsTable.timeZone],
             calendarName = row[CalendarsTable.displayName],
             ownerId = UserId(row[CalendarsTable.ownerId].toString()),
-            openRsvp = event.openRsvp,
+            rsvpOverride = event.rsvpOverride,
+            anonymousRsvpOverride = event.anonymousRsvpOverride,
+            calendarRsvpEnabled = row[CalendarsTable.rsvpEnabled],
+            calendarAnonymousRsvpEnabled = row[CalendarsTable.anonymousRsvpEnabled],
             accessMode = PublicAccessMode.fromWire(row[CalendarsTable.accessMode])
                 ?: PublicAccessMode.INHERIT,
             organizationId = row[CalendarsTable.organizationId]?.let { OrganizationId(it.toString()) },
@@ -429,7 +446,10 @@ class EventInviteService(
                     calendarTimeZone = row[CalendarsTable.timeZone],
                     calendarName = row[CalendarsTable.displayName],
                     ownerId = UserId(row[CalendarsTable.ownerId].toString()),
-                    openRsvp = row[EventsTable.openRsvp],
+                    rsvpOverride = row[EventsTable.rsvpOverride],
+                    anonymousRsvpOverride = row[EventsTable.anonymousRsvpOverride],
+                    calendarRsvpEnabled = row[CalendarsTable.rsvpEnabled],
+                    calendarAnonymousRsvpEnabled = row[CalendarsTable.anonymousRsvpEnabled],
                     accessMode = PublicAccessMode.fromWire(row[CalendarsTable.accessMode])
                         ?: PublicAccessMode.INHERIT,
                     organizationId = row[CalendarsTable.organizationId]?.let { OrganizationId(it.toString()) },
@@ -500,10 +520,16 @@ private data class EventContext(
     val calendarTimeZone: String,
     val calendarName: String,
     val ownerId: UserId,
-    val openRsvp: Boolean,
+    val rsvpOverride: Boolean?,
+    val anonymousRsvpOverride: Boolean?,
+    val calendarRsvpEnabled: Boolean,
+    val calendarAnonymousRsvpEnabled: Boolean,
     val accessMode: PublicAccessMode,
     val organizationId: OrganizationId? = null,
 ) {
+    val rsvpEnabled: Boolean get() = rsvpOverride ?: calendarRsvpEnabled
+    val anonymousRsvpEnabled: Boolean get() = anonymousRsvpOverride ?: calendarAnonymousRsvpEnabled
+
     fun whenText(): String {
         val zone = TimeZone.of(timeZone ?: calendarTimeZone)
         val startLocal = start.toLocalDateTime(zone)

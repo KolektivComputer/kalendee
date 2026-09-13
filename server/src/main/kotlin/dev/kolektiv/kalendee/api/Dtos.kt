@@ -188,8 +188,15 @@ data class RespondEventBody(
 )
 
 @Serializable
-data class SetOpenRsvpBody(
-    val enabled: Boolean,
+data class SetEventRsvpOverridesBody(
+    val rsvpOverride: Boolean? = null,
+    val anonymousRsvpOverride: Boolean? = null,
+)
+
+@Serializable
+data class UpdateCalendarRsvpSettingsBody(
+    val rsvpEnabled: Boolean = false,
+    val anonymousRsvpEnabled: Boolean = false,
 )
 
 @Serializable

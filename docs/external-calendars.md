@@ -2,8 +2,9 @@
 
 Decision document for linking external calendars and reading remote events
 into Kalendee. Discord server events are the first implemented source
-(read-only, bot-token based); Google, Microsoft, Apple, generic CalDAV, and ICS
-remain planned. Derived from a read-only architecture report.
+(bot-token based, pull import with optional two-way reschedules); Google,
+Microsoft, Apple, generic CalDAV, and ICS remain planned. Derived from a
+read-only architecture report.
 
 ## Contents
 
@@ -45,19 +46,33 @@ ordinary rows flagged provider-managed, so the store and UI reject local edits.
 
 ## Event sources
 
-### Discord server events (implemented, read-only)
+### Discord server events (implemented, pull with optional two-way reschedules)
 
-Kalendee imports a Discord guild's **scheduled events** into a mirrored,
-read-only calendar. This is an events source, not a calendar sync: Discord has
-no public calendar API, so the import is one-way (Discord to Kalendee) and
-never writes back.
+Kalendee imports a Discord guild's **scheduled events** into a mirrored
+calendar. The import stays pull-based: Discord has no public calendar API, so
+scheduled events are read with the bot token. When the linked Discord user has
+`MANAGE_EVENTS` (or `ADMINISTRATOR`, or owns the guild) **and** the Kalendee
+bot has `MANAGE_EVENTS` in that guild, the import becomes two-way for event
+times (`sync_direction = both`); otherwise it stays read-only (`pull`).
+Permission changes are picked up the next time the Connected Accounts /
+Discord settings are loaded (the guild list refresh recomputes sync direction).
 
 - **User OAuth (scopes `identify` + `guilds`)** lists the guilds the signed-in
   user belongs to and which of them have the Kalendee bot. The user token never
   reads scheduled events.
-- **Bot token (read-only)** reads guild scheduled events. The bot must be
-  invited to each guild the user wants to import; the settings UI links to the
-  per-guild invite URL and shows a "bot missing" state.
+- **Bot token** reads guild scheduled events and pushes reschedules for
+  two-way imports. The bot must be invited to each guild the user wants to
+  import; the settings UI links to the per-guild invite URL and shows a "bot
+  missing" state.
+- **Dragging or resizing a non-recurring imported event** pushes the new
+  start/end to Discord first, then updates the local mirror. Failures (bot
+  missing permission, event deleted on Discord) surface as errors and change
+  nothing locally.
+- **Recurring series occurrences cannot be rescheduled yet** (Discord's
+  scheduled-event exceptions API is not implemented); they stay non-draggable.
+- **Other mutations remain unsupported**: editing title/description, deleting,
+  moving to another calendar, and creating events in an imported calendar. The
+  UI opens imported events view-only.
 - Configuration: `KALENDEE_DISCORD_CLIENT_ID`,
   `KALENDEE_DISCORD_CLIENT_SECRET`, and `KALENDEE_DISCORD_BOT_TOKEN` (see
   [application.conf.example](../application.conf.example)). The UI lives under
@@ -68,6 +83,7 @@ never writes back.
   window; unsupported recurrence rules fall back to the master event with an
   explanatory note.
 - Implementation: [DiscordImportService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/oauth/discord/DiscordImportService.kt),
+  [DiscordPushService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/oauth/discord/DiscordPushService.kt),
   [DiscordActions.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/web/DiscordActions.kt),
   [settings page](../server/pack/src/pages/kalendee/settings/+page.svelte).
 
@@ -80,14 +96,14 @@ design.
 Effort is per adapter, excluding shared OAuth/vault infrastructure:
 **S** = under 1 week, **M** = 1–3 weeks, **L** = over 3 weeks. "Push" means
 provider-initiated change notification; everything else polls. Discord is
-listed here as a read-only events source; the calendar-account rows are
-planned work.
+listed here as a pull-based events source with optional two-way event-time
+reschedules; the calendar-account rows are planned work.
 
 ### Linkable accounts
 
 | Provider | Auth mechanism | Calendar API | Two-way | Push / webhooks | Effort | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Discord server events | User OAuth (`identify`, `guilds`) + per-guild bot token | Guild scheduled events (no calendar API) | No (read-only import) | None (manual "Sync now") | S | **Implemented.** Bot must be invited per guild; settings shows bot-missing state and invite link. |
+| Discord server events | User OAuth (`identify`, `guilds`) + per-guild bot token | Guild scheduled events (no calendar API) | Partial (event times, when both sides may manage events) | None (manual "Sync now") | S | **Implemented.** Bot must be invited per guild; settings shows bot-missing state and invite link. |
 | Google Calendar | OAuth2 offline refresh token | Calendar API v3 | Yes | `events.watch` channels | M | **Deferred from the initial PR (issue #3).** Incremental `syncToken`; full RRULE + EXDATE; sensitive scopes require Google app verification for public deployments. |
 | Microsoft Outlook / O365 | OAuth2 + PKCE (MSAL) | Graph v1.0 | Yes | Graph change notifications | M | **Deferred from the initial PR (issue #3).** Multi-tenant + personal accounts; `calendarView/delta`; subscriptions last about 3 days and need renewal. |
 | Apple iCloud | CalDAV + app-specific password | CalDAV (RFC 4791) | Yes | None (poll) | S–M | **Sign in with Apple does not grant calendar access.** 2FA users must create an app-specific password. Reuses the generic CalDAV adapter. |
@@ -114,10 +130,10 @@ planned work.
 
 ## Recommended implementation order
 
-Discord scheduled-event import has shipped as a read-only events source (see
-[Event sources](#event-sources)). The calendar-account order below starts after
-that; Google and Microsoft are deferred from the initial PR and tracked in
-issue #3.
+Discord scheduled-event import has shipped as a pull-based events source with
+optional two-way event-time reschedules (see [Event sources](#event-sources)).
+The calendar-account order below starts after that; Google and Microsoft are
+deferred from the initial PR and tracked in issue #3.
 
 1. **Google Calendar** — largest user base, mature incremental sync
    (`syncToken`), offline refresh tokens, and push channels. Exercises every
@@ -139,15 +155,15 @@ issue #3.
 
 | Milestone | Scope | Effort |
 | --- | --- | --- |
-| M0 (shipped) | Discord scheduled-event import (read-only events source) | S |
+| M0 (shipped) | Discord scheduled-event import (pull; two-way event times when permitted) | S |
 | M1 | Connection + read-only calendar mirror (Google + Graph) | 4–6 weeks |
 | M2 | Two-way writes + periodic sync + status | 4–6 weeks |
 | M3 | Generic CalDAV + push/webhooks | 3–5 weeks |
 | M4 | Social/notifications parity + `oauthRegistration` gating | 2–3 weeks |
 
-Discord shipped first because it needs no calendar API, no incremental sync,
-and no two-way writes. The Google/Graph M1 below remains deferred and tracked
-in issue #3.
+Discord shipped first because it needs no calendar API and no incremental
+sync, and its two-way support is limited to event-time reschedules. The
+Google/Graph M1 below remains deferred and tracked in issue #3.
 
 Estimates assume one senior engineer familiar with the codebase; provider
 app-review lead time is additional.
@@ -237,14 +253,15 @@ app-review lead time is additional.
   `{baseUrl}/api/v1/oauth/{provider}/callback`; never accept a `redirect_uri`
   from the request; only relative return paths, to prevent open redirects.
 - **Scopes:** least privilege. Discord account linking requests only
-  `identify` + `guilds`; scheduled events are read with the bot token, not the
-  user token. Planned calendar providers request read-only scopes for read-only
-  mirrors and write scopes only for two-way. Never request Gmail, Drive, or
-  contacts.
+  `identify` + `guilds`; scheduled events are read and rescheduled with the bot
+  token, not the user token. Planned calendar providers request read-only
+  scopes for read-only mirrors and write scopes only for two-way. Never request
+  Gmail, Drive, or contacts.
 - **Credentials:** per-instance BYO credentials via HOCON `${?VAR}`, matching
   the configuration rules in [GOALS.md](../GOALS.md). Discord uses
   `KALENDEE_DISCORD_CLIENT_ID` / `KALENDEE_DISCORD_CLIENT_SECRET` and a
-  read-only `KALENDEE_DISCORD_BOT_TOKEN`. The Google/Microsoft client
+  `KALENDEE_DISCORD_BOT_TOKEN` (reads events for every import, pushes
+  reschedules only for two-way imports). The Google/Microsoft client
   credentials
   (`KALENDEE_GOOGLE_CLIENT_ID` / `_SECRET`,
   `KALENDEE_MICROSOFT_CLIENT_ID` / `_SECRET`) are deferred with issue #3. This
@@ -378,7 +395,8 @@ Product decisions needed (recommended defaults in parentheses):
 - **Which providers to prioritize?** (Discord scheduled events shipped first;
   then Google, Microsoft Graph, generic CalDAV, then ICS; see
   [implementation order](#recommended-implementation-order).)
-- **Read-only vs two-way default?** (Discord is read-only today. Ship the
+- **Read-only vs two-way default?** (Discord is read-only unless both sides
+  may manage events, in which case event times sync two-way. Ship the
   calendar-account M1 read-only. Make two-way opt-in per calendar via
   `sync_direction`; two-way is where the conflict cost is.)
 - **Per-instance BYO OAuth apps vs one shared Kalendee app?** (Per-instance

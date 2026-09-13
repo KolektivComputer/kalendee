@@ -16,7 +16,9 @@
   const usesToken = $derived(Boolean(ctx.data.token))
   const needsName = $derived(!usesToken && ctx.data.requiresName)
   const viewerName = $derived(ctx.data.viewer?.displayName ?? "")
-  const canRespond = $derived(usesToken || (needsName ? name.trim() !== "" : viewerName !== ""))
+  const canRespond = $derived(
+    usesToken || (needsName ? name.trim() !== "" && email.trim() !== "" : viewerName !== ""),
+  )
   const responded = $derived(respondedStatus !== "" || ["yes", "no", "maybe"].includes(ctx.data.status ?? ""))
   const currentStatus = $derived(respondedStatus !== "" ? respondedStatus : (ctx.data.status ?? ""))
 
@@ -45,7 +47,7 @@
         const result = await publicRsvp.mutateAsync({
           eventId: ctx.data.eventId,
           name: needsName ? name.trim() : viewerName,
-          email: needsName ? (email.trim() === "" ? null : email.trim()) : (ctx.data.viewer?.email ?? null),
+          email: needsName ? email.trim() : (ctx.data.viewer?.email ?? null),
           status,
         })
         respondedStatus = result.status
@@ -85,12 +87,13 @@
               />
             </fieldset>
             <fieldset class="fieldset">
-              <legend class="fieldset-legend">Email (optional)</legend>
+              <legend class="fieldset-legend">Email</legend>
               <input
                 id="rsvp-email"
                 class="input w-full"
                 type="email"
                 bind:value={email}
+                required
                 placeholder="you@example.com"
                 autocomplete="email"
                 disabled={pending}

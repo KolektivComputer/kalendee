@@ -162,6 +162,10 @@
             "in": "CalendarRequestsIn",
             "out": "CalendarRequestsOut"
         },
+        "kalendee.calendarRsvpSettings": {
+            "in": "CalendarRsvpSettingsIn",
+            "out": "CalendarRsvpSettingsOut"
+        },
         "kalendee.calendarSlots": {
             "in": "CalendarSlotsIn",
             "out": "CalendarSlotsOut"
@@ -402,13 +406,13 @@
             "in": "SetEmailVerificationIn",
             "out": "EmailVerificationPolicyOut"
         },
-        "kalendee.setEventOpenRsvp": {
-            "in": "SetEventOpenRsvpIn",
-            "out": "EventSummary"
-        },
         "kalendee.setEventReminders": {
             "in": "SetEventRemindersIn",
             "out": "EventRemindersOut"
+        },
+        "kalendee.setEventRsvpOverrides": {
+            "in": "SetEventRsvpOverridesIn",
+            "out": "EventSummary"
         },
         "kalendee.setOauthRegistration": {
             "in": "SetOauthRegistrationIn",
@@ -465,6 +469,10 @@
         "kalendee.updateCalendarAvailability": {
             "in": "UpdateCalendarAvailabilityIn",
             "out": "CalendarAvailabilityOut"
+        },
+        "kalendee.updateCalendarRsvpSettings": {
+            "in": "UpdateCalendarRsvpSettingsIn",
+            "out": "CalendarRsvpSettingsOut"
         },
         "kalendee.updateEvent": {
             "in": "UpdateEventIn",
@@ -530,6 +538,8 @@
                 "publicLinkEnabled": "boolean",
                 "publicLinkToken": "string | null",
                 "requestsEnabled": "boolean",
+                "rsvpEnabled": "boolean",
+                "anonymousRsvpEnabled": "boolean",
                 "accessMode": "string",
                 "effectiveAccessMode": "string",
                 "organizationId": "string | null",
@@ -683,6 +693,9 @@
                 "recurrence": "RecurrenceSummary | null",
                 "etag": "string",
                 "openRsvp": "boolean",
+                "rsvpEnabled": "boolean",
+                "rsvpOverride": "boolean | null",
+                "anonymousRsvpOverride": "boolean | null",
                 "rsvpStatus": "string | null",
                 "attendeeCount": "number",
                 "externalCalendarId": "string | null",
@@ -1173,6 +1186,20 @@
             "kind": "object",
             "fields": {
                 "requests": "TimeSlotRequestSummary[]"
+            }
+        },
+        "CalendarRsvpSettingsIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string"
+            }
+        },
+        "CalendarRsvpSettingsOut": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "rsvpEnabled": "boolean",
+                "anonymousRsvpEnabled": "boolean"
             }
         },
         "CalendarSlotsIn": {
@@ -1859,19 +1886,20 @@
                 "policy": "string"
             }
         },
-        "SetEventOpenRsvpIn": {
-            "kind": "object",
-            "fields": {
-                "eventId": "string",
-                "enabled": "boolean"
-            }
-        },
         "SetEventRemindersIn": {
             "kind": "object",
             "fields": {
                 "eventId": "string",
                 "offsetsSeconds": "number[]",
                 "useDefaults": "boolean"
+            }
+        },
+        "SetEventRsvpOverridesIn": {
+            "kind": "object",
+            "fields": {
+                "eventId": "string",
+                "rsvpOverride": "boolean | null",
+                "anonymousRsvpOverride": "boolean | null"
             }
         },
         "SetOauthRegistrationIn": {
@@ -2012,6 +2040,14 @@
                 "slotMinutes": "number",
                 "accessMode": "string",
                 "windows": "AvailabilityWindowIn[]"
+            }
+        },
+        "UpdateCalendarRsvpSettingsIn": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string",
+                "rsvpEnabled": "boolean",
+                "anonymousRsvpEnabled": "boolean"
             }
         },
         "UpdateEventIn": {

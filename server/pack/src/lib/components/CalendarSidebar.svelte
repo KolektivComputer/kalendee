@@ -13,6 +13,7 @@
   import PenLine from "@lucide/svelte/icons/pen-line"
   import Share2 from "@lucide/svelte/icons/share-2"
   import Trash from "@lucide/svelte/icons/trash"
+  import UserCheck from "@lucide/svelte/icons/user-check"
   import UserPlus from "@lucide/svelte/icons/user-plus"
   import X from "@lucide/svelte/icons/x"
   import { ContextMenu } from "bits-ui"
@@ -52,6 +53,7 @@
     type TransferTarget,
   } from "../transfer"
   import AvailabilityDialog from "./AvailabilityDialog.svelte"
+  import RsvpDialog from "./RsvpDialog.svelte"
   import ShareDialog from "./ShareDialog.svelte"
   import TimeRequestsDialog from "./TimeRequestsDialog.svelte"
 
@@ -182,6 +184,7 @@
   let shareOpen = $state(false)
   let friendsOpen = $state(false)
   let availabilityOpen = $state(false)
+  let rsvpOpen = $state(false)
   let requestsOpen = $state(false)
   let menuCalendarId = $state("")
   let displayName = $state("")
@@ -191,6 +194,7 @@
   let editing = $state<CalendarSummary | null>(null)
   let sharing = $state<CalendarSummary | null>(null)
   let availabilityCalendar = $state<CalendarSummary | null>(null)
+  let rsvpCalendar = $state<CalendarSummary | null>(null)
   let requestsCalendar = $state<CalendarSummary | null>(null)
   let pendingCounts = $state<Record<string, number>>({})
   let createDialog = $state<HTMLDialogElement | undefined>()
@@ -408,6 +412,12 @@
     menuCalendarId = ""
     availabilityCalendar = calendar
     availabilityOpen = true
+  }
+
+  function openRsvpSettings(calendar: CalendarSummary) {
+    menuCalendarId = ""
+    rsvpCalendar = calendar
+    rsvpOpen = true
   }
 
   function openRequests(calendar: CalendarSummary) {
@@ -712,6 +722,15 @@
                         >
                           <Clock class="h-4 w-4" />
                           Office hours…
+                        </ContextMenu.Item>
+                      </li>
+                      <li>
+                        <ContextMenu.Item
+                          class="rounded-field data-[highlighted]:bg-base-content/10"
+                          onSelect={() => openRsvpSettings(calendar)}
+                        >
+                          <UserCheck class="h-4 w-4" />
+                          RSVP settings…
                         </ContextMenu.Item>
                       </li>
                       <li>
@@ -1290,6 +1309,7 @@
 
 <ShareDialog bind:open={shareOpen} calendar={sharing} />
 <AvailabilityDialog bind:open={availabilityOpen} calendar={availabilityCalendar} />
+<RsvpDialog bind:open={rsvpOpen} calendar={rsvpCalendar} />
 <TimeRequestsDialog
   bind:open={requestsOpen}
   calendar={requestsCalendar}

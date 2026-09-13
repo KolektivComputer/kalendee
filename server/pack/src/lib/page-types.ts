@@ -26,6 +26,8 @@ export interface CalendarSummary {
   publicLinkEnabled: boolean
   publicLinkToken: string | null
   requestsEnabled: boolean
+  rsvpEnabled: boolean
+  anonymousRsvpEnabled: boolean
   accessMode: string
   effectiveAccessMode: string
   organizationId: string | null
@@ -155,6 +157,9 @@ export interface EventSummary {
   recurrence: RecurrenceSummary | null
   etag: string
   openRsvp: boolean
+  rsvpEnabled: boolean
+  rsvpOverride: boolean | null
+  anonymousRsvpOverride: boolean | null
   rsvpStatus: string | null
   attendeeCount: number
   externalCalendarId: string | null
@@ -546,6 +551,16 @@ export interface TimeSlotRequestSummary {
 
 export interface CalendarRequestsOut {
   requests: TimeSlotRequestSummary[]
+}
+
+export interface CalendarRsvpSettingsIn {
+  calendarId: string
+}
+
+export interface CalendarRsvpSettingsOut {
+  calendarId: string
+  rsvpEnabled: boolean
+  anonymousRsvpEnabled: boolean
 }
 
 export interface CalendarSlotsIn {
@@ -1053,15 +1068,16 @@ export interface EmailVerificationPolicyOut {
   policy: string
 }
 
-export interface SetEventOpenRsvpIn {
-  eventId: string
-  enabled: boolean
-}
-
 export interface SetEventRemindersIn {
   eventId: string
   offsetsSeconds: number[]
   useDefaults: boolean
+}
+
+export interface SetEventRsvpOverridesIn {
+  eventId: string
+  rsvpOverride: boolean | null
+  anonymousRsvpOverride: boolean | null
 }
 
 export interface SetOauthRegistrationIn {
@@ -1166,6 +1182,12 @@ export interface UpdateCalendarAvailabilityIn {
   windows: AvailabilityWindowIn[]
 }
 
+export interface UpdateCalendarRsvpSettingsIn {
+  calendarId: string
+  rsvpEnabled: boolean
+  anonymousRsvpEnabled: boolean
+}
+
 export interface UpdateEventIn {
   id: string
   title: string | null
@@ -1260,6 +1282,7 @@ export interface KalendeeActions {
   "kalendee.adminUpdateUser": { in: AdminUpdateUserIn; out: AdminUserSummary }
   "kalendee.calendarAvailability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut }
   "kalendee.calendarRequests": { in: CalendarRequestsIn; out: CalendarRequestsOut }
+  "kalendee.calendarRsvpSettings": { in: CalendarRsvpSettingsIn; out: CalendarRsvpSettingsOut }
   "kalendee.calendarSlots": { in: CalendarSlotsIn; out: CalendarSlotsOut }
   "kalendee.connectProvider": { in: ConnectProviderIn; out: ConnectProviderOut }
   "kalendee.createCalendar": { in: CreateCalendarIn; out: CalendarSummary }
@@ -1320,8 +1343,8 @@ export interface KalendeeActions {
   "kalendee.setCalendarPublic": { in: SetCalendarPublicIn; out: CalendarSharingOut }
   "kalendee.setDiscordImportEnabled": { in: SetDiscordImportEnabledIn; out: DiscordGuildSummary }
   "kalendee.setEmailVerification": { in: SetEmailVerificationIn; out: EmailVerificationPolicyOut }
-  "kalendee.setEventOpenRsvp": { in: SetEventOpenRsvpIn; out: EventSummary }
   "kalendee.setEventReminders": { in: SetEventRemindersIn; out: EventRemindersOut }
+  "kalendee.setEventRsvpOverrides": { in: SetEventRsvpOverridesIn; out: EventSummary }
   "kalendee.setOauthRegistration": { in: SetOauthRegistrationIn; out: SetOauthRegistrationOut }
   "kalendee.setOrganizationMemberRole": { in: SetOrganizationMemberRoleIn; out: OrganizationMemberSummary }
   "kalendee.setOrganizationTeamMemberRole": { in: SetOrganizationTeamMemberRoleIn; out: OrganizationTeamMemberSummary }
@@ -1336,6 +1359,7 @@ export interface KalendeeActions {
   "kalendee.upcomingReminders": { in: UpcomingRemindersIn; out: ReminderInstanceOut[] }
   "kalendee.updateCalendar": { in: UpdateCalendarIn; out: CalendarSummary }
   "kalendee.updateCalendarAvailability": { in: UpdateCalendarAvailabilityIn; out: CalendarAvailabilityOut }
+  "kalendee.updateCalendarRsvpSettings": { in: UpdateCalendarRsvpSettingsIn; out: CalendarRsvpSettingsOut }
   "kalendee.updateEvent": { in: UpdateEventIn; out: EventSummary }
   "kalendee.updateHolidaySubscriptions": { in: UpdateHolidaySubscriptionsIn; out: HolidayStateOut }
   "kalendee.updateOrganization": { in: UpdateOrganizationIn; out: OrganizationSummary }

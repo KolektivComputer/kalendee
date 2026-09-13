@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useAction } from "@kolektiv/keel-svelte"
+  import { Link, useAction } from "@kolektiv/keel-svelte"
   import { untrack } from "svelte"
   import { actionMessage, fieldError } from "../errors"
   import type {
@@ -12,14 +12,13 @@
     EventSummary,
     GetEventRemindersIn,
     InviteToEventIn,
-    PublicRsvpIn,
     RecurrenceIn,
     ReminderSettingsIn,
     ReminderSettingsOut,
     RemoveEventAttendeeIn,
     RespondEventInviteIn,
     RsvpOut,
-    SetEventOpenRsvpIn,
+    SetEventRsvpOverridesIn,
     UpdateEventIn,
     Viewer,
   } from "../page-types"
@@ -95,11 +94,12 @@
   const removeEventAttendee = useAction<RemoveEventAttendeeIn, EventAttendeesOut>("kalendee.removeEventAttendee", {
     reload: false,
   })
-  const setEventOpenRsvp = useAction<SetEventOpenRsvpIn, EventSummary>("kalendee.setEventOpenRsvp", {
+  const setEventRsvpOverrides = useAction<SetEventRsvpOverridesIn, EventSummary>("kalendee.setEventRsvpOverrides", {
     reload: false,
   })
   const respondInvite = useAction<RespondEventInviteIn, RsvpOut>("kalendee.respondEventInvite")
-  const respondPublic = useAction<PublicRsvpIn, RsvpOut>("kalendee.publicRsvp")
+
+  type RsvpOverrideMode = "inherit" | "on" | "off"
 
   let title = $state("")
   let description = $state("")
@@ -123,7 +123,10 @@
   let reminderLoadError = $state("")
   let remindersFor = $state("")
   let attendees = $state<EventAttendeeSummary[]>([])
-  let attendeesOpenRsvp = $state(false)
+  let effectiveRsvpEnabled = $state(false)
+  let effectiveOpenRsvp = $state(false)
+  let rsvpOverrideMode = $state<RsvpOverrideMode>("inherit")
+  let anonymousOverrideMode = $state<RsvpOverrideMode>("inherit")
   let attendeesFor = $state("")
   let attendeesLoading = $state(false)
   let attendeesLoadError = $state("")
@@ -195,11 +198,15 @@
       getAttendees.reset()
       inviteToEvent.reset()
       removeEventAttendee.reset()
-      setEventOpenRsvp.reset()
+      setEventRsvpOverrides.reset()
       inviteUsername = ""
       attendees = []
       attendeesLoadError = ""
       copied = false
+      rsvpOverrideMode = overrideMode(event.rsvpOverride)
+      anonymousOverrideMode = overrideMode(event.anonymousRsvpOverride)
+      effectiveRsvpEnabled = event.rsvpEnabled
+      effectiveOpenRsvp = event.openRsvp
       void loadAttendees(key)
     })
   })
@@ -209,6 +216,8 @@
     rsvpStatus = event.rsvpStatus ?? null
     rsvpMessage = ""
     copied = false
+    effectiveRsvpEnabled = event.rsvpEnabled
+    effectiveOpenRsvp = event.openRsvp
   })
 
   $effect(() => {
@@ -224,17 +233,22 @@
   const reminderErrorText = $derived(actionMessage(reminderError))
   const reminderSummary = $derived(reminderDefaults.map(formatOffset).join(", "))
   const canManageAttendees = $derived(mode === "edit" && event != null && !readOnly)
+  const eventCalendar = $derived(event ? calendars.find((calendar) => calendar.id === event.calendarId) : undefined)
+  const isCalendarOwner = $derived(eventCalendar?.permission === "owner")
   const isAttendee = $derived(event?.rsvpStatus != null)
   const canRespond = $derived(
-    mode === "edit" && event != null && (viewer != null || isAttendee || event.openRsvp),
+    mode === "edit" &&
+      event != null &&
+      !isCalendarOwner &&
+      (viewer != null ? isAttendee || effectiveRsvpEnabled : effectiveOpenRsvp),
   )
   const attendeesBusy = $derived(inviteToEvent.isPending || removeEventAttendee.isPending)
   const attendeeFieldError = $derived(fieldError(inviteToEvent.error, "username"))
   const attendeeInviteError = $derived(actionMessage(inviteToEvent.error))
   const attendeeRemoveError = $derived(actionMessage(removeEventAttendee.error))
-  const openRsvpErrorText = $derived(actionMessage(setEventOpenRsvp.error))
-  const rsvpPending = $derived(respondInvite.isPending || respondPublic.isPending)
-  const rsvpError = $derived(actionMessage(respondInvite.error) || actionMessage(respondPublic.error))
+  const rsvpOverridesErrorText = $derived(actionMessage(setEventRsvpOverrides.error))
+  const rsvpPending = $derived(respondInvite.isPending)
+  const rsvpError = $derived(actionMessage(respondInvite.error))
 
   async function loadReminders(key: string) {
     reminderLoading = true
@@ -266,7 +280,7 @@
     try {
       const result = await getAttendees.mutateAsync({ eventId: id })
       attendees = result.attendees
-      attendeesOpenRsvp = result.openRsvp
+      effectiveOpenRsvp = result.openRsvp
     } catch {
       attendeesLoadError = "Could not load attendees."
     } finally {
@@ -293,29 +307,41 @@
     await loadAttendees(event.id)
   }
 
-  async function toggleOpenRsvp(enabled: boolean) {
+  function overrideMode(value: boolean | null): RsvpOverrideMode {
+    if (value == null) return "inherit"
+    return value ? "on" : "off"
+  }
+
+  function overrideValue(mode: RsvpOverrideMode): boolean | null {
+    if (mode === "inherit") return null
+    return mode === "on"
+  }
+
+  async function saveRsvpOverrides() {
     if (!event) return
     try {
-      const updated = await setEventOpenRsvp.mutateAsync({ eventId: event.id, enabled })
-      attendeesOpenRsvp = updated.openRsvp
+      const updated = await setEventRsvpOverrides.mutateAsync({
+        eventId: event.id,
+        rsvpOverride: overrideValue(rsvpOverrideMode),
+        anonymousRsvpOverride: overrideValue(anonymousOverrideMode),
+      })
+      rsvpOverrideMode = overrideMode(updated.rsvpOverride)
+      anonymousOverrideMode = overrideMode(updated.anonymousRsvpOverride)
+      effectiveRsvpEnabled = updated.rsvpEnabled
+      effectiveOpenRsvp = updated.openRsvp
     } catch {
-      attendeesOpenRsvp = event.openRsvp
+      rsvpOverrideMode = overrideMode(event.rsvpOverride)
+      anonymousOverrideMode = overrideMode(event.anonymousRsvpOverride)
+      effectiveRsvpEnabled = event.rsvpEnabled
+      effectiveOpenRsvp = event.openRsvp
     }
   }
 
   async function respond(status: string) {
-    if (!event || rsvpPending) return
+    if (!event || viewer == null || rsvpPending) return
     rsvpMessage = ""
     try {
-      const result =
-        viewer != null
-          ? await respondInvite.mutateAsync({ eventId: event.id, status })
-          : await respondPublic.mutateAsync({
-              eventId: event.id,
-              name: viewer?.displayName ?? "",
-              email: viewer?.email ?? null,
-              status,
-            })
+      const result = await respondInvite.mutateAsync({ eventId: event.id, status })
       rsvpStatus = result.status
       rsvpMessage = `Thanks — your response: ${rsvpLabel(result.status)}`
     } catch {
@@ -489,7 +515,10 @@
     reminderLoadError = ""
     remindersFor = ""
     attendees = []
-    attendeesOpenRsvp = false
+    effectiveRsvpEnabled = false
+    effectiveOpenRsvp = false
+    rsvpOverrideMode = "inherit"
+    anonymousOverrideMode = "inherit"
     attendeesFor = ""
     attendeesLoading = false
     attendeesLoadError = ""
@@ -735,45 +764,61 @@
               <p class="text-error text-sm">{attendeeInviteError}</p>
             {/if}
           </div>
-          <label class="label cursor-pointer justify-start gap-2 py-0">
-            <input
-              type="checkbox"
-              class="toggle toggle-sm"
-              checked={attendeesOpenRsvp}
-              disabled={setEventOpenRsvp.isPending}
-              onchange={(changeEvent) => void toggleOpenRsvp(changeEvent.currentTarget.checked)}
-            />
-            <span class="label-text">Open RSVP</span>
-          </label>
-          {#if attendeesOpenRsvp}
-            <div class="join w-full">
-              <input
-                class="input input-sm join-item w-full"
-                readonly
-                value={rsvpUrl(event.id)}
-                aria-label="Open RSVP link"
-              />
-              <button type="button" class="btn btn-sm join-item" onclick={() => void copyRsvpLink()}>
-                {copied ? "Copied" : "Copy"}
-              </button>
+          <div class="flex flex-col gap-2 border-t border-base-300 pt-3">
+            <h5 class="text-sm font-semibold">RSVP</h5>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label class="flex flex-col gap-1 text-sm" for="event-rsvp-override">
+                Allow RSVP
+                <select
+                  id="event-rsvp-override"
+                  class="select select-sm w-full"
+                  bind:value={rsvpOverrideMode}
+                  disabled={setEventRsvpOverrides.isPending}
+                  onchange={() => void saveRsvpOverrides()}
+                >
+                  <option value="inherit">Inherit (currently {effectiveRsvpEnabled ? "on" : "off"})</option>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
+              <label class="flex flex-col gap-1 text-sm" for="event-anonymous-rsvp-override">
+                Anonymous RSVP
+                <select
+                  id="event-anonymous-rsvp-override"
+                  class="select select-sm w-full"
+                  bind:value={anonymousOverrideMode}
+                  disabled={setEventRsvpOverrides.isPending}
+                  onchange={() => void saveRsvpOverrides()}
+                >
+                  <option value="inherit">Inherit (currently {effectiveOpenRsvp ? "on" : "off"})</option>
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
             </div>
-          {:else}
-            <input
-              class="input input-sm w-full"
-              readonly
-              disabled
-              value=""
-              placeholder="Turn on Open RSVP to share a link"
-              aria-label="Open RSVP link"
-            />
-          {/if}
-          <p class="text-xs text-base-content/60">
-            Anyone with the link can respond. Anonymous access requires the calendar to be public; signed-in users can
-            always respond on signed-in calendars.
-          </p>
-          {#if openRsvpErrorText}
-            <p class="text-error text-sm">{openRsvpErrorText}</p>
-          {/if}
+            <p class="text-xs text-base-content/60">
+              Overrides the calendar settings for this event. Anonymous responses are asked for an email when opened
+              from the link.
+            </p>
+            {#if effectiveOpenRsvp}
+              <div class="join w-full">
+                <input
+                  class="input input-sm join-item w-full"
+                  readonly
+                  value={rsvpUrl(event.id)}
+                  aria-label="Anonymous RSVP link"
+                />
+                <button type="button" class="btn btn-sm join-item" onclick={() => void copyRsvpLink()}>
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+            {:else}
+              <p class="text-xs text-base-content/60">Turn on anonymous RSVP to share a response link.</p>
+            {/if}
+            {#if rsvpOverridesErrorText}
+              <p class="text-error text-sm">{rsvpOverridesErrorText}</p>
+            {/if}
+          </div>
           {#if attendeeRemoveError}
             <p class="text-error text-sm">{attendeeRemoveError}</p>
           {/if}
@@ -782,24 +827,29 @@
       {#if canRespond && event}
         <div class="flex flex-col gap-2 rounded-box border border-base-300 p-3">
           <h4 class="text-sm font-semibold">Your response</h4>
-          {#if rsvpStatus}
-            <p class="text-sm text-base-content/70">
-              Current:
-              <span class="badge badge-sm {rsvpBadgeClass(rsvpStatus)}">{rsvpLabel(rsvpStatus)}</span>
-            </p>
-          {/if}
-          <div class="flex flex-wrap gap-2">
-            <button type="button" class="btn btn-sm" disabled={rsvpPending} onclick={() => void respond("yes")}>Yes</button>
-            <button type="button" class="btn btn-sm" disabled={rsvpPending} onclick={() => void respond("no")}>No</button>
-            <button type="button" class="btn btn-sm" disabled={rsvpPending} onclick={() => void respond("maybe")}>
-              Maybe
-            </button>
-          </div>
-          {#if rsvpMessage}
-            <p class="text-success text-sm">{rsvpMessage}</p>
-          {/if}
-          {#if rsvpError}
-            <p class="text-error text-sm">{rsvpError}</p>
+          {#if viewer != null}
+            {#if rsvpStatus}
+              <p class="text-sm text-base-content/70">
+                Current:
+                <span class="badge badge-sm {rsvpBadgeClass(rsvpStatus)}">{rsvpLabel(rsvpStatus)}</span>
+              </p>
+            {/if}
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="btn btn-sm" disabled={rsvpPending} onclick={() => void respond("yes")}>Yes</button>
+              <button type="button" class="btn btn-sm" disabled={rsvpPending} onclick={() => void respond("no")}>No</button>
+              <button type="button" class="btn btn-sm" disabled={rsvpPending} onclick={() => void respond("maybe")}>
+                Maybe
+              </button>
+            </div>
+            {#if rsvpMessage}
+              <p class="text-success text-sm">{rsvpMessage}</p>
+            {/if}
+            {#if rsvpError}
+              <p class="text-error text-sm">{rsvpError}</p>
+            {/if}
+          {:else}
+            <p class="text-sm text-base-content/70">Respond from the event page — we ask anonymous guests for their email there.</p>
+            <Link class="btn btn-sm btn-primary self-start" href={`/rsvp/${event.id}`}>Open RSVP page</Link>
           {/if}
         </div>
       {/if}

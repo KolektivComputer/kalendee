@@ -71,6 +71,10 @@ class DiscordBotNotInGuildException(
 
 class DiscordImportException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
+/** `external_calendars.sync_direction` values used by Discord imports. */
+const val SyncDirectionPull: String = "pull"
+const val SyncDirectionBoth: String = "both"
+
 /** One Discord scheduled event with its effective import destination. */
 data class DiscordEventRouteSummary(
     val id: String,
@@ -103,8 +107,9 @@ data class DiscordRouteAssignment(
  * Imports Discord guild scheduled events into Kalendee calendars. One guild
  * source keeps a default target calendar and can route individual base events
  * to other calendars or skip them; occurrences inherit their series' route.
- * Pulls happen on demand and through [syncNow]; nothing is ever pushed back to
- * Discord.
+ * Pulls happen on demand and through [syncNow]. When both the connected user
+ * and the bot may manage a guild's scheduled events, the import is marked
+ * `both` so reschedules can be pushed back through the Discord push service.
  */
 class DiscordImportService(
     private val database: Database,
@@ -127,8 +132,9 @@ class DiscordImportService(
         } catch (cause: DiscordAuthException) {
             throw reauthRequired(userId, connectionId, cause)
         }
-        val botGuilds = botGuildIds()
+        val botGuilds = botGuildList().associateBy { it.id }
         val mappings = dbQuery { externalMappings(connection) }
+        refreshSyncDirections(connection, userGuilds, mappings, botGuilds)
         val invite = inviteUrl()
         return userGuilds
             .map { guild ->
@@ -155,9 +161,8 @@ class DiscordImportService(
         }
         val guild = userGuilds.firstOrNull { it.id == guildId }
             ?: throw CalendarException.NotFound("discord guild not found")
-        if (guildId !in botGuildIds()) {
-            throw DiscordBotNotInGuildException(guildId, invite)
-        }
+        val botGuild = botGuildList().firstOrNull { it.id == guildId }
+            ?: throw DiscordBotNotInGuildException(guildId, invite)
         val existing = dbQuery { mappingRow(connection, guildId) }
         if (existing != null) {
             val externalCalendarId = existing[ExternalCalendarsTable.id].toString()
@@ -175,7 +180,7 @@ class DiscordImportService(
                 it[externalId] = guildId
                 it[calendarId] = calendar.id.toUuid()
                 it[externalName] = guild.name
-                it[syncDirection] = SyncDirectionPull
+                it[syncDirection] = syncDirection(guild, botGuild)
                 it[enabled] = true
                 it[createdAt] = now
                 it[updatedAt] = now
@@ -216,7 +221,7 @@ class DiscordImportService(
             name = context.guildName ?: "Discord server",
             icon = null,
             owner = false,
-            botPresent = context.guildId in botGuildIds(),
+            botPresent = botGuildList().any { it.id == context.guildId },
             manageable = false,
             imported = true,
             enabled = mapping[ExternalCalendarsTable.enabled],
@@ -525,16 +530,48 @@ class DiscordImportService(
         return OAuthReauthRequiredException(ReauthMessage)
     }
 
-    private suspend fun botGuildIds(): Set<String> = try {
-        api.botGuilds().map { it.id }.toSet()
+    private suspend fun botGuildList(): List<DiscordGuild> = try {
+        api.botGuilds()
     } catch (cause: DiscordBotNotConfiguredException) {
-        emptySet()
+        emptyList()
     } catch (cause: DiscordAuthException) {
         log.warn("discord bot token was rejected: {}", cause.message)
-        emptySet()
+        emptyList()
     } catch (cause: DiscordApiHttpException) {
         log.warn("discord bot guild listing failed: {}", cause.message)
-        emptySet()
+        emptyList()
+    }
+
+    /**
+     * Recomputes push capability for every already-imported mapping from the
+     * latest user and bot guild lists. A guild missing from the bot list (or a
+     * bot list that could not be fetched) is treated as pull-only.
+     */
+    private suspend fun refreshSyncDirections(
+        connectionId: Uuid,
+        userGuilds: List<DiscordGuild>,
+        mappings: Map<String, ResultRow>,
+        botGuilds: Map<String, DiscordGuild>,
+    ) {
+        val updates = userGuilds.mapNotNull { guild ->
+            val mapping = mappings[guild.id] ?: return@mapNotNull null
+            val direction = syncDirection(guild, botGuilds[guild.id])
+            if (mapping[ExternalCalendarsTable.syncDirection] == direction) {
+                null
+            } else {
+                mapping[ExternalCalendarsTable.id] to direction
+            }
+        }
+        if (updates.isEmpty()) return
+        dbQuery {
+            val now = clock.now()
+            updates.forEach { (externalCalendarId, direction) ->
+                ExternalCalendarsTable.update({ ExternalCalendarsTable.id eq externalCalendarId }) {
+                    it[syncDirection] = direction
+                    it[updatedAt] = now
+                }
+            }
+        }
     }
 
     private fun JdbcTransaction.externalMappings(connectionId: Uuid): Map<String, ResultRow> =
@@ -656,18 +693,37 @@ class DiscordImportService(
     }
 
     /**
+     * Events can be pushed back to Discord only when both the connected user
+     * and the Kalendee bot may manage the guild's scheduled events.
+     */
+    private fun syncDirection(userGuild: DiscordGuild, botGuild: DiscordGuild?): String =
+        if (botGuild != null && canManageEvents(userGuild) && canManageEvents(botGuild)) {
+            SyncDirectionBoth
+        } else {
+            SyncDirectionPull
+        }
+
+    private fun canManageEvents(guild: DiscordGuild): Boolean =
+        guild.owner ||
+            hasPermission(guild.permissions, ManageEventsPermissionBit) ||
+            hasPermission(guild.permissions, AdministratorPermissionBit)
+
+    /**
      * Parses the decimal permissions bitfield from `/users/@me/guilds`. Discord
      * sends an unsigned 64-bit value, so use [BigInteger] rather than a signed
      * `Long` and treat anything unparseable as "no permission".
      */
-    private fun hasManageGuildPermission(permissions: String?): Boolean {
+    private fun hasPermission(permissions: String?, bit: Int): Boolean {
         val raw = permissions?.trim()?.takeIf { it.isNotEmpty() } ?: return false
         return try {
-            BigInteger(raw).testBit(ManageGuildPermissionBit)
+            BigInteger(raw).testBit(bit)
         } catch (_: NumberFormatException) {
             false
         }
     }
+
+    private fun hasManageGuildPermission(permissions: String?): Boolean =
+        hasPermission(permissions, ManageGuildPermissionBit)
 
     private fun inviteUrl(): String? {
         val clientId = settings.discord.clientId.takeIf { it.isNotBlank() } ?: return null
@@ -686,11 +742,12 @@ class DiscordImportService(
 
     private companion object {
         const val DiscordProviderId = "discord"
-        const val SyncDirectionPull = "pull"
         const val ReauthMessage = "external connection must be reconnected"
         const val MaxLastErrorLength = 500
         const val HttpStatusCodeNotFound = 404
         const val ManageGuildPermissionBit = 5
+        const val ManageEventsPermissionBit = 33
+        const val AdministratorPermissionBit = 3
         const val DiscordInviteUrl = "https://discord.com/oauth2/authorize"
         const val DiscordInvitePermissions = "1024"
     }

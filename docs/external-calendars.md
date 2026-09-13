@@ -68,8 +68,19 @@ Discord settings are loaded (the guild list refresh recomputes sync direction).
   start/end to Discord first, then updates the local mirror. Failures (bot
   missing permission, event deleted on Discord) surface as errors and change
   nothing locally.
-- **Recurring series occurrences cannot be rescheduled yet** (Discord's
-  scheduled-event exceptions API is not implemented); they stay non-draggable.
+- **Dragging or resizing one occurrence of a recurring imported event**
+  creates a Discord scheduled-event exception for that occurrence; later
+  edits of the same occurrence patch the same exception. Discord has no GET
+  for exceptions: they are read back from the `guild_scheduled_event_exceptions`
+  array embedded in every scheduled-event response, and the create response
+  does not echo the original occurrence start. Kalendee therefore records the
+  exception id it created on the mirrored occurrence row and can only track
+  its own exceptions.
+- **Exceptions created directly in the Discord client cannot be correlated**
+  to local occurrences (no response contains the original start), so their
+  overrides are not mirrored. Deleting an exception in Discord likewise leaves
+  the local override in place; only the next Kalendee edit to that occurrence
+  would recreate it.
 - **Other mutations remain unsupported**: editing title/description, deleting,
   moving to another calendar, and creating events in an imported calendar. The
   UI opens imported events view-only.

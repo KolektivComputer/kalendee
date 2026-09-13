@@ -71,7 +71,7 @@ class DiscordImportServiceTest {
         val start = Clock.System.now() + 2.days
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
 
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
 
         assertTrue(summary.imported)
         assertTrue(summary.enabled)
@@ -81,11 +81,11 @@ class DiscordImportServiceTest {
         val calendar = fixture.calendarFor(externalCalendarId)
         assertEquals("Discord · Kolektiv", calendar.displayName)
         val stored = fixture.stored(externalCalendarId).single()
-        assertEquals("discord:guild-1:event-1", stored.uid)
+        assertEquals("discord:101:201", stored.uid)
         val event = fixture.store.listEvents(calendar.id, fixture.user.id).single()
         assertEquals("Community call", event.title)
         val row = fixture.externalRow(externalCalendarId)
-        assertEquals("guild-1", row[ExternalCalendarsTable.externalId])
+        assertEquals("101", row[ExternalCalendarsTable.externalId])
         assertEquals("pull", row[ExternalCalendarsTable.syncDirection])
         assertTrue(row[ExternalCalendarsTable.enabled])
         assertNotNull(row[ExternalCalendarsTable.lastSyncAt])
@@ -98,7 +98,7 @@ class DiscordImportServiceTest {
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
 
         val before = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
-        assertEquals("guild-1", before.id)
+        assertEquals("101", before.id)
         assertTrue(before.botPresent)
         assertTrue(before.manageable)
         assertFalse(before.imported)
@@ -106,7 +106,7 @@ class DiscordImportServiceTest {
         assertNull(before.externalCalendarId)
         assertNull(before.inviteUrl)
 
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val after = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
         assertTrue(after.imported)
         assertTrue(after.enabled)
@@ -129,14 +129,14 @@ class DiscordImportServiceTest {
     fun guildListingIncludesBotPresentButUnmanageableGuilds() = testApplication {
         val fixture = installImportFixture(
             discordEngine(
-                userGuilds = { ok("[${guildJson("guild-2", permissions = "1024")}]") },
-                botGuilds = { ok("[${guildJson("guild-2")}]") },
+                userGuilds = { ok("[${guildJson("102", permissions = "1024")}]") },
+                botGuilds = { ok("[${guildJson("102")}]") },
             ),
         )
 
         val guild = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
 
-        assertEquals("guild-2", guild.id)
+        assertEquals("102", guild.id)
         assertTrue(guild.botPresent)
         assertFalse(guild.manageable)
         assertNull(guild.inviteUrl)
@@ -146,7 +146,7 @@ class DiscordImportServiceTest {
     fun guildListingExcludesUnmanageableGuildsWithoutBot() = testApplication {
         val fixture = installImportFixture(
             discordEngine(
-                userGuilds = { ok("[${guildJson("guild-2", permissions = "1024")}]") },
+                userGuilds = { ok("[${guildJson("102", permissions = "1024")}]") },
                 botGuilds = { ok("[]") },
             ),
         )
@@ -158,14 +158,14 @@ class DiscordImportServiceTest {
     fun guildListingIncludesManageableGuildWithoutBotAndInvite() = testApplication {
         val fixture = installImportFixture(
             discordEngine(
-                userGuilds = { ok("[${guildJson("guild-2", permissions = "32")}]") },
+                userGuilds = { ok("[${guildJson("102", permissions = "32")}]") },
                 botGuilds = { ok("[]") },
             ),
         )
 
         val guild = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
 
-        assertEquals("guild-2", guild.id)
+        assertEquals("102", guild.id)
         assertFalse(guild.botPresent)
         assertTrue(guild.manageable)
         val invite = assertNotNull(guild.inviteUrl)
@@ -177,14 +177,16 @@ class DiscordImportServiceTest {
         val fixture = installImportFixture(
             discordEngine(
                 userGuilds = {
+                    // Kord deserializes the permissions bitfield itself and rejects
+                    // unparseable values for the whole list, so the old
+                    // "garbage permissions" tolerance can no longer be exercised.
                     ok(
                         "[" +
-                            guildJson("owner", owner = true) + "," +
-                            guildJson("bit", permissions = "32") + "," +
-                            guildJson("other-bit", permissions = "1024") + "," +
-                            guildJson("big", permissions = "18446744073709551615") + "," +
-                            guildJson("overflow", permissions = "9223372036854775808") + "," +
-                            guildJson("garbage", permissions = "not-a-number") +
+                            guildJson("111", owner = true) + "," +
+                            guildJson("112", permissions = "32") + "," +
+                            guildJson("113", permissions = "1024") + "," +
+                            guildJson("114", permissions = "18446744073709551615") + "," +
+                            guildJson("115", permissions = "9223372036854775808") +
                             "]",
                     )
                 },
@@ -194,19 +196,19 @@ class DiscordImportServiceTest {
 
         val listed = fixture.imports.guilds(fixture.user.id, fixture.connectionId).associateBy { it.id }
 
-        assertEquals(setOf("owner", "bit", "big"), listed.keys)
-        assertTrue(listed.getValue("owner").manageable)
-        assertTrue(listed.getValue("bit").manageable)
-        assertTrue(listed.getValue("big").manageable)
-        assertFalse(listed.getValue("owner").botPresent)
-        val invite = assertNotNull(listed.getValue("owner").inviteUrl)
+        assertEquals(setOf("111", "112", "114"), listed.keys)
+        assertTrue(listed.getValue("111").manageable)
+        assertTrue(listed.getValue("112").manageable)
+        assertTrue(listed.getValue("114").manageable)
+        assertFalse(listed.getValue("111").botPresent)
+        val invite = assertNotNull(listed.getValue("111").inviteUrl)
         assertEquals("discord-client", Url(invite).parameters["client_id"])
     }
 
     @Test
     fun importedGuildStaysListedAfterLosingBotAndManageability() = testApplication {
-        var userGuilds = "[${guildJson("guild-1", permissions = "32")}]"
-        var botGuilds = "[${guildJson("guild-1")}]"
+        var userGuilds = "[${guildJson("101", permissions = "32")}]"
+        var botGuilds = "[${guildJson("101")}]"
         val fixture = installImportFixture(
             discordEngine(
                 userGuilds = { ok(userGuilds) },
@@ -214,10 +216,10 @@ class DiscordImportServiceTest {
                 scheduledEvents = { ok("[]") },
             ),
         )
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         assertTrue(summary.imported)
 
-        userGuilds = "[${guildJson("guild-1", permissions = "1024")}]"
+        userGuilds = "[${guildJson("101", permissions = "1024")}]"
         botGuilds = "[]"
         val guild = fixture.imports.guilds(fixture.user.id, fixture.connectionId).single()
 
@@ -232,7 +234,7 @@ class DiscordImportServiceTest {
     fun secondSyncIsIdempotent() = testApplication {
         val start = Clock.System.now() + 2.days
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val before = fixture.stored(externalCalendarId)
 
@@ -247,7 +249,7 @@ class DiscordImportServiceTest {
         val start = Clock.System.now() + 2.days
         var body = "[${eventJson(start = start, name = "First")}]"
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val calendar = fixture.calendarFor(externalCalendarId)
 
@@ -268,7 +270,7 @@ class DiscordImportServiceTest {
                 scheduledEvent = { HttpStatusCode.NotFound to "{}" },
             ),
         )
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         assertEquals(1, fixture.stored(externalCalendarId).size)
 
@@ -289,7 +291,7 @@ class DiscordImportServiceTest {
                 scheduledEvent = { throw AssertionError("past events must not be re-fetched") },
             ),
         )
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val calendar = fixture.calendarFor(externalCalendarId)
 
@@ -310,7 +312,7 @@ class DiscordImportServiceTest {
                 scheduledEvent = { ok(eventJson(start = start, status = 4)) },
             ),
         )
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val calendar = fixture.calendarFor(externalCalendarId)
 
@@ -329,11 +331,11 @@ class DiscordImportServiceTest {
             "[${eventJson(start = start, rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$day]}""")}]"
         var body = recurring(weekday)
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val oldUids = fixture.stored(externalCalendarId).map { it.uid }
         assertTrue(oldUids.size > 1)
-        assertTrue(oldUids.all { "discord:guild-1:event-1:" in it })
+        assertTrue(oldUids.all { "discord:101:201:" in it })
 
         body = recurring((weekday + 1) % 7)
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
@@ -347,7 +349,7 @@ class DiscordImportServiceTest {
     fun unmappedEventsImportIntoTheDefaultCalendar() = testApplication {
         val start = Clock.System.now() + 2.days
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val default = fixture.calendarFor(externalCalendarId)
         val anime = fixture.store.createCalendar(fixture.user.id, CreateCalendar(displayName = "Anime"))
@@ -363,13 +365,13 @@ class DiscordImportServiceTest {
     fun assignedEventsImportIntoTheRoutedCalendar() = testApplication {
         val start = Clock.System.now() + 2.days
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val default = fixture.calendarFor(externalCalendarId)
         val anime = fixture.store.createCalendar(fixture.user.id, CreateCalendar(displayName = "Anime"))
         fixture.routes.replaceRoutes(
             Uuid.parse(externalCalendarId),
-            mapOf("event-1" to RouteTarget.Calendar(anime.id)),
+            mapOf("201" to RouteTarget.Calendar(anime.id)),
         )
 
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
@@ -383,47 +385,47 @@ class DiscordImportServiceTest {
     @Test
     fun newEventsFallBackToTheDefaultCalendar() = testApplication {
         val start = Clock.System.now() + 2.days
-        var body = "[${eventJson(id = "event-1", start = start)}]"
+        var body = "[${eventJson(id = "201", start = start)}]"
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val default = fixture.calendarFor(externalCalendarId)
         val anime = fixture.store.createCalendar(fixture.user.id, CreateCalendar(displayName = "Anime"))
         fixture.routes.replaceRoutes(
             Uuid.parse(externalCalendarId),
-            mapOf("event-1" to RouteTarget.Calendar(anime.id)),
+            mapOf("201" to RouteTarget.Calendar(anime.id)),
         )
 
-        body = "[${eventJson(id = "event-1", start = start)},${eventJson(id = "event-2", start = start + 1.hours)}]"
+        body = "[${eventJson(id = "201", start = start)},${eventJson(id = "202", start = start + 1.hours)}]"
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
 
         val stored = fixture.stored(externalCalendarId).associateBy { it.uid }
-        assertEquals(anime.id, stored.getValue("discord:guild-1:event-1").calendarId)
-        assertEquals(default.id, stored.getValue("discord:guild-1:event-2").calendarId)
+        assertEquals(anime.id, stored.getValue("discord:101:201").calendarId)
+        assertEquals(default.id, stored.getValue("discord:101:202").calendarId)
     }
 
     @Test
     fun skippedEventsAreRemovedFromImport() = testApplication {
         val start = Clock.System.now() + 2.days
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val default = fixture.calendarFor(externalCalendarId)
         assertEquals(1, fixture.stored(externalCalendarId).size)
 
-        fixture.routes.replaceRoutes(Uuid.parse(externalCalendarId), mapOf("event-1" to RouteTarget.Skip))
+        fixture.routes.replaceRoutes(Uuid.parse(externalCalendarId), mapOf("201" to RouteTarget.Skip))
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
 
         assertTrue(fixture.stored(externalCalendarId).isEmpty())
         assertTrue(fixture.store.listEvents(default.id, fixture.user.id).isEmpty())
-        assertEquals(RouteTarget.Skip, fixture.routes.routes(Uuid.parse(externalCalendarId))["event-1"])
+        assertEquals(RouteTarget.Skip, fixture.routes.routes(Uuid.parse(externalCalendarId))["201"])
     }
 
     @Test
     fun targetChangeMovesRowsWithoutDuplicates() = testApplication {
         val start = Clock.System.now() + 2.days
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val default = fixture.calendarFor(externalCalendarId)
         val anime = fixture.store.createCalendar(fixture.user.id, CreateCalendar(displayName = "Anime"))
@@ -431,14 +433,14 @@ class DiscordImportServiceTest {
 
         fixture.routes.replaceRoutes(
             Uuid.parse(externalCalendarId),
-            mapOf("event-1" to RouteTarget.Calendar(anime.id)),
+            mapOf("201" to RouteTarget.Calendar(anime.id)),
         )
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
         assertEquals(1, fixture.store.listEvents(anime.id, fixture.user.id).size)
 
         fixture.routes.replaceRoutes(
             Uuid.parse(externalCalendarId),
-            mapOf("event-1" to RouteTarget.Calendar(gaming.id)),
+            mapOf("201" to RouteTarget.Calendar(gaming.id)),
         )
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
 
@@ -458,7 +460,7 @@ class DiscordImportServiceTest {
         val fixture = installImportFixture(
             discordEngine(scheduledEvents = { ok("[${eventJson(start = start, rule = rule)}]") }),
         )
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val default = fixture.calendarFor(externalCalendarId)
         val anime = fixture.store.createCalendar(fixture.user.id, CreateCalendar(displayName = "Anime"))
@@ -467,14 +469,14 @@ class DiscordImportServiceTest {
 
         fixture.routes.replaceRoutes(
             Uuid.parse(externalCalendarId),
-            mapOf("event-1" to RouteTarget.Calendar(anime.id)),
+            mapOf("201" to RouteTarget.Calendar(anime.id)),
         )
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
 
         val stored = fixture.stored(externalCalendarId)
         assertEquals(occurrences, stored.size)
         assertTrue(stored.all { it.calendarId == anime.id })
-        assertTrue(stored.all { it.uid.startsWith("discord:guild-1:event-1:") })
+        assertTrue(stored.all { it.uid.startsWith("discord:101:201:") })
         assertEquals(occurrences, fixture.store.listEvents(anime.id, fixture.user.id).size)
         assertTrue(fixture.store.listEvents(default.id, fixture.user.id).isEmpty())
     }
@@ -489,10 +491,10 @@ class DiscordImportServiceTest {
         val summary = fixture.imports.saveSync(
             userId = fixture.user.id,
             connectionId = fixture.connectionId,
-            guildId = "guild-1",
+            guildId = "101",
             defaultCalendarId = anime.id.value,
             routes = listOf(
-                DiscordRouteAssignment(eventId = "event-1", calendarId = gaming.id.value, skipped = false),
+                DiscordRouteAssignment(eventId = "201", calendarId = gaming.id.value, skipped = false),
             ),
             enabled = true,
         )
@@ -506,11 +508,11 @@ class DiscordImportServiceTest {
         assertEquals(1, fixture.store.listEvents(gaming.id, fixture.user.id).size)
         assertTrue(fixture.store.listEvents(anime.id, fixture.user.id).isEmpty())
         assertEquals(
-            mapOf("event-1" to RouteTarget.Calendar(gaming.id)),
+            mapOf("201" to RouteTarget.Calendar(gaming.id)),
             fixture.routes.routes(Uuid.parse(externalCalendarId)),
         )
 
-        val setup = fixture.imports.syncSetup(fixture.user.id, fixture.connectionId, "guild-1")
+        val setup = fixture.imports.syncSetup(fixture.user.id, fixture.connectionId, "101")
         assertEquals(anime.id.value, setup.defaultCalendarId)
         assertTrue(setup.calendars.any { it.id == anime.id })
         assertTrue(setup.calendars.any { it.id == gaming.id })
@@ -522,7 +524,7 @@ class DiscordImportServiceTest {
         val fixture = installImportFixture(discordEngine(), botToken = null)
 
         assertFailsWith<DiscordBotNotConfiguredException> {
-            fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+            fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         }
         assertTrue(fixture.externalRowsForConnection().isEmpty())
     }
@@ -532,10 +534,10 @@ class DiscordImportServiceTest {
         val fixture = installImportFixture(discordEngine(botGuilds = { ok("[]") }))
 
         val failure = assertFailsWith<DiscordBotNotInGuildException> {
-            fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+            fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         }
 
-        assertEquals("guild-1", failure.guildId)
+        assertEquals("101", failure.guildId)
         val url = Url(assertNotNull(failure.inviteUrl))
         assertEquals("discord-client", url.parameters["client_id"])
         assertEquals("bot", url.parameters["scope"])
@@ -559,9 +561,9 @@ class DiscordImportServiceTest {
     @Test
     fun concurrentSyncsDoNotDuplicateRows() = testApplication {
         val start = Clock.System.now() + 2.days
-        val body = "[${eventJson(id = "event-1", start = start)},${eventJson(id = "event-2", start = start)}]"
+        val body = "[${eventJson(id = "201", start = start)},${eventJson(id = "202", start = start)}]"
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
 
         coroutineScope {
@@ -579,7 +581,7 @@ class DiscordImportServiceTest {
     fun removeImportDetachesEventsAndKeepsTheCalendarEditable() = testApplication {
         val start = Clock.System.now() + 2.days
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok("[${eventJson(start = start)}]") }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val calendar = fixture.calendarFor(externalCalendarId)
 
@@ -603,7 +605,7 @@ class DiscordImportServiceTest {
         )
 
         assertFailsWith<DiscordImportException> {
-            fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+            fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         }
 
         val row = fixture.externalRowsForConnection().single()
@@ -745,16 +747,16 @@ class DiscordImportServiceTest {
     }
 
     private fun eventJson(
-        id: String = "event-1",
+        id: String = "201",
         name: String = "Community call",
         start: Instant,
         status: Int = 1,
         rule: String? = null,
     ): String = buildString {
-        append("""{"id":"$id","guild_id":"guild-1","channel_id":null,"name":"$name",""")
+        append("""{"id":"$id","guild_id":"101","channel_id":null,"name":"$name",""")
         append(""""description":"Hello","scheduled_start_time":"$start","scheduled_end_time":"${start + 1.hours}",""")
-        append(""""privacy_level":2,"status":$status,"entity_type":3,"entity_metadata":{"location":"Lounge"},""")
-        append(""""user_count":3""")
+        append(""""privacy_level":2,"status":$status,"entity_type":3,"entity_id":null,""")
+        append(""""entity_metadata":{"location":"Lounge"},"user_count":3""")
         rule?.let { append(""","recurrence_rule":$it""") }
         append('}')
     }
@@ -765,7 +767,7 @@ class DiscordImportServiceTest {
         permissions: String? = null,
     ): String {
         val permissionField = if (permissions != null) ",\"permissions\":\"$permissions\"" else ""
-        return "{\"id\":\"$id\",\"name\":\"$id\",\"icon\":null,\"owner\":$owner$permissionField}"
+        return "{\"id\":\"$id\",\"name\":\"$id\",\"icon\":null,\"owner\":$owner$permissionField,\"features\":[]}"
     }
 
     private fun discordTestConfig(botToken: String?): Map<String, String> = mapOf(
@@ -778,8 +780,8 @@ class DiscordImportServiceTest {
     private fun ok(body: String): Pair<HttpStatusCode, String> = HttpStatusCode.OK to body
 
     private companion object {
-        val UserGuildsJson = """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash","owner":true}]"""
-        val IdentityJson = """{"id":"discord-1","username":"mey","global_name":"Mey"}"""
+        val UserGuildsJson = """[{"id":"101","name":"Kolektiv","icon":"icon-hash","owner":true,"features":[]}]"""
+        val IdentityJson = """{"id":"302","username":"mey","global_name":"Mey","avatar":null}"""
         val TokenJson =
             """{"access_token":"access-1","refresh_token":"refresh-1","expires_in":604800,""" +
                 """"scope":"identify guilds","token_type":"Bearer"}"""

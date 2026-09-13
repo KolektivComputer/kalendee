@@ -140,14 +140,14 @@ class DiscordProviderTest {
     fun identityPrefersGlobalNameAndOmitsEmail() = runBlocking {
         val engine = MockEngine {
             respond(
-                """{"id":"user-1","username":"mey","global_name":"Elizabeth","avatar":"abc"}""",
+                """{"id":"301","username":"mey","global_name":"Elizabeth","avatar":"abc"}""",
                 HttpStatusCode.OK,
                 jsonHeaders(),
             )
         }
         val account = client(engine).accountIdentity(OAuthTokens(accessToken = "access-1"))
 
-        assertEquals("user-1", account.externalId)
+        assertEquals("301", account.externalId)
         assertEquals("Elizabeth", account.displayName)
         assertNull(account.email)
     }
@@ -155,7 +155,7 @@ class DiscordProviderTest {
     @Test
     fun identityFallsBackToUsername() = runBlocking {
         val engine = MockEngine {
-            respond("""{"id":"user-1","username":"mey","global_name":"  "}""", HttpStatusCode.OK, jsonHeaders())
+            respond("""{"id":"301","username":"mey","global_name":"  ","avatar":null}""", HttpStatusCode.OK, jsonHeaders())
         }
         assertEquals("mey", client(engine).accountIdentity(OAuthTokens(accessToken = "access-1")).displayName)
     }
@@ -256,7 +256,7 @@ private suspend fun MockRequestHandleScope.respondDiscord(
         respond("{}", HttpStatusCode.OK, jsonHeaders())
     request.method == HttpMethod.Get && request.url.encodedPath.endsWith("/users/@me") ->
         respond(
-            """{"id":"discord-1","username":"oauthuser","global_name":"OAuth User"}""",
+            """{"id":"302","username":"oauthuser","global_name":"OAuth User","avatar":null}""",
             HttpStatusCode.OK,
             jsonHeaders(),
         )

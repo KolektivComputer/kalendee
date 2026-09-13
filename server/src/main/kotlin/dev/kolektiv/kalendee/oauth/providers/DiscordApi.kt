@@ -1,23 +1,21 @@
 package dev.kolektiv.kalendee.oauth.providers
 
-import dev.kolektiv.kalendee.oauth.OAuthJson
+import dev.kord.common.entity.DiscordGuildScheduledEvent as KordScheduledEvent
+import dev.kord.common.entity.DiscordPartialGuild as KordPartialGuild
+import dev.kord.common.entity.DiscordRecurrenceRule as KordRecurrenceRule
+import dev.kord.common.entity.DiscordUser as KordUser
+import dev.kord.common.entity.GuildScheduledEventEntityMetadata
+import dev.kord.common.entity.Snowflake
+import dev.kord.common.entity.optional.Optional
+import dev.kord.common.exception.RequestException
+import dev.kord.rest.request.RestRequestException
+import dev.kord.rest.service.RestClient
+import dev.kord.rest.service.modifyScheduledEvent
 import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.parameter
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.isSuccess
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.delay
+import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 sealed class DiscordApiException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
@@ -114,91 +112,144 @@ data class DiscordScheduledEvent(
 }
 
 /**
- * Thin Discord REST client. The OAuth client uses [user] for identity; later
- * waves use [botGuilds], [scheduledEvents], and [scheduledEvent] to read guild
- * schedules with the bot token.
+ * Thin Discord REST client built on Kord. The OAuth client uses [user] for
+ * identity; later waves use [botGuilds], [scheduledEvents], [scheduledEvent],
+ * and [modifyScheduledEvent] to read and update guild schedules with the bot
+ * token.
  */
 class DiscordApi(
     private val http: HttpClient,
     private val botToken: String? = null,
     private val baseUrl: String = DefaultBaseUrl,
 ) {
+    private val restBaseUrl: String = baseUrl.trimEnd('/')
+
+    private val botClient: RestClient by lazy {
+        restClient(token = requireBotToken(), tokenPrefix = "Bot")
+    }
+
     suspend fun user(token: String): DiscordUser =
-        getJson("/users/@me", authorization = "Bearer $token")
+        execute { restClient(token, "Bearer").user.getCurrentUser().toDiscordUser() }
 
     suspend fun guilds(token: String): List<DiscordGuild> =
-        getJson("/users/@me/guilds", authorization = "Bearer $token")
+        execute {
+            restClient(token, "Bearer").user.getCurrentUserGuilds().map { it.toDiscordGuild() }
+        }
 
     suspend fun botGuilds(): List<DiscordGuild> =
-        getJson("/users/@me/guilds", authorization = "Bot ${requireBotToken()}")
+        execute { botClient.user.getCurrentUserGuilds().map { it.toDiscordGuild() } }
 
     suspend fun scheduledEvents(guildId: String): List<DiscordScheduledEvent> =
-        getJson(
-            path = "/guilds/$guildId/scheduled-events",
-            authorization = "Bot ${requireBotToken()}",
-            withUserCount = true,
-        )
+        execute {
+            botClient.guild
+                .listScheduledEvents(Snowflake(guildId), withUserCount = true)
+                .map { it.toDiscordScheduledEvent() }
+        }
 
     suspend fun scheduledEvent(guildId: String, eventId: String): DiscordScheduledEvent =
-        getJson(
-            path = "/guilds/$guildId/scheduled-events/$eventId",
-            authorization = "Bot ${requireBotToken()}",
-        )
+        execute {
+            botClient.guild
+                .getScheduledEvent(Snowflake(guildId), Snowflake(eventId))
+                .toDiscordScheduledEvent()
+        }
+
+    suspend fun modifyScheduledEvent(
+        guildId: String,
+        eventId: String,
+        start: Instant?,
+        end: Instant?,
+        location: String? = null,
+    ): DiscordScheduledEvent =
+        execute {
+            botClient.guild.modifyScheduledEvent(Snowflake(guildId), Snowflake(eventId)) {
+                start?.let { scheduledStartTime = it }
+                end?.let { scheduledEndTime = it }
+                location?.let { entityMetadata = GuildScheduledEventEntityMetadata(Optional(it)) }
+            }.toDiscordScheduledEvent()
+        }
+
+    private fun restClient(token: String, tokenPrefix: String): RestClient =
+        RestClient(token = token, client = http, baseUrl = restBaseUrl, tokenPrefix = tokenPrefix)
 
     private fun requireBotToken(): String = botToken?.takeIf { it.isNotBlank() }
         ?: throw DiscordBotNotConfiguredException()
 
-    private suspend inline fun <reified T> getJson(
-        path: String,
-        authorization: String,
-        withUserCount: Boolean = false,
-    ): T {
-        var attempt = 0
-        while (true) {
-            val response = http.get("$baseUrl$path") {
-                header(HttpHeaders.Authorization, authorization)
-                header(HttpHeaders.UserAgent, UserAgent)
-                header(HttpHeaders.Accept, ContentType.Application.Json.toString())
-                if (withUserCount) parameter("with_user_count", "true")
-            }
-            when {
-                response.status == HttpStatusCode.TooManyRequests -> {
-                    val body = response.bodyAsText()
-                    val retryAfter = parseRetryAfter(response.headers[HttpHeaders.RetryAfter], body)
-                    if (attempt == 0) {
-                        attempt++
-                        delay(retryAfter)
-                        continue
-                    }
-                    throw DiscordRateLimitedException(
-                        message = "discord api rate limited after retry",
-                        retryAfterSeconds = retryAfter.inWholeMilliseconds / 1000.0,
-                    )
-                }
-                response.status == HttpStatusCode.Unauthorized ->
-                    throw DiscordAuthException("discord api rejected the access token (HTTP 401)")
-                else -> {
-                    val body = response.bodyAsText()
-                    if (!response.status.isSuccess()) {
-                        throw DiscordApiHttpException(
-                            message = "discord api request failed (HTTP ${response.status.value})",
-                            statusCode = response.status.value,
-                        )
-                    }
-                    return OAuthJson.decodeFromString(body)
-                }
-            }
+    private suspend fun <T> execute(block: suspend () -> T): T =
+        try {
+            block()
+        } catch (cause: RestRequestException) {
+            throw cause.toDiscordApiException()
+        } catch (cause: RequestException) {
+            throw DiscordApiHttpException(
+                message = cause.message ?: "discord api request failed",
+                statusCode = 0,
+            )
         }
+
+    private fun RestRequestException.toDiscordApiException(): DiscordApiException = when (status.code) {
+        HttpStatusCode.Unauthorized.value ->
+            DiscordAuthException("discord api rejected the access token (HTTP 401)")
+
+        HttpStatusCode.TooManyRequests.value ->
+            DiscordRateLimitedException(
+                message = "discord api rate limited after retry",
+                retryAfterSeconds = 0.0,
+            )
+
+        else -> DiscordApiHttpException(
+            message = "discord api request failed (HTTP ${status.code})",
+            statusCode = status.code,
+        )
     }
 
-    private fun parseRetryAfter(header: String?, body: String): Duration {
-        val seconds = header?.trim()?.toDoubleOrNull()
-            ?: runCatching {
-                OAuthJson.parseToJsonElement(body).jsonObject["retry_after"]?.jsonPrimitive?.doubleOrNull
-            }.getOrNull()
-            ?: 1.0
-        return seconds.coerceAtLeast(0.0).seconds
-    }
+    private fun KordUser.toDiscordUser(): DiscordUser = DiscordUser(
+        id = id.toString(),
+        username = username,
+        globalName = globalName.value,
+        avatar = avatar,
+        email = email.value,
+    )
+
+    private fun KordPartialGuild.toDiscordGuild(): DiscordGuild = DiscordGuild(
+        id = id.toString(),
+        name = name,
+        icon = icon,
+        owner = owner.orElse(false),
+        permissions = permissions.value?.code?.value,
+        features = features.map { it.value },
+    )
+
+    private fun KordScheduledEvent.toDiscordScheduledEvent(): DiscordScheduledEvent = DiscordScheduledEvent(
+        id = id.toString(),
+        guildId = guildId.toString(),
+        channelId = channelId?.toString(),
+        name = name,
+        description = description.value,
+        scheduledStartTime = scheduledStartTime.toString(),
+        scheduledEndTime = scheduledEndTime?.toString(),
+        privacyLevel = privacyLevel.value,
+        status = status.value,
+        entityType = entityType.value,
+        entityMetadata = entityMetadata?.let { DiscordEntityMetadata(location = it.location.value) },
+        userCount = userCount.asNullable,
+        recurrenceRule = recurrenceRule?.toDiscordRecurrenceRule(),
+        creator = creator.value?.toDiscordUser(),
+        creatorId = creatorId?.value?.toString(),
+        image = image.value,
+    )
+
+    private fun KordRecurrenceRule.toDiscordRecurrenceRule(): DiscordRecurrenceRule = DiscordRecurrenceRule(
+        start = start?.toString(),
+        end = end?.toString(),
+        frequency = frequency.value,
+        interval = interval,
+        byWeekday = byWeekday?.map { it.value },
+        byNWeekday = byNWeekday?.map { DiscordRecurrenceRuleNWeekday(n = it.n, day = it.day) },
+        byMonth = byMonth?.map { it.value },
+        byMonthDay = byMonthDay,
+        byYearDay = byYearDay,
+        count = count,
+    )
 
     companion object {
         const val DefaultBaseUrl: String = "https://discord.com/api/v10"

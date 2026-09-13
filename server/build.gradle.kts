@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.password4j)
     implementation(libs.keel.ktor)
     implementation(libs.aws.sdk.s3)
+    implementation(libs.kord.rest)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.ktor.clientContentNegotiation)
     testImplementation(libs.ktor.clientMock)

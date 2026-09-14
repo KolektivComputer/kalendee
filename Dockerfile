@@ -61,9 +61,12 @@ LABEL org.opencontainers.image.title="Kalendee" \
     org.opencontainers.image.source="https://github.com/kolektivdev/kalendee" \
     org.opencontainers.image.url="https://github.com/kolektivdev/kalendee"
 
+# ca-certificates is required so the JVM (AWS SDK v2 -> S3/R2, OAuth, SMTP over
+# TLS) trusts public CAs. The JRE base image ships a cacerts bundle, but without
+# the OS trust store a freshly provisioned TLS endpoint can fail verification.
 # hadolint ignore=DL3008
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 kalendee \
     && useradd --uid 10001 --gid kalendee --home-dir /app --shell /usr/sbin/nologin kalendee \

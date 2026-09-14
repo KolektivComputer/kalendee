@@ -205,6 +205,11 @@ Common causes and fixes:
 - **S3/R2 failures.** Verify `storage.s3.enabled`, endpoint, bucket, region
   `auto`, `pathStyle=true`, and credentials. See
   [Object storage](/docs/self-hosting/object-storage).
+- **`PUT` returns `403 AccessDenied` against Cloudflare R2.** If the request
+  debug log shows an `x-amz-checksum-crc32` trailer, the client is using the AWS
+  SDK v2 default request checksums, which R2 rejects. Kalendee sets
+  `requestChecksumCalculation = WHEN_REQUIRED` so this should not occur; make
+  sure you are running a build that includes that fix.
 
 ## Mail is not sending
 

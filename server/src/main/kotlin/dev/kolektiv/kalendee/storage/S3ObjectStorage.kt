@@ -5,6 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
@@ -66,6 +68,14 @@ class S3ObjectStorage(
             val builder = S3Client.builder()
                 .region(Region.of(settings.region))
                 .forcePathStyle(settings.pathStyle)
+                // AWS SDK v2 >= 2.30 defaults to WHEN_SUPPORTED, which makes
+                // PutObject stream the body with an aws-chunked trailer
+                // (x-amz-checksum-crc32). S3-compatible stores that do not
+                // implement trailing checksums - notably Cloudflare R2 - reject
+                // that request with 403 AccessDenied. Only send checksums when
+                // the operation requires them, matching pre-2.30 behavior.
+                .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+                .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
             if (settings.endpoint.isNotBlank()) {
                 builder.endpointOverride(URI.create(settings.endpoint))
             }

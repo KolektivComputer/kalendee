@@ -24,7 +24,7 @@ intent lives in [README.md](./README.md), the module map and commands in
 - Read-only Discord server event import ships first; linking Google, Microsoft,
   Apple, CalDAV, and ICS calendar accounts and mirroring them as regular
   Kalendee calendars is tracked in the
-  [external calendar connections guide](https://kalendee-docs.pages.dev/docs/product/external-calendars).
+  [external calendar connections guide](https://kalendee.kolektiv.computer/docs/product/external-calendars).
 
 ## Theming
 

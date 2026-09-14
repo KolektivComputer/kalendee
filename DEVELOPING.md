@@ -145,7 +145,7 @@ Server config is **HOCON-file-first**. The committed defaults live in `server/sr
 4. The baked `/app/application.conf` in the Docker image.
 5. The defaults embedded in the jar (`server/src/main/resources/application.conf`).
 
-Environment variables appear only as `${?VAR}` substitutions *inside* whichever file wins, so a set variable overrides that file's committed default and an unset one falls back to it. Non-secret settings belong in the HOCON file; secrets stay in the environment (`.env`, `environment`/`environmentFile`). The full key reference is at <https://kalendee-docs.pages.dev/docs/self-hosting/configuration>.
+Environment variables appear only as `${?VAR}` substitutions *inside* whichever file wins, so a set variable overrides that file's committed default and an unset one falls back to it. Non-secret settings belong in the HOCON file; secrets stay in the environment (`.env`, `environment`/`environmentFile`). The full key reference is at <https://kalendee.kolektiv.computer/docs/self-hosting/configuration>.
 
 Notable blocks, including keys added in this round:
 
@@ -232,9 +232,9 @@ pnpm --dir docs build    # static output in docs/dist/
 pnpm --dir docs check    # astro check (types + content schema)
 ```
 
-The site builds to portable static files and deploys to Cloudflare Pages via [`.github/workflows/docs.yml`](./.github/workflows/docs.yml). `@kolektiv/common-docs-chrome` is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it is published to keel-npm and the dependency is switched to `^0.0.1-SNAPSHOT.1`. The default site URL is <https://kalendee-docs.pages.dev>; `PUBLIC_SITE_URL` overrides it. See [`docs/README.md`](./docs/README.md) for authoring and the publish TODO.
+The site builds to portable static files and deploys to Cloudflare Pages via [`.github/workflows/docs.yml`](./.github/workflows/docs.yml). `@kolektiv/common-docs-chrome` is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it is published to keel-npm and the dependency is switched to `^0.0.1-SNAPSHOT.1`. The default site URL is <https://kalendee.kolektiv.computer>; `PUBLIC_SITE_URL` overrides it. See [`docs/README.md`](./docs/README.md) for authoring and the publish TODO.
 
-The moved external-calendars guide now lives here as `docs/src/content/docs/product/external-calendars.md` and is served at <https://kalendee-docs.pages.dev/docs/product/external-calendars>.
+The moved external-calendars guide now lives here as `docs/src/content/docs/product/external-calendars.md` and is served at <https://kalendee.kolektiv.computer/docs/product/external-calendars>.
 
 ## Demo data and screenshots
 
@@ -359,8 +359,8 @@ Read [CONTRIBUTING.md](./CONTRIBUTING.md) for the contribution workflow, code st
 
 ## Further reading
 
-- [Kalendee docs site](https://kalendee-docs.pages.dev) — product guides and the self-hosting reference; source in [`docs/`](./docs)
-- [External calendar connections](https://kalendee-docs.pages.dev/docs/product/external-calendars) — provider matrix, security model, and roadmap for linking external calendars
+- [Kalendee docs site](https://kalendee.kolektiv.computer) — product guides and the self-hosting reference; source in [`docs/`](./docs)
+- [External calendar connections](https://kalendee.kolektiv.computer/docs/product/external-calendars) — provider matrix, security model, and roadmap for linking external calendars
 - [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)
 - [keel](https://github.com/lizainslie/keel) — theming and web UI framework used by the server's web UI and clients
 - [`@kolektiv/common-docs-chrome`](https://github.com/KolektivComputer/common-docs-chrome) — shared chrome for the Astro docs site

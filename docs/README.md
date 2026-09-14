@@ -2,7 +2,7 @@
 
 The documentation and marketing site for Kalendee. It is an [Astro 5](https://astro.build)
 static site: the landing page lives in `src/pages/index.astro` and the guides are Markdown
-files in `src/content/docs/`. The published site is <https://kalendee-docs.pages.dev>;
+files in `src/content/docs/`. The published site is <https://kalendee.kolektiv.computer>;
 repo-wide setup and server commands are in [DEVELOPING.md](../DEVELOPING.md).
 
 The chrome (navbar, sidebar, footer, theme picker, "Built by Kolektiv Computing" mark,
@@ -115,4 +115,4 @@ pnpm exec wrangler pages deploy dist --project-name=kalendee-docs
 
 To deploy the same build elsewhere, point the host at `docs/dist` (no server runtime is
 needed). `astro.config.mjs` reads `PUBLIC_SITE_URL` for canonical and sitemap URLs and
-falls back to `https://kalendee-docs.pages.dev`.
+falls back to `https://kalendee.kolektiv.computer`.

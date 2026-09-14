@@ -13,7 +13,7 @@ Kalendee comes from Calendy, a popular calendar meeting scheduling service, and 
 
 ## Documentation
 
-Product docs and self-hosting guides live at <https://kalendee-docs.pages.dev>, built from the Astro site in [`docs/`](./docs). Server setup, configuration, object storage (S3/R2), email, and the Cloudflare Workers are covered in [DEVELOPING.md](./DEVELOPING.md).
+Product docs and self-hosting guides live at <https://kalendee.kolektiv.computer>, built from the Astro site in [`docs/`](./docs). Server setup, configuration, object storage (S3/R2), email, and the Cloudflare Workers are covered in [DEVELOPING.md](./DEVELOPING.md).
 
 ## Screenshots
 

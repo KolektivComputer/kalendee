@@ -61,6 +61,8 @@ jobs:
 
       - name: Build
         working-directory: docs
+        env:
+          PUBLIC_SITE_URL: https://kalendee.kolektiv.computer
         run: pnpm run build
 
       - name: Deploy to Cloudflare Pages

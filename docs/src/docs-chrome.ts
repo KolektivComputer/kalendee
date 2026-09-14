@@ -7,7 +7,7 @@ const REPO_URL = "https://github.com/KolektivComputer/kalendee";
  * example the production custom domain); the default is the Cloudflare Pages
  * project URL.
  */
-const siteUrl = process.env.PUBLIC_SITE_URL ?? "https://kalendee-docs.pages.dev";
+const siteUrl = process.env.PUBLIC_SITE_URL ?? "https://kalendee.kolektiv.computer";
 
 /**
  * Provisional Kalendee palette.

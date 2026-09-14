@@ -1,5 +1,11 @@
 # syntax=docker/dockerfile:1
 
+# Stage order matters: `docker build` with no `--target` builds the LAST stage.
+# `runtime` must stay last so a bare build produces the production image. CI
+# (.github/workflows/docker.yml) also pins `target: runtime` defensively, and
+# the `dev` stage is intermediate, selected explicitly by
+# docker-compose.dev.yml via `target: dev`.
+
 # Build stage runs on the builder's native platform so multi-arch builds do not
 # emulate Gradle/Node; the fat jar is architecture-independent Java bytecode.
 FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk-noble AS build
@@ -26,6 +32,24 @@ RUN --mount=type=cache,target=/gradle-home \
     --mount=type=cache,target=/root/.local/share/pnpm/store \
     ./gradlew :server:buildFatJar --no-daemon
 
+# Development stage: JDK + Node + pnpm + the bind-mounted source tree. Runs as
+# an arbitrary host UID (docker-compose.dev.yml sets `user:`), so the shared
+# caches are world-writable.
+FROM build AS dev
+
+ENV GRADLE_USER_HOME=/gradle-home \
+    PNPM_HOME=/pnpm-home \
+    npm_config_store_dir=/pnpm-store
+
+RUN mkdir -p /gradle-home /pnpm-home /pnpm-store \
+    && chmod -R 1777 /gradle-home /pnpm-home /pnpm-store
+
+WORKDIR /src
+
+CMD ["./gradlew", "--no-daemon", ":server:run"]
+
+# Production stage — must stay LAST so a bare `docker build` yields it. See the
+# stage-order note at the top of this file.
 FROM eclipse-temurin:21-jre-noble AS runtime
 
 ARG VERSION=dev
@@ -72,19 +96,3 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=5 \
     CMD curl -fsS http://127.0.0.1:8080/api/v1/health || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-
-# Development stage: JDK + Node + pnpm + the bind-mounted source tree. Runs as
-# an arbitrary host UID (docker-compose.dev.yml sets `user:`), so the shared
-# caches are world-writable.
-FROM build AS dev
-
-ENV GRADLE_USER_HOME=/gradle-home \
-    PNPM_HOME=/pnpm-home \
-    npm_config_store_dir=/pnpm-store
-
-RUN mkdir -p /gradle-home /pnpm-home /pnpm-store \
-    && chmod -R 1777 /gradle-home /pnpm-home /pnpm-store
-
-WORKDIR /src
-
-CMD ["./gradlew", "--no-daemon", ":server:run"]

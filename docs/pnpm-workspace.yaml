@@ -4,6 +4,7 @@
 allowBuilds:
   esbuild: true
   sharp: true
+  workerd: true
 minimumReleaseAgeExclude:
   - '@kolektiv/themes@0.0.1-SNAPSHOT.2'
   - '@kolektiv/common-docs-chrome@0.0.1-SNAPSHOT.3'

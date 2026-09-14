@@ -42,6 +42,8 @@ services:
     image: docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
     # build:
     #   context: .
+    #   # No `target:`: the Dockerfile's final stage is the production runtime
+    #   # image. docker-compose.dev.yml selects the opt-in `dev` stage instead.
     #   args:
     #     VERSION: local
     # Secrets and overrides only (DB password, secret key, mail token, S3 keys,

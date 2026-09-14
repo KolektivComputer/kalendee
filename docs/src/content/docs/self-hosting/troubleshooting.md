@@ -40,6 +40,29 @@ docker run ... -e JAVA_OPTS="-Dlogback.configurationFile=/config/logback.xml" ..
 java -Dlogback.configurationFile=/etc/kalendee/logback.xml -jar server-all.jar -config=/etc/kalendee/application.conf
 ```
 
+## Production container is compiling from source
+
+**Symptom:** the container logs a Gradle task (`> Task :server:run`) or complains
+about `/src/.env.local` / a missing source tree, even though it was started from
+the published image.
+
+The published `:latest` image is the Dockerfile's **runtime** stage: a fat jar
+launched by `/app/entrypoint.sh`. A `:server:run` task means the container was
+built from the `dev` stage instead. That stage is opt-in (`--target dev`,
+`docker-compose.dev.yml`) and is never for production; a bare `docker build`
+selects the final `runtime` stage.
+
+Fix: pull the current image and recreate the container.
+
+```bash
+docker compose pull
+docker compose up -d
+docker inspect --format '{{.Config.Entrypoint}} {{.Config.User}}' \
+    docker.yuri.capital/kolektiv/kalendee:latest
+```
+
+The last command should print `/app/entrypoint.sh 10001`.
+
 ## Configuration is not being picked up
 
 Work through the precedence order, highest priority first. Editing the wrong

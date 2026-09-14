@@ -276,12 +276,13 @@ docker compose up -d
 Copying `application.conf.example` is required: the compose mount fails if `./application.conf` does not exist.
 
 - Image `docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}`; to build the checkout instead, comment out `image:` and uncomment the `build:` block in `docker-compose.yml`.
+- The published `:latest` image is the Dockerfile's final `runtime` stage: the fat jar launched by `/app/entrypoint.sh`, needing PostgreSQL and a HOCON config. The `dev` stage (Gradle `:server:run`, bind-mounted source) is opt-in via `--target dev` and is never what `:latest` should be.
 - Host port `${KALENDEE_HOST_PORT:-8080}` maps to container port 8080.
 - TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...). Keep `auth.cookieSecure = true` in `application.conf` and set `app.baseUrl` (or `KALENDEE_PUBLIC_URL`) to the public https URL; leave `cookieSecure` alone unless you serve plain HTTP on purpose.
 - Health check: `curl http://localhost:8080/api/v1/health` → `{"status":"ok"}`.
 - Secrets stay in `.env`; the mounted `application.conf` picks them up through its `${?VAR}` fallbacks. To use a different config file, set `KALENDEE_CONFIG` (or pass `-config=/path` as a container argument); its resolution order is described under [Configuration](#configuration).
 
-Development compose ([`docker-compose.dev.yml`](./docker-compose.dev.yml)) builds the `dev` stage, bind-mounts the source tree, mounts `./application.conf.dev` at `/config/application.conf`, exports `KALENDEE_CONFIG` to the Gradle-launched server, and runs `./gradlew :server:run` inside the container:
+Development compose ([`docker-compose.dev.yml`](./docker-compose.dev.yml)) builds the `dev` stage (`--target dev`), bind-mounts the source tree, mounts `./application.conf.dev` at `/config/application.conf`, exports `KALENDEE_CONFIG` to the Gradle-launched server, and runs `./gradlew :server:run` inside the container:
 
 ```bash
 cp .env.dev.example .env.dev

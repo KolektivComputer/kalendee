@@ -161,8 +161,10 @@ docker compose up -d
 
 The Dockerfile builds the fat jar in a JDK 21 + Node stage
 (`./gradlew :server:buildFatJar`, which also builds the Keel pack) and copies
-only the jar and entrypoint into the runtime stage. Builds from a git checkout
-need network access to Maven/Nexus and the `@kolektiv` npm registry.
+only the jar and entrypoint into the runtime stage. The `runtime` stage is the
+final stage in the Dockerfile, so a bare `docker build` (and this `build:`
+block, which sets no `target:`) produces the production image. Builds from a git
+checkout need network access to Maven/Nexus and the `@kolektiv` npm registry.
 
 ## Upgrades and rollback
 
@@ -183,8 +185,10 @@ the pre-upgrade database dump.
 ## Development stack
 
 `docker-compose.dev.yml` is separate and not for production. It builds the
-Dockerfile `dev` stage, bind-mounts the source tree at `/src`, and runs
-`./gradlew :server:run` (hot recompilation on restart).
+Dockerfile `dev` stage (`--target dev`), bind-mounts the source tree at `/src`,
+and runs `./gradlew :server:run` (hot recompilation on restart). The production
+image is the final `runtime` stage instead: a fat jar launched by
+`docker/entrypoint.sh`, needing PostgreSQL and a config file.
 
 ```bash
 cp .env.dev.example .env.dev

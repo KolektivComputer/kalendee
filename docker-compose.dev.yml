@@ -25,6 +25,8 @@ services:
   kalendee:
     build:
       context: .
+      # Select the intermediate `dev` stage explicitly; the final Dockerfile
+      # stage is the production runtime used by docker-compose.yml.
       target: dev
     user: "${KALENDEE_UID:-1000}:${KALENDEE_GID:-1000}"
     env_file:

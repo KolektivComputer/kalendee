@@ -77,8 +77,8 @@ fast if `KALENDEE_DATABASE_PASSWORD` is unset.
 ## Run the distribution
 
 ```bash
-unzip server-1.0.0.zip -d /opt/kalendee
-/opt/kalendee/server-1.0.0/bin/server -config=/etc/kalendee/application.conf
+unzip server-0.1.0.zip -d /opt/kalendee
+/opt/kalendee/server-0.1.0/bin/server -config=/etc/kalendee/application.conf
 ```
 
 The launcher respects the usual `JAVA_HOME` and `JAVA_OPTS` environment

@@ -101,18 +101,6 @@ export const docs = defineDocsChrome({
   themeFamilies: ["kalendee", "kolektiv", "catppuccin", "nord", "daisyui"],
   themeFamily: "kalendee",
   themes: [kalendeeDark, kalendeeLight],
-  langs: [
-    { id: "kotlin", label: "Kotlin" },
-    { id: "bash", label: "Shell" },
-  ],
-  frameworks: [
-    { id: "web", label: "Web" },
-    { id: "desktop", label: "Desktop" },
-    { id: "android", label: "Android" },
-    { id: "ios", label: "iOS" },
-  ],
-  defaultLang: "kotlin",
-  defaultFramework: "web",
   repo: {
     url: REPO_URL,
     branch: "main",

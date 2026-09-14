@@ -1,4 +1,10 @@
-# External calendar connections
+---
+title: External calendar connections
+description: >-
+  How Kalendee links external calendars and reads remote events: the provider
+  matrix, implementation order, security model, and data model for mirrored
+  calendars.
+---
 
 Decision document for linking external calendars and reading remote events
 into Kalendee. Discord server events are the first implemented source
@@ -408,3 +414,11 @@ Ways to contribute:
 | Reminders | [ReminderService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/reminders/ReminderService.kt) |
 | Server config | [AppSettings.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/config/AppSettings.kt), [application.conf.example](../application.conf.example) |
 | Latest schema change | [V17__external_calendars.sql](../server/src/main/resources/db/migration/V17__external_calendars.sql) |
+
+## Related
+
+- [Getting started](/docs/product/getting-started) — connect a source and import it
+- [Calendars and events](/docs/product/calendars-and-events) — how mirrored calendars behave as calendars
+- [Recurring events](/docs/product/recurring-events) — what is not round-tripped yet
+- [Accounts and security](/docs/product/accounts-and-security) — Discord OAuth and token storage
+- [Clients](/docs/product/clients) — the planned CalDAV library this adapter will reuse

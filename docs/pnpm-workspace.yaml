@@ -1,0 +1,8 @@
+# pnpm 11 reads these settings here (not from package.json). Astro bundles with
+# esbuild and optionally uses sharp for image handling; both need their install
+# scripts to run, otherwise pnpm 11 fails the install with ERR_PNPM_IGNORED_BUILDS.
+allowBuilds:
+  esbuild: true
+  sharp: true
+minimumReleaseAgeExclude:
+  - '@kolektiv/themes@0.0.1-SNAPSHOT.2'

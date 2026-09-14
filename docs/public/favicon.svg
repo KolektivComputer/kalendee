@@ -1,0 +1,16 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<mask id="mask0_1_24" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+<rect width="1024" height="1024" rx="256" fill="#D9D9D9"/>
+</mask>
+<g mask="url(#mask0_1_24)">
+<circle cx="207" cy="811" r="384" fill="#C700DE"/>
+<circle cx="227" cy="239" r="384" fill="#0090B5"/>
+<circle cx="807" cy="246" r="384" fill="#00A43B"/>
+<circle cx="841" cy="795" r="384" fill="#DF6F00"/>
+<rect width="1024" height="1024" fill="#161616" fill-opacity="0.2"/>
+</g>
+<path d="M384 192V288" stroke="#F5F5F5" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M640 192V288" stroke="#F5F5F5" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M736 224H288C252.654 224 224 252.654 224 288V736C224 771.346 252.654 800 288 800H736C771.346 800 800 771.346 800 736V288C800 252.654 771.346 224 736 224Z" stroke="#F5F5F5" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M224 416H800" stroke="#F5F5F5" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

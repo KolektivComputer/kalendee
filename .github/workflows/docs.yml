@@ -1,0 +1,87 @@
+# Build and deploy the Astro documentation site (docs/) to Cloudflare Pages.
+#
+# Behavior:
+#   - push to the default branch -> production deploy to the kalendee-docs project
+#   - pull_request             -> preview deploy on a per-PR branch name, so
+#     every PR gets an immutable *.kalendee-docs.pages.dev URL
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN  — API token with the "Cloudflare Pages: Edit"
+#                           permission for the target account
+#   CLOUDFLARE_ACCOUNT_ID — the Cloudflare account id that owns the project
+#
+# The Pages project (name = "kalendee-docs", see docs/wrangler.toml) is created
+# automatically on the first deploy if it does not exist yet.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: docs/pnpm-lock.yaml
+
+      # @kolektiv packages are fetched anonymously from the aggregate read
+      # registry; docs/.npmrc sets `@kolektiv:registry=.../npm-public/`.
+      #
+      # TODO (shared chrome): `docs/package.json` currently links
+      # @kolektiv/common-docs-chrome from a sibling checkout, which the GitHub
+      # runner does not have. Until it is published to keel-npm and the link: is
+      # replaced with `^0.0.1-SNAPSHOT.1`, this job cannot build on CI. Either
+      # publish the package first, or uncomment the checkout below so the
+      # sibling path exists (docs/ link is ../../../../github.com/KolektivComputer/common-docs-chrome).
+      # - name: Checkout shared docs chrome
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: KolektivComputer/common-docs-chrome
+      #     path: ../github.com/KolektivComputer/common-docs-chrome
+
+      - name: Install dependencies
+        working-directory: docs
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: docs
+        run: pnpm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        env:
+          # Production deploys use the default branch; PRs use the head branch.
+          BRANCH: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: docs
+          command: pages deploy dist --project-name=kalendee-docs --branch=${{ env.BRANCH }}

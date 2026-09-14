@@ -1,0 +1,13 @@
+# Cloudflare Pages project for the Kalendee documentation site.
+#
+# Production deploys run in .github/workflows/docs.yml on pushes to the default
+# branch:
+#   wrangler pages deploy dist --project-name=kalendee-docs --branch=main
+#
+# Pull requests deploy to the same project under the PR branch name, which
+# Cloudflare Pages turns into an immutable preview URL
+# (https://<branch-hash>.kalendee-docs.pages.dev) so every PR gets a preview.
+# The first deploy may prompt to create the project; the CI action creates it
+# automatically.
+name = "kalendee-docs"
+pages_build_output_dir = "./dist"

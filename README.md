@@ -11,12 +11,16 @@ Kalendee comes from Calendy, a popular calendar meeting scheduling service, and 
 
 *giv me calendar clod make no mistakes!!11!*
 
+## Documentation
+
+Product docs and self-hosting guides live at <https://kalendee-docs.pages.dev>, built from the Astro site in [`docs/`](./docs). Server setup, configuration, object storage (S3/R2), email, and the Cloudflare Workers are covered in [DEVELOPING.md](./DEVELOPING.md).
+
 ## Screenshots
 
-Screenshots are captured from the seeded demo data (see [Demo data and screenshots](./DEVELOPING.md#demo-data-and-screenshots)) and live in [`docs/screenshots/`](./docs/screenshots).
+Screenshots are captured from the seeded demo data (see [Demo data and screenshots](./DEVELOPING.md#demo-data-and-screenshots)) and live in [`docs/public/screenshots/`](./docs/public/screenshots), where the Astro site serves them at `/screenshots/`.
 
 <!-- Uncomment once captured:
-![Kalendee week view](docs/screenshots/week-view.png)
+![Kalendee week view](docs/public/screenshots/week-view.png)
 -->
 
 ## Legal

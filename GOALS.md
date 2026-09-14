@@ -23,8 +23,8 @@ intent lives in [README.md](./README.md), the module map and commands in
 
 - Read-only Discord server event import ships first; linking Google, Microsoft,
   Apple, CalDAV, and ICS calendar accounts and mirroring them as regular
-  Kalendee calendars is tracked in
-  [docs/external-calendars.md](./docs/external-calendars.md).
+  Kalendee calendars is tracked in the
+  [external calendar connections guide](https://kalendee-docs.pages.dev/docs/product/external-calendars).
 
 ## Theming
 
@@ -58,7 +58,8 @@ intent lives in [README.md](./README.md), the module map and commands in
 ## Notifications
 
 - Email for account verification, security alerts, calendar invites, and
-  follower/following activity.
+  follower/following activity, over SMTP or a Cloudflare Email Routing Worker
+  (`workers/mailer`); when mail is disabled, messages are logged instead.
 - Configurable native notifications for upcoming events: any number of
   reminders, each with any offset before the event, plus a toggleable at-start
   notification.
@@ -67,9 +68,20 @@ intent lives in [README.md](./README.md), the module map and commands in
 
 ## Media storage
 
-- S3-compatible object storage for user avatars and profile pictures.
-- Media is proxied through the server, so clients and the web UI never hold
-  storage credentials and the bucket can stay private.
+- Object storage for user avatars and profile pictures: a local filesystem
+  backend by default, or any S3-compatible service (including Cloudflare R2)
+  through the S3 API.
+- By default media is proxied through the server, so clients and the web UI
+  never hold storage credentials and the bucket can stay private. Optionally,
+  `storage.publicBaseUrl` redirects reads at a CDN/R2 edge gateway so image
+  traffic bypasses the app server.
+
+## Documentation and hosting
+
+- Product docs and self-hosting guides are served from an Astro site built out
+  of `docs/` and deployed to Cloudflare Pages.
+- Two optional Cloudflare Workers extend a deployment at the edge: a mailer for
+  the `cloudflare` mail provider and an R2 read gateway for object storage.
 
 ## Configuration
 

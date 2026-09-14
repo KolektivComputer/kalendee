@@ -14,7 +14,7 @@
     "@fontsource/inclusive-sans": "^5.3.0",
     "@fontsource/iosevka": "^5.3.0",
     "@fontsource/source-sans-3": "^5.3.0",
-    "@kolektiv/common-docs-chrome": "^0.0.1-SNAPSHOT.2",
+    "@kolektiv/common-docs-chrome": "^0.0.1-SNAPSHOT.3",
     "@kolektiv/themes": "^0.0.1-SNAPSHOT.2",
     "astro": "^5.16.0",
     "daisyui": "^5.7.37",

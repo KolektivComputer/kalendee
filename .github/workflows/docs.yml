@@ -54,18 +54,6 @@ jobs:
 
       # @kolektiv packages are fetched anonymously from the aggregate read
       # registry; docs/.npmrc sets `@kolektiv:registry=.../npm-public/`.
-      #
-      # TODO (shared chrome): `docs/package.json` currently links
-      # @kolektiv/common-docs-chrome from a sibling checkout, which the GitHub
-      # runner does not have. Until it is published to keel-npm and the link: is
-      # replaced with `^0.0.1-SNAPSHOT.1`, this job cannot build on CI. Either
-      # publish the package first, or uncomment the checkout below so the
-      # sibling path exists (docs/ link is ../../../../github.com/KolektivComputer/common-docs-chrome).
-      # - name: Checkout shared docs chrome
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: KolektivComputer/common-docs-chrome
-      #     path: ../github.com/KolektivComputer/common-docs-chrome
 
       - name: Install dependencies
         working-directory: docs

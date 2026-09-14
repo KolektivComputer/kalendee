@@ -79,27 +79,14 @@ Pages that exist in the collection but are not listed still render — they just
 appear in the sidebar. The docs index (`/docs/`) lists every collection entry, ordered by
 the `src/docs-chrome.ts` nav first and then alphabetically.
 
-## Shared chrome dependency (TODO: publish)
+## Shared chrome dependency
 
-`@kolektiv/common-docs-chrome` is not published to the registry yet, so `package.json`
-links it from a sibling checkout on this machine:
-
-```json
-"@kolektiv/common-docs-chrome": "link:../../../../github.com/KolektivComputer/common-docs-chrome"
-```
-
-**TODO once `@kolektiv/common-docs-chrome@0.0.1-SNAPSHOT.1` is published to keel-npm:**
-
-1. Replace the `link:` dependency with `"^0.0.1-SNAPSHOT.1"`.
-2. Keep `docs/.npmrc` pointing `@kolektiv` at the aggregate read registry
-   (`@kolektiv:registry=https://repo.yuri.capital/repository/npm-public/`).
-3. Regenerate `docs/pnpm-lock.yaml` with `pnpm install` and drop the sibling checkout.
-
-**CI note:** the GitHub runner does not have the sibling path above, so
-`.github/workflows/docs.yml` cannot install or build until the package is published (or a
-step checks out `common-docs-chrome` next to the repo). The workflow documents this with a
-commented-out step.
-
+`@kolektiv/common-docs-chrome` is consumed as a normal versioned dependency
+(`^0.0.1-SNAPSHOT.1`) from the registry; no sibling checkout is required. `docs/.npmrc`
+points the `@kolektiv` scope at the aggregate read registry
+(`@kolektiv:registry=https://repo.yuri.capital/repository/npm-public/`) and leaves the
+default registry untouched. Regenerate `docs/pnpm-lock.yaml` with `pnpm install` when the
+dependency changes.
 
 ## Deployment
 

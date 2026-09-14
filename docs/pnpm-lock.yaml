@@ -21,8 +21,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
       '@kolektiv/common-docs-chrome':
-        specifier: link:../../../../github.com/KolektivComputer/common-docs-chrome
-        version: link:../../../../github.com/KolektivComputer/common-docs-chrome
+        specifier: ^0.0.1-SNAPSHOT.1
+        version: 0.0.1-SNAPSHOT.1(astro@5.18.2(@types/node@24.13.4)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.63.2)(typescript@5.9.3)(yaml@2.9.1))(daisyui@5.7.37)(tailwindcss@4.3.3)
       '@kolektiv/themes':
         specifier: ^0.0.1-SNAPSHOT.2
         version: 0.0.1-SNAPSHOT.2
@@ -623,6 +623,14 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@kolektiv/common-docs-chrome@0.0.1-SNAPSHOT.1':
+    resolution: {integrity: sha512-1PLnrM0UYr+Uk/e2ptMMv3Hd5nQ/R9vw7deHhUV5oqwZs3kYVP4n+WLBMl5X9/sLmho9JwDXtX+Fxal64jsWyA==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      astro: '>=5'
+      daisyui: ^5
+      tailwindcss: ^4
 
   '@kolektiv/themes@0.0.1-SNAPSHOT.2':
     resolution: {integrity: sha512-4vEkdHZeUcVsldRET+eb5Xbjo1JDwv/A2qVAOBv0pvLmcT91S+FVK/eJ/NsbXBG2gCxMvhoYrcgQ78uxQqH7JQ==}
@@ -2676,6 +2684,13 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@kolektiv/common-docs-chrome@0.0.1-SNAPSHOT.1(astro@5.18.2(@types/node@24.13.4)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.63.2)(typescript@5.9.3)(yaml@2.9.1))(daisyui@5.7.37)(tailwindcss@4.3.3)':
+    dependencies:
+      '@kolektiv/themes': 0.0.1-SNAPSHOT.2
+      astro: 5.18.2(@types/node@24.13.4)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.63.2)(typescript@5.9.3)(yaml@2.9.1)
+      daisyui: 5.7.37
+      tailwindcss: 4.3.3
 
   '@kolektiv/themes@0.0.1-SNAPSHOT.2': {}
 

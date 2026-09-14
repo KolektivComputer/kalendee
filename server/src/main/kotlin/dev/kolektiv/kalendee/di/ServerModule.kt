@@ -37,8 +37,10 @@ import dev.kolektiv.kalendee.oauth.OAuthStateService
 import dev.kolektiv.kalendee.oauth.ProviderRegistry
 import dev.kolektiv.kalendee.oauth.TokenVault
 import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
+import dev.kolektiv.kalendee.oauth.google.GoogleSyncService
 import dev.kolektiv.kalendee.oauth.providers.DiscordApi
 import dev.kolektiv.kalendee.oauth.providers.DiscordProvider
+import dev.kolektiv.kalendee.oauth.providers.GoogleProvider
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.reminders.ReminderService
@@ -166,6 +168,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
         ProviderRegistry(
             providers = listOf(
                 DiscordProvider(settings = get<OAuthSettings>().discord, http = get(), api = get()),
+                GoogleProvider(settings = get<OAuthSettings>().google, http = get()),
             ),
         )
     }
@@ -194,6 +197,16 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
             routeStore = get(),
             api = get(),
             settings = get(),
+            clock = get(),
+        )
+    }
+    single {
+        GoogleSyncService(
+            database = get(),
+            connections = get(),
+            store = get(),
+            externalEvents = get(),
+            registry = get(),
             clock = get(),
         )
     }
@@ -237,7 +250,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { loadFrontendBundle(environment) } onClose { it?.close() }
     single { AuthActions(auth = get(), settings = get(), verification = get(), loginAlerts = get()) }
     single { CalendarActions(store = get(), auth = get(), settings = get()) }
-    single { ConnectionActions(connections = get(), auth = get(), settings = get()) }
+    single { ConnectionActions(connections = get(), googleSync = get(), auth = get(), settings = get()) }
     single { DiscordActions(imports = get(), auth = get(), settings = get()) }
     single {
         OrganizationActions(

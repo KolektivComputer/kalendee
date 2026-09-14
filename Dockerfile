@@ -50,14 +50,23 @@ WORKDIR /app
 
 COPY --from=build /src/server/build/libs/server-all.jar /app/server-all.jar
 COPY docker/entrypoint.sh /app/entrypoint.sh
+# Bake a readable default HOCON config. It documents every setting and uses
+# `${?VAR}` fallbacks, so it works as-is and is a copy-paste starting point for
+# a mounted /config/application.conf. No secrets live here: secrets come from
+# env vars (docker-compose `env_file: .env`) or an operator-mounted file, both
+# of which take precedence. See application.conf.example for the precedence.
+COPY application.conf.example /app/application.conf
 RUN chmod +x /app/entrypoint.sh \
-    && chown kalendee:kalendee /app/server-all.jar /app/entrypoint.sh
+    && chown kalendee:kalendee /app/server-all.jar /app/entrypoint.sh /app/application.conf
 
 ENV KALENDEE_AVATAR_DIR=/data/avatars
 
 USER kalendee
 EXPOSE 8080
-VOLUME ["/data"]
+# /data persists avatars; /config is a supported mount point for an operator's
+# application.conf. Both are declared as volumes so `docker run` without an
+# explicit mount still gets writable, persistent locations.
+VOLUME ["/data", "/config"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=5 \
     CMD curl -fsS http://127.0.0.1:8080/api/v1/health || exit 1

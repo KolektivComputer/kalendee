@@ -13,8 +13,17 @@
 # Secrets must never end up in the Nix store: put them in a runtime
 # environment file (sops-nix, agenix, ...) and set `environmentFile`.
 #
+# Configuration is HOCON-file-first. Set `configFile` to an operator-managed
+# HOCON file (application.conf.example is the starting point); it is mounted
+# read-only at /config/application.conf and selected via KALENDEE_CONFIG, so it
+# wins over the config baked into the image. Environment variables (including
+# `environment` and the secrets in `environmentFile`) are still substituted into
+# it through its `${?VAR}` fallbacks. Keep any secret out of the config file
+# itself and in `environmentFile`.
+#
 # Plain-HTTP deployments need `KALENDEE_COOKIE_SECURE = "false"` via `environment`.
-# Optional integrations (mail, S3, registration policy) go there too, or in `environmentFile`.
+# Optional integrations (mail, S3, registration policy) can live in the config
+# file or, as env fallbacks, in `environment` / `environmentFile`.
 #
 # On startup Kalendee seeds (or promotes) the admin user from
 # `KALENDEE_ADMIN_USERNAME` / `KALENDEE_ADMIN_PASSWORD`.
@@ -28,6 +37,7 @@
 #     services.kalendee = {
 #       enable = true;
 #       publicUrl = "https://calendar.example.com";
+#       configFile = "/etc/kalendee/application.conf";
 #       environmentFile = config.sops.secrets."kalendee-env".path;
 #     };
 #   }
@@ -103,6 +113,27 @@ in
       '';
     };
 
+    configFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      example = "/etc/kalendee/application.conf";
+      description = ''
+        Path to a HOCON config file, mounted read-only at
+        `/config/application.conf` and exported to the container as
+        `KALENDEE_CONFIG=/config/application.conf`. When set, settings in this
+        file win over the config baked into the image; environment variables
+        (including [](#opt-services.kalendee.environment) and
+        [](#opt-services.kalendee.environmentFile)) are still substituted into
+        it via the file's ''${?VAR} fallbacks. Leave null to use the image's
+        baked config.
+
+        Because this option is a `path`, its contents are copied into the Nix
+        store (world-readable and immutable): never put secrets here. Keep them
+        in `environmentFile`; the config file references them via `''${?VAR}`.
+        Start from `application.conf.example` in the repository.
+      '';
+    };
+
     volumes = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -138,12 +169,19 @@ in
       environment = {
         KALENDEE_AVATAR_DIR = "/data/avatars";
       }
+      // lib.optionalAttrs (cfg.configFile != null) {
+        # The entrypoint prefers KALENDEE_CONFIG, so pointing it at the mounted
+        # file selects it over the image's baked /app/application.conf.
+        KALENDEE_CONFIG = "/config/application.conf";
+      }
       // lib.optionalAttrs (cfg.publicUrl != null) {
         KALENDEE_PUBLIC_URL = cfg.publicUrl;
       }
       // cfg.environment;
       environmentFiles = lib.optional (cfg.environmentFile != null) cfg.environmentFile;
-      volumes = [ "kalendee-data:/data" ] ++ cfg.volumes;
+      volumes = [ "kalendee-data:/data" ]
+        ++ lib.optional (cfg.configFile != null) "${cfg.configFile}:/config/application.conf:ro"
+        ++ cfg.volumes;
       extraOptions = cfg.extraOptions;
     };
 

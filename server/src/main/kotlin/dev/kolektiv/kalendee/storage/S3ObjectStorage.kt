@@ -13,10 +13,10 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 
-class S3AvatarStorage(
+class S3ObjectStorage(
     settings: S3Settings,
     private val client: S3Client = buildClient(settings),
-) : AvatarStorage {
+) : ObjectStorage {
     private val bucket = settings.bucket
 
     override suspend fun put(key: String, bytes: ByteArray, contentType: String) {
@@ -32,7 +32,7 @@ class S3AvatarStorage(
         }
     }
 
-    override suspend fun get(key: String): StoredAvatar? = withContext(Dispatchers.IO) {
+    override suspend fun get(key: String): StoredObject? = withContext(Dispatchers.IO) {
         try {
             val response = client.getObjectAsBytes(
                 GetObjectRequest.builder()
@@ -40,7 +40,7 @@ class S3AvatarStorage(
                     .key(key)
                     .build(),
             )
-            StoredAvatar(
+            StoredObject(
                 bytes = response.asByteArray(),
                 contentType = response.response().contentType()?.takeIf { it.isNotBlank() }
                     ?: "application/octet-stream",

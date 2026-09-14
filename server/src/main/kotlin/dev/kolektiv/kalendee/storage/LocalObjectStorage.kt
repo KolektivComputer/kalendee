@@ -12,7 +12,7 @@ import kotlin.io.path.writeText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class LocalAvatarStorage(localDir: String) : AvatarStorage {
+class LocalObjectStorage(localDir: String) : ObjectStorage {
     private val root: Path = Path.of(localDir).toAbsolutePath().normalize()
 
     override suspend fun put(key: String, bytes: ByteArray, contentType: String) {
@@ -24,7 +24,7 @@ class LocalAvatarStorage(localDir: String) : AvatarStorage {
         }
     }
 
-    override suspend fun get(key: String): StoredAvatar? = withContext(Dispatchers.IO) {
+    override suspend fun get(key: String): StoredObject? = withContext(Dispatchers.IO) {
         val target = resolve(key)
         if (!target.isRegularFile()) return@withContext null
         val contentType = typePath(key)
@@ -32,7 +32,7 @@ class LocalAvatarStorage(localDir: String) : AvatarStorage {
             ?.readText()
             ?.takeIf { it.isNotBlank() }
             ?: "application/octet-stream"
-        StoredAvatar(bytes = target.readBytes(), contentType = contentType)
+        StoredObject(bytes = target.readBytes(), contentType = contentType)
     }
 
     override suspend fun delete(key: String) {
@@ -44,10 +44,10 @@ class LocalAvatarStorage(localDir: String) : AvatarStorage {
 
     private fun resolve(key: String): Path {
         require(key.isNotBlank() && !key.contains("..") && !Path.of(key).isAbsolute) {
-            "invalid avatar key"
+            "invalid object key"
         }
         val target = root.resolve(key).normalize()
-        require(target.startsWith(root)) { "invalid avatar key" }
+        require(target.startsWith(root)) { "invalid object key" }
         return target
     }
 

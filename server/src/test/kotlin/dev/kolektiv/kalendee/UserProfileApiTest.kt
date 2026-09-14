@@ -140,6 +140,43 @@ class UserProfileApiTest {
     }
 
     @Test
+    fun avatarFetchRedirectsToPublicBaseUrlWhenConfigured() = testApplication {
+        installApi(extraConfig = mapOf("storage.publicBaseUrl" to "https://cdn.test"))
+        val client = jsonClient()
+        val user = client.registerAndLogin(username = "mey", password = "password12")
+        val bytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+
+        val upload = client.post("/api/v1/auth/me/avatar") {
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            "file",
+                            bytes,
+                            Headers.build {
+                                append(HttpHeaders.ContentType, "image/png")
+                                append(HttpHeaders.ContentDisposition, "filename=\"avatar.png\"")
+                            },
+                        )
+                    },
+                ),
+            )
+        }
+        assertEquals(HttpStatusCode.OK, upload.status)
+        val avatar = upload.body<AvatarOut>()
+
+        val fetched = jsonClient(followRedirects = false).get(avatar.avatarUrl)
+        assertEquals(HttpStatusCode.Found, fetched.status)
+        val location = fetched.headers[HttpHeaders.Location]
+        assertTrue(location != null, "missing Location header")
+        assertTrue(
+            location.startsWith("https://cdn.test/avatars/${user.id.value}/"),
+            "unexpected location: $location",
+        )
+        assertTrue(location.contains("?v=${avatar.version}"), "unexpected location: $location")
+    }
+
+    @Test
     fun adminPageExposesEmailVerificationPolicy() = testApplication {
         installApi(adminPassword = "adminpass1012")
         val client = jsonClient()

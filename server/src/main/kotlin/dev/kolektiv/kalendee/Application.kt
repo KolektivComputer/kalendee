@@ -41,7 +41,8 @@ import dev.kolektiv.kalendee.plugins.configureKoin
 import dev.kolektiv.kalendee.plugins.configureSerialization
 import dev.kolektiv.kalendee.plugins.configureSessionAuth
 import dev.kolektiv.kalendee.plugins.configureStatusPages
-import dev.kolektiv.kalendee.storage.AvatarStorage
+import dev.kolektiv.kalendee.storage.ObjectStorage
+import dev.kolektiv.kalendee.storage.StorageSettings
 import io.ktor.server.application.Application
 import io.ktor.server.netty.EngineMain
 import io.ktor.server.response.respond
@@ -82,7 +83,8 @@ internal fun Application.configureApplication() {
     val reminders by inject<ReminderService>()
     val availability by inject<AvailabilityService>()
     val eventInvites by inject<EventInviteService>()
-    val avatarStorage by inject<AvatarStorage>()
+    val objectStorage by inject<ObjectStorage>()
+    val storageSettings by inject<StorageSettings>()
     val shareActions by inject<ShareActions>()
     val oauthConnections by inject<ConnectionService>()
     val mail by inject<MailService>()
@@ -119,7 +121,7 @@ internal fun Application.configureApplication() {
             authSessionRoutes(authService, authSettings)
             notificationRoutes(notifications)
             adminRoutes(authService, groups, adminUsers, adminCalendars)
-            avatarRoutes(authService, groups, avatarStorage)
+            avatarRoutes(authService, groups, objectStorage, storageSettings)
             calendarRoutes(store)
             eventRoutes(store)
             eventInviteRoutes(eventInvites)

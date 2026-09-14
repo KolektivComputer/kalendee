@@ -11,7 +11,7 @@ can use right now.
 
 | Client | Status | How to use it |
 | --- | --- | --- |
-| **Web UI** (Keel pack) | Complete | Open the server URL in any modern browser. |
+| **Web UI** | Complete | Open the server URL in any modern browser. |
 | **Android** (Compose) | Scaffold only | Not a usable calendar yet. |
 | **iOS** (Compose + Swift entry) | Scaffold only | Not a usable calendar yet. |
 | **Desktop** (Compose, JVM) | Scaffold only | Not a usable calendar yet. |
@@ -23,8 +23,7 @@ The web UI is the product to use. The server serves it at `/`, and it implements
 the full feature set described in these docs: calendars and events, recurrence,
 sharing, public links, organizations, scheduling, invites, and notifications.
 
-- It is built with the [Keel](https://github.com/lizainslie/keel) framework and
-  Svelte, on a daisyUI theme.
+- It is built with Svelte on a daisyUI theme.
 - The server owns the URLs, page ids, and payload types; the web pack implements
   page ids and does not fetch `/api/v1` directly for page data.
 - Theming is per user; see [Theming](/docs/product/theming).

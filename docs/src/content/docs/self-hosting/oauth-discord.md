@@ -153,7 +153,7 @@ guild's scheduled events, using the bot to read them. Requirements:
 Recurring events are materialized per occurrence inside a rolling window;
 unsupported recurrence rules fall back to the master event with an explanatory
 note. Removing an import keeps the local calendar and detaches its events. The
-UI lives under **Settings → Connected Accounts** in the Keel web UI.
+UI lives under **Settings → Connected Accounts** in the web UI.
 
 ## Troubleshooting
 

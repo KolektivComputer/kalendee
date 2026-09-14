@@ -67,7 +67,7 @@ never writes back.
 - Configuration: `KALENDEE_DISCORD_CLIENT_ID`,
   `KALENDEE_DISCORD_CLIENT_SECRET`, and `KALENDEE_DISCORD_BOT_TOKEN` (see
   [application.conf.example](../application.conf.example)). The UI lives under
-  **Settings → Connected Accounts** in the Keel web UI.
+  **Settings → Connected Accounts** in the web UI.
 - Each import creates a `Discord · <guild>` calendar; events carry a Discord
   deep link. Removing an import keeps the local calendar and detaches its
   events. Recurring events are materialized per occurrence inside a rolling

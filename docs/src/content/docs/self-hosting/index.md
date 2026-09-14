@@ -12,7 +12,7 @@ optional.
 
 | Component | Required | Notes |
 | --- | --- | --- |
-| Kalendee server (Ktor + Netty, JVM 21) | Yes | Serves the Keel web UI at `/`, the JSON API at `/api/v1`, and the built web pack bundled inside the jar. |
+| Kalendee server (Ktor + Netty, JVM 21) | Yes | Serves the web UI at `/`, the JSON API at `/api/v1`, and the built web pack bundled inside the jar. |
 | PostgreSQL 17 | Yes | System of record. Flyway migrations run automatically on startup. |
 | Object storage | No | Avatars. Defaults to a local directory (`/data/avatars` in the container); S3/R2 is optional. See [Object storage](/docs/self-hosting/object-storage). |
 | Mail transport | No | SMTP or a Cloudflare Email Routing Worker. If unconfigured, mail is logged and dropped. See [Email](/docs/self-hosting/email). |

@@ -31,10 +31,10 @@ palette (orange primary, blue secondary, magenta accent). The theme is defined
 by the web pack, and per-user accent selection overrides the primary color at
 runtime.
 
-This is what "themeable web UI via Keel" means in practice:
+This is what "themeable web UI" means in practice:
 
-- The [Keel](https://github.com/lizainslie/keel) host serves the page shell, and
-  the web pack provides the styling and implements the page ids.
+- The server serves the page shell, and the bundled web app provides the styling
+  and the page content.
 - Because styling is daisyUI-based, the same palette names (`primary`,
   `secondary`, `accent`, `info`, `success`, `warning`, `error`) are used for
   accents, calendar colors, and UI accents throughout.

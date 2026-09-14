@@ -92,7 +92,7 @@ export const docs = defineDocsChrome({
   name: "Kalendee",
   title: "Kalendee Docs",
   description:
-    "Self-hosted CalDAV server with first-party Kotlin Multiplatform clients for Android, iOS, and Desktop, plus a themeable Keel web UI.",
+    "Self-hosted CalDAV server with first-party Kotlin Multiplatform clients for Android, iOS, and Desktop, plus a themeable web UI.",
   siteUrl,
   base: "/",
   mark: "/favicon.svg",

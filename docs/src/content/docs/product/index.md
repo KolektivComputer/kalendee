@@ -4,8 +4,7 @@ description: What Kalendee is, who it is for, and what the web app does today.
 ---
 
 Kalendee is a self-hosted calendar application written in Kotlin Multiplatform.
-It is made of a Ktor server, a themeable web UI built with the
-[Keel](https://github.com/lizainslie/keel) framework, and a set of work-in-progress
+It is made of a Ktor server, a themeable web UI, and a set of work-in-progress
 Compose Multiplatform clients. When you run Kalendee you own the server, the
 database, and the events on it.
 

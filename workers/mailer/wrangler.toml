@@ -1,0 +1,28 @@
+name = "kalendee-mailer"
+main = "src/index.ts"
+compatibility_date = "2025-05-01"
+
+# Send Email binding: allows this Worker to enqueue outbound mail with Cloudflare
+# Email Routing instead of speaking SMTP from the Kalendee server.
+#
+# Requirements before this works:
+#   * Email Routing enabled for the sender zone.
+#   * The sender domain (and, on some plans, each destination address) verified
+#     in the Cloudflare dashboard. Unverified destinations are refused.
+#
+# Uncomment the binding below to enable it. Until then `env.MAILER` is undefined
+# and send attempts fail at runtime.
+#
+# [[send_email]]
+# name = "MAILER"
+
+[vars]
+# Non-secret values only. This placeholder is available as `env.MAIL_FROM`; put
+# anything sensitive in a secret instead.
+MAIL_FROM = "Kalendee <no-reply@example.com>"
+
+# MAILER_TOKEN is a secret and must never live in [vars]. Set it out of band:
+#
+#   wrangler secret put MAILER_TOKEN
+#
+# Use the same value for `mail.cloudflare.token` on the Kalendee server.

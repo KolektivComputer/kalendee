@@ -258,6 +258,7 @@ object EventsTable : Table("events") {
     val externalUid = text("external_uid").nullable()
     val externalEtag = text("external_etag").nullable()
     val externalUpdatedAt = instant("external_updated_at").nullable()
+    val locallyModifiedAt = instant("locally_modified_at").nullable()
     val createdAt = instant("created_at")
     val updatedAt = instant("updated_at")
 

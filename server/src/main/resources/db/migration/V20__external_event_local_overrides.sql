@@ -1,0 +1,2 @@
+ALTER TABLE events
+  ADD COLUMN IF NOT EXISTS locally_modified_at TIMESTAMPTZ;

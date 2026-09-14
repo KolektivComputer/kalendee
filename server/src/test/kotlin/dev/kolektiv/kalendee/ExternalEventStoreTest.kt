@@ -13,6 +13,7 @@ import dev.kolektiv.kalendee.calendar.EventId
 import dev.kolektiv.kalendee.calendar.EventStatus
 import dev.kolektiv.kalendee.calendar.UpdateEvent
 import dev.kolektiv.kalendee.db.CalendarConnectionsTable
+import dev.kolektiv.kalendee.db.CalendarSharesTable
 import dev.kolektiv.kalendee.db.EventsTable
 import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.events.EventInviteService
@@ -159,7 +160,7 @@ class ExternalEventStoreTest {
     }
 
     @Test
-    fun mirroredCalendarRejectsLocalEventMutations() = testApplication {
+    fun mirroredCalendarAllowsImportedEventUpdateAndMoveButKeepsDeleteForbidden() = testApplication {
         val fixture = installFixture()
         val event = importedEvent()
         fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
@@ -167,11 +168,6 @@ class ExternalEventStoreTest {
         val destination = fixture.store.createCalendar(
             fixture.user.id,
             CreateCalendar(displayName = "Local"),
-        )
-        val localEvent = fixture.store.createEvent(
-            destination.id,
-            fixture.user.id,
-            CreateEvent(title = "Local", start = start, end = end),
         )
 
         assertFailsWith<CalendarException.Forbidden> {
@@ -181,23 +177,28 @@ class ExternalEventStoreTest {
                 CreateEvent(title = "Nope", start = start, end = end),
             )
         }
-        assertFailsWith<CalendarException.Forbidden> {
-            fixture.store.updateEvent(mirroredEventId, fixture.user.id, UpdateEvent(title = "Nope"))
-        }
+        val updated = fixture.store.updateEvent(mirroredEventId, fixture.user.id, UpdateEvent(title = "Edited"))
+        assertEquals("Edited", updated?.title)
         assertFailsWith<CalendarException.Forbidden> {
             fixture.store.deleteEvent(mirroredEventId, fixture.user.id)
         }
-        assertFailsWith<CalendarException.Forbidden> {
-            fixture.store.moveEvent(mirroredEventId, fixture.user.id, destination.id)
-        }
+        val moved = fixture.store.moveEvent(mirroredEventId, fixture.user.id, destination.id)
+        assertEquals(destination.id, moved?.single()?.calendarId)
+        assertTrue(fixture.store.listEvents(fixture.calendar.id, fixture.user.id).isEmpty())
+        assertEquals("Edited", fixture.store.listEvents(destination.id, fixture.user.id).single().title)
+
+        val localEvent = fixture.store.createEvent(
+            destination.id,
+            fixture.user.id,
+            CreateEvent(title = "Local", start = start, end = end),
+        )
         assertFailsWith<CalendarException.Forbidden> {
             fixture.store.moveEvent(localEvent.id, fixture.user.id, fixture.calendar.id)
         }
-        assertEquals(1, fixture.store.listEvents(fixture.calendar.id, fixture.user.id).size)
     }
 
     @Test
-    fun importedEventInLocalCalendarRejectsLocalMutations() = testApplication {
+    fun importedEventInLocalCalendarAllowsUpdateAndMoveButKeepsDeleteForbidden() = testApplication {
         val fixture = installFixture()
         val routed = fixture.store.createCalendar(
             fixture.user.id,
@@ -210,14 +211,64 @@ class ExternalEventStoreTest {
             CreateCalendar(displayName = "Other"),
         )
 
-        assertFailsWith<CalendarException.Forbidden> {
-            fixture.store.updateEvent(importedId, fixture.user.id, UpdateEvent(title = "Nope"))
-        }
+        val updated = fixture.store.updateEvent(importedId, fixture.user.id, UpdateEvent(title = "Edited"))
+        assertEquals("Edited", updated?.title)
+        val moved = fixture.store.moveEvent(importedId, fixture.user.id, other.id)
+        assertEquals(other.id, moved?.single()?.calendarId)
         assertFailsWith<CalendarException.Forbidden> {
             fixture.store.deleteEvent(importedId, fixture.user.id)
         }
+        assertEquals("Edited", fixture.store.getEvent(importedId, fixture.user.id)?.title)
+        assertEquals(other.id, fixture.store.getEvent(importedId, fixture.user.id)?.calendarId)
+    }
+
+    @Test
+    fun locallyEditedImportedEventSurvivesSubsequentUpsert() = testApplication {
+        val fixture = installFixture()
+        val event = importedEvent()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
+        val importedId = fixture.importedEventId()
+
+        fixture.store.updateEvent(
+            importedId,
+            fixture.user.id,
+            UpdateEvent(title = "Locally edited", start = start + 2.hours, end = end + 2.hours),
+        )
+
+        // The provider still reports the original title and times.
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
+
+        val row = fixture.rawRows().single()
+        assertEquals("Locally edited", row[EventsTable.title])
+        assertEquals(start + 2.hours, row[EventsTable.startAt])
+        assertEquals(end + 2.hours, row[EventsTable.endAt])
+        val stored = fixture.external.listBySource(fixture.externalId).single()
+        assertEquals(start + 2.hours, stored.start)
+        assertEquals(end + 2.hours, stored.end)
+    }
+
+    @Test
+    fun readOnlyViewerCannotMutateImportedEvent() = testApplication {
+        val fixture = installFixture()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        val importedId = fixture.importedEventId()
+        val bob = fixture.auth.register(RegisterUser(username = "bob", password = "password12"))
+            .session?.user
+            ?: error("registration did not create a session")
+        fixture.shareReadOnly(fixture.calendar.id, bob.id)
+        val bobCalendar = fixture.store.createCalendar(
+            bob.id,
+            CreateCalendar(displayName = "Bob"),
+        )
+
         assertFailsWith<CalendarException.Forbidden> {
-            fixture.store.moveEvent(importedId, fixture.user.id, other.id)
+            fixture.store.updateEvent(importedId, bob.id, UpdateEvent(title = "Nope"))
+        }
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.deleteEvent(importedId, bob.id)
+        }
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.moveEvent(importedId, bob.id, bobCalendar.id)
         }
         assertEquals("Community call", fixture.store.getEvent(importedId, fixture.user.id)?.title)
     }
@@ -274,6 +325,19 @@ class ExternalEventStoreTest {
         }
 
         suspend fun importedEventId(): EventId = EventId(rawRows().single()[EventsTable.id].toString())
+
+        suspend fun shareReadOnly(calendarId: CalendarId, userId: dev.kolektiv.kalendee.auth.UserId) {
+            withContext(Dispatchers.IO) {
+                suspendTransaction(database) {
+                    CalendarSharesTable.insert {
+                        it[CalendarSharesTable.calendarId] = Uuid.parse(calendarId.value)
+                        it[CalendarSharesTable.userId] = Uuid.parse(userId.value)
+                        it[permission] = "read"
+                        it[createdAt] = Clock.System.now()
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.installFixture(): Fixture {

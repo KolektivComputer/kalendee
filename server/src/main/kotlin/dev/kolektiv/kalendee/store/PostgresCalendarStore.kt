@@ -678,10 +678,13 @@ class PostgresCalendarStore(
             val permission = permissionFor(row[EventsTable.calendarId], userId)
                 ?: return@dbQuery null
             if (!permission.canWrite) throw CalendarException.Forbidden("read-only calendar")
-            requireNotMirrored(row[EventsTable.calendarId])
-            requireNotImported(row)
+            // A writer on the calendar may edit imported/synced events. The
+            // change becomes a sticky local override (locally_modified_at) so
+            // the next provider sync does not clobber it. Deletion stays
+            // guarded in deleteEvent because a sync would resurrect the row.
             val existing = row.toEvent()
             existing.requireEtag(expectedEtag)
+            val imported = row[EventsTable.externalCalendarId] != null
             val validated = command.validated(existing.start, existing.end)
             val now = clock.now()
             val etag = newEtag()
@@ -715,6 +718,7 @@ class PostgresCalendarStore(
                 it[recurrenceCount] = updated.recurrence?.count
                 it[EventsTable.etag] = etag
                 it[updatedAt] = now
+                if (imported) it[EventsTable.locallyModifiedAt] = now
             }
             updated
         }
@@ -735,17 +739,20 @@ class PostgresCalendarStore(
         val sourcePermission = permissionFor(row[EventsTable.calendarId], userId)
             ?: return@dbQuery null
         if (!sourcePermission.canWrite) throw CalendarException.Forbidden("read-only calendar")
-        requireNotMirrored(row[EventsTable.calendarId])
-        requireNotImported(row)
         val destinationPermission = permissionFor(destinationCalendarId.toUuid(), userId)
             ?: throw CalendarException.NotFound("calendar not found")
         if (!destinationPermission.canWrite) throw CalendarException.Forbidden("read-only calendar")
+        // The destination still has to be locally writable: importing into a
+        // provider mirror would be overwritten by the next sync.
         requireNotMirrored(destinationCalendarId.toUuid())
         if (destinationCalendarId.toUuid() == row[EventsTable.calendarId]) {
             throw CalendarException.Invalid("event is already in that calendar")
         }
         val existing = row.toEvent()
         existing.requireEtag(expectedEtag)
+        // Moving an imported event is a sticky local override too; keep the
+        // moved calendar and times across subsequent provider syncs.
+        val imported = row[EventsTable.externalCalendarId] != null
         val now = clock.now()
 
         val zoneId = existing.timeZone ?: row[CalendarsTable.timeZone]
@@ -764,6 +771,7 @@ class PostgresCalendarStore(
                 it[calendarId] = destinationCalendarId.toUuid()
                 it[EventsTable.etag] = etag
                 it[updatedAt] = now
+                if (imported) it[EventsTable.locallyModifiedAt] = now
             }
             return@dbQuery listOf(
                 existing.copy(calendarId = destinationCalendarId, etag = etag, updatedAt = now),
@@ -778,6 +786,7 @@ class PostgresCalendarStore(
             it[recurrenceUntil] = truncatedRule.until
             it[EventsTable.etag] = truncatedEtag
             it[updatedAt] = now
+            if (imported) it[EventsTable.locallyModifiedAt] = now
         }
         val truncated = existing.copy(recurrence = truncatedRule, etag = truncatedEtag, updatedAt = now)
 
@@ -833,6 +842,10 @@ class PostgresCalendarStore(
         val permission = permissionFor(row[EventsTable.calendarId], userId)
             ?: return@dbQuery false
         if (!permission.canWrite) throw CalendarException.Forbidden("read-only calendar")
+        // Deletion differs from update/move: imported rows are still present
+        // in the provider, so deleting one locally would only last until the
+        // next sync resurrects it. Removing the import/connection is the
+        // supported way to drop synced events.
         requireNotMirrored(row[EventsTable.calendarId])
         requireNotImported(row)
         val existing = row.toEvent()
@@ -923,8 +936,9 @@ class PostgresCalendarStore(
     }
 
     /**
-     * Imported events stay read-only even when their route places them in a
-     * user-created calendar: local edits would be overwritten by the next sync.
+     * Guards deletion of provider-backed events. Update and move are allowed
+     * for writers (they set `locally_modified_at`), but a delete would be
+     * undone by the next sync, so it remains rejected.
      */
     private fun requireNotImported(row: ResultRow) {
         if (row[EventsTable.externalCalendarId] != null) {

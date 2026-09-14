@@ -130,7 +130,23 @@
         {:else}
           <p class="text-base-content/70">Registration is closed on this server. Sign in with the seeded admin account.</p>
         {/if}
+        {#if ctx.data.oauthRegistration}
+          {@const enabled = ctx.data.providers.filter((provider) => provider.enabled)}
+          {#if enabled.length > 0}
+            <div class="divider text-xs">or</div>
+            <div class="flex flex-col gap-2">
+              {#each enabled as provider (provider.id)}
+                <a class="btn btn-neutral" href={provider.connectUrl}>Continue with {provider.displayName}</a>
+              {/each}
+            </div>
+          {/if}
+        {/if}
         <p class="text-sm text-base-content/50">Already have an account? <Link href="/login" class="link">Sign in</Link>.</p>
+        <p class="text-xs text-base-content/40">
+          <Link href="/privacy" class="link">Privacy</Link>
+          ·
+          <Link href="/terms" class="link">Terms</Link>
+        </p>
       </div>
     </div>
   </div>

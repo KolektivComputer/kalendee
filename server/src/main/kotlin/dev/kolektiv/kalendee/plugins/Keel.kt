@@ -30,6 +30,8 @@ import dev.kolektiv.kalendee.web.FriendshipActions
 import dev.kolektiv.kalendee.web.HolidayActions
 import dev.kolektiv.kalendee.web.HomePage
 import dev.kolektiv.kalendee.web.LoginPage
+import dev.kolektiv.kalendee.web.PrivacyPage
+import dev.kolektiv.kalendee.web.TermsPage
 import dev.kolektiv.kalendee.web.NotFoundPage
 import dev.kolektiv.kalendee.web.NotificationActions
 import dev.kolektiv.kalendee.web.NotificationsPage
@@ -399,7 +401,19 @@ fun Application.configureKeel() {
             page<LoginPage>("kalendee.login", "/login") {
                 if (call.currentUser() != null) throw PageRedirectException("/")
                 head("Sign in — Kalendee", description = "Sign in to Kalendee.")
-                LoginPage(viewer = null)
+                LoginPage(
+                    viewer = null,
+                    oauthRegistration = authService.isOAuthRegistrationOpen(),
+                    providers = connectionActions.providerSummaries(),
+                )
+            }
+            page<PrivacyPage>("kalendee.privacy", "/privacy") {
+                head("Privacy Policy — Kalendee", description = "How Kalendee handles calendar data.")
+                PrivacyPage(viewer = call.currentUser()?.toViewer())
+            }
+            page<TermsPage>("kalendee.terms", "/terms") {
+                head("Terms of Service — Kalendee", description = "Terms for using Kalendee.")
+                TermsPage(viewer = call.currentUser()?.toViewer())
             }
             page<RegisterPage>("kalendee.register", "/register") {
                 if (call.currentUser() != null) throw PageRedirectException("/")
@@ -409,6 +423,8 @@ fun Application.configureKeel() {
                     viewer = null,
                     registrationOpen = open,
                     emailVerificationPolicy = authService.emailVerificationPolicy().wire,
+                    oauthRegistration = authService.isOAuthRegistrationOpen(),
+                    providers = connectionActions.providerSummaries(),
                 )
             }
             page<NotificationsPage>("kalendee.notifications", "/notifications") {

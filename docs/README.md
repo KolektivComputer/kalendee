@@ -12,8 +12,8 @@ package. Site-specific configuration lives in `src/docs-chrome.ts`; nothing in t
 should re-declare daisyUI or import `@kolektiv/themes` directly.
 
 The site builds to plain static files in `dist/`, so it is portable. Cloudflare Pages is the
-default target (see `.github/workflows/docs.yml`), but the same `dist/` can be dropped on
-GitHub Pages, S3, or any static host.
+default target (deployed through its Git integration on push to `main`), but the same `dist/`
+can be dropped on GitHub Pages, S3, or any static host.
 
 ## Local development
 
@@ -90,22 +90,13 @@ dependency changes.
 
 ## Deployment
 
-The workflow in `.github/workflows/docs.yml` builds the site on pushes to the default
-branch and on pull requests, then deploys with `wrangler pages deploy`:
+Cloudflare Pages builds and deploys the site through its Git integration: a push to `main`
+runs `pnpm run build` and publishes to the `kalendee-docs` project at
+<https://kalendee.kolektiv.computer>. Pull requests get an immutable
+`*.kalendee-docs.pages.dev` preview URL.
 
-- **push to the default branch** — production deploy to the `kalendee-docs` Pages project.
-- **pull request** — preview deploy under the PR branch name, giving each PR a
-  `*.kalendee-docs.pages.dev` preview URL.
-
-Required repository secrets:
-
-| Secret | Purpose |
-| --- | --- |
-| `CLOUDFLARE_API_TOKEN` | API token with the "Cloudflare Pages: Edit" permission |
-| `CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account id that owns the project |
-
-The project name and output directory live in `wrangler.toml` (readable by
-`wrangler pages deploy` locally too):
+The project name and output directory live in `wrangler.toml` (so the same values work for
+a manual local deploy):
 
 ```bash
 pnpm install

@@ -232,7 +232,7 @@ pnpm --dir docs build    # static output in docs/dist/
 pnpm --dir docs check    # astro check (types + content schema)
 ```
 
-The site builds to portable static files and deploys to Cloudflare Pages via [`.github/workflows/docs.yml`](./.github/workflows/docs.yml). `@kolektiv/common-docs-chrome` is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it is published to keel-npm and the dependency is switched to `^0.0.1-SNAPSHOT.1`. The default site URL is <https://kalendee.kolektiv.computer>; `PUBLIC_SITE_URL` overrides it. See [`docs/README.md`](./docs/README.md) for authoring and the publish TODO.
+The site builds to portable static files and is deployed to Cloudflare Pages through its Git integration on push to `main` (project `kalendee-docs`, canonical <https://kalendee.kolektiv.computer>). `@kolektiv/common-docs-chrome` is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it is published to keel-npm and the dependency is switched to `^0.0.1-SNAPSHOT.1`. The default site URL is <https://kalendee.kolektiv.computer>; `PUBLIC_SITE_URL` overrides it. See [`docs/README.md`](./docs/README.md) for authoring and the publish TODO.
 
 The moved external-calendars guide now lives here as `docs/src/content/docs/product/external-calendars.md` and is served at <https://kalendee.kolektiv.computer/docs/product/external-calendars>.
 

@@ -47,18 +47,18 @@ body:
       label: Integration
       description: Optional — which external system is involved.
       options:
-        - none
+        - None
         - Google
         - Microsoft
         - Discord
-        - other
+        - Other
     validations:
       required: false
   - type: textarea
     id: environment
     attributes:
       label: Environment
-      description: OS, version or commit, how you run it (Docker, Nix, from source, …).
+      description: OS, client, version
       placeholder: e.g. Linux · v0.0.0 · Docker Compose
     validations:
       required: false
@@ -66,7 +66,7 @@ body:
     id: logs
     attributes:
       label: Logs or error text
-      description: Optional. Pasted text is formatted as code.
+      description: Optional
       render: shell
     validations:
       required: false

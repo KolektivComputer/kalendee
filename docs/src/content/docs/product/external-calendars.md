@@ -48,7 +48,10 @@ they all key off `calendars.id` and `events.id` (see
 [ReminderService.kt](../server/src/main/kotlin/dev/kolektiv/kalendee/reminders/ReminderService.kt)).
 The only new logic is (a) where mirrored rows come from and (b) routing writes
 through the connection instead of only to Postgres. Read-only mirrors are
-ordinary rows flagged provider-managed, so the store and UI reject local edits.
+ordinary rows flagged provider-managed: imported events are read-only, the
+store and UI reject local edits, and **Kalendee keeps no local overrides**.
+Edits are pushed to the provider only when the linked account and provider
+allow updates; pull-only imports reject them outright.
 
 ## Event sources
 
@@ -71,7 +74,8 @@ Discord settings are loaded (the guild list refresh recomputes sync direction).
   import; the settings UI links to the per-guild invite URL and shows a "bot
   missing" state.
 - **Dragging or resizing a non-recurring imported event** pushes the new
-  start/end to Discord first, then updates the local mirror. Failures (bot
+  start/end to Discord first, then updates the local mirror. There is no local
+  override: nothing changes in Kalendee until Discord confirms. Failures (bot
   missing permission, event deleted on Discord) surface as errors and change
   nothing locally.
 - **Dragging or resizing one occurrence of a recurring imported event**

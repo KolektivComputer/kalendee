@@ -64,6 +64,15 @@ class OAuthFoundationTest {
         assertNull(settings.discord.botToken, "blank bot tokens must be treated as absent")
         assertEquals(oauthTestSecretKey, settings.secretKey)
 
+        val withGoogle = OAuthSettings.from(
+            MapApplicationConfig(
+                "oauth.google.clientId" to "google-client",
+                "oauth.google.clientSecret" to "google-secret",
+            ),
+        )
+        assertTrue(withGoogle.google.enabled)
+        assertEquals("google-secret", withGoogle.google.clientSecret)
+
         val disabled = OAuthSettings.from(
             MapApplicationConfig(
                 "oauth.discord.clientId" to "  ",

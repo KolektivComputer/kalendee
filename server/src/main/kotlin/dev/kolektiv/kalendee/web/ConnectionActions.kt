@@ -79,7 +79,7 @@ class ConnectionActions(
 private suspend fun <T> mapSyncErrors(field: String, block: suspend () -> T): T = try {
     mapDomainErrors(field, block)
 } catch (ex: OAuthReauthRequiredException) {
-    throw PageValidationException(field, "reconnect this Google account")
+    throw PageValidationException(mapOf(field to listOf("reconnect this Google account")), Unit)
 } catch (ex: GoogleSyncException) {
-    throw PageValidationException(field, ex.message ?: "google sync failed")
+    throw PageValidationException(mapOf(field to listOf(ex.message ?: "google sync failed")), Unit)
 }

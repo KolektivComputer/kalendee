@@ -118,6 +118,9 @@
       </div>
     </div>
   {/if}
+      </div>
+    </div>
+  {/if}
   {#if showVerificationBanner}
     <div role="alert" class="flex shrink-0 items-center gap-3 border-b border-warning/40 bg-warning/15 px-3 py-2 text-sm">
       <TriangleAlert class="h-4 w-4 shrink-0 text-warning" />
@@ -131,4 +134,10 @@
   <div class="min-h-0 flex-1" class:h-full={fill} class:overflow-hidden={fill}>
     {@render children()}
   </div>
+  {#if !fill}
+    <footer class="flex shrink-0 items-center justify-center gap-4 border-t border-base-300 px-4 py-3 text-xs text-base-content/45">
+      <Link href="/privacy" class="link-hover link">Privacy</Link>
+      <Link href="/terms" class="link-hover link">Terms</Link>
+    </footer>
+  {/if}
 </div>

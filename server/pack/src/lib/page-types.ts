@@ -211,6 +211,16 @@ export interface HomePage {
 
 export interface LoginPage {
   viewer: Viewer | null
+  oauthRegistration: boolean
+  providers: ProviderSummary[]
+}
+
+export interface PrivacyPage {
+  viewer: Viewer | null
+}
+
+export interface TermsPage {
+  viewer: Viewer | null
 }
 
 export interface NotFoundPage {
@@ -361,6 +371,8 @@ export interface RegisterPage {
   viewer: Viewer | null
   registrationOpen: boolean
   emailVerificationPolicy: string
+  oauthRegistration: boolean
+  providers: ProviderSummary[]
 }
 
 export interface RsvpPage {
@@ -577,6 +589,16 @@ export interface ConnectProviderIn {
 
 export interface ConnectProviderOut {
   url: string
+}
+
+export interface SyncConnectionIn {
+  connectionId: string
+}
+
+export interface SyncConnectionOut {
+  ok: boolean
+  lastSyncAt: string | null
+  lastError: string | null
 }
 
 export interface CreateCalendarIn {
@@ -1273,6 +1295,7 @@ export interface KalendeeActions {
   "kalendee.deleteOrganization": { in: DeleteOrganizationIn; out: DeletedOut }
   "kalendee.deleteOrganizationTeam": { in: DeleteOrganizationTeamIn; out: DeletedOut }
   "kalendee.disconnectAccount": { in: DisconnectAccountIn; out: DeletedOut }
+  "kalendee.syncConnection": { in: SyncConnectionIn; out: SyncConnectionOut }
   "kalendee.discordGuilds": { in: DiscordGuildsIn; out: DiscordGuildsOut }
   "kalendee.discordSyncSetup": { in: DiscordSyncSetupIn; out: DiscordSyncSetupOut }
   "kalendee.eventAttendees": { in: EventAttendeesIn; out: EventAttendeesOut }

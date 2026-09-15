@@ -257,6 +257,20 @@ data class PublicCalendarPage(
 @Serializable
 data class LoginPage(
     val viewer: Viewer?,
+    val oauthRegistration: Boolean = false,
+    val providers: List<ProviderSummary> = emptyList(),
+)
+
+@KeelType("kalendee.privacy")
+@Serializable
+data class PrivacyPage(
+    val viewer: Viewer?,
+)
+
+@KeelType("kalendee.terms")
+@Serializable
+data class TermsPage(
+    val viewer: Viewer?,
 )
 
 @KeelType("kalendee.register")
@@ -265,6 +279,8 @@ data class RegisterPage(
     val viewer: Viewer?,
     val registrationOpen: Boolean,
     val emailVerificationPolicy: String,
+    val oauthRegistration: Boolean = false,
+    val providers: List<ProviderSummary> = emptyList(),
 )
 
 @KeelType("kalendee.admin")
@@ -913,6 +929,20 @@ data class ConnectProviderIn(
 @Serializable
 data class ConnectProviderOut(
     val url: String,
+)
+
+@KeelType
+@Serializable
+data class SyncConnectionIn(
+    val connectionId: String,
+)
+
+@KeelType
+@Serializable
+data class SyncConnectionOut(
+    val ok: Boolean,
+    val lastSyncAt: String? = null,
+    val lastError: String? = null,
 )
 
 @KeelType

@@ -210,20 +210,10 @@
     return zonedToInstant(dates[dayIndex], minutes, timeZone)
   }
 
-  function isExternalOccurrence(event: EventSummary): boolean {
-    const uid = event.externalUid
-    return (
-      event.externalCalendarId != null &&
-      uid != null &&
-      uid.startsWith("discord:") &&
-      uid.split(":").length > 3
-    )
-  }
-
   function canEditEventTimes(item: EventSummary): boolean {
     if (readOnly || isHolidayEvent(item) || item.recurrence) return false
     if (item.externalCalendarId != null) {
-      return pushCalendarIds.has(item.calendarId) && !isExternalOccurrence(item)
+      return pushCalendarIds.has(item.calendarId)
     }
     return writableCalendarIds.has(item.calendarId)
   }

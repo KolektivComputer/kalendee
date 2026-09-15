@@ -46,6 +46,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
@@ -59,6 +60,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -344,6 +346,93 @@ class DiscordImportServiceTest {
 
         assertEquals("Second", fixture.store.listEvents(calendar.id, fixture.user.id).single().title)
         assertEquals(1, fixture.eventCount(externalCalendarId))
+    }
+
+    @Test
+    fun discordExceptionAppliesOverrideTimesToOccurrence() = testApplication {
+        val start = wholeSecondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        val movedStart = start + 3.hours
+        val movedEnd = movedStart + 2.hours
+        var body = "[${eventJson(start = start, rule = rule)}]"
+        val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        val calendar = fixture.calendarFor(externalCalendarId)
+        val occurrenceUid = "discord:101:201:$start"
+        fixture.external.setExceptionId(fixture.eventIdFor(externalCalendarId, occurrenceUid), "901")
+
+        body = "[${eventJson(
+            start = start,
+            rule = rule,
+            exceptions = "[${exceptionJson(start = movedStart, end = movedEnd)}]",
+        )}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        val stored = fixture.stored(externalCalendarId).single { it.uid == occurrenceUid }
+        assertEquals(movedStart, stored.start)
+        assertEquals(movedEnd, stored.end)
+        assertEquals(EventStatus.CONFIRMED, stored.status)
+        val event = fixture.store.listEvents(calendar.id, fixture.user.id)
+            .single { it.externalUid == occurrenceUid }
+        assertEquals(movedStart, event.start)
+        assertEquals(movedEnd, event.end)
+        assertEquals(EventStatus.CONFIRMED, event.status)
+    }
+
+    @Test
+    fun canceledDiscordExceptionMarksOccurrenceCancelled() = testApplication {
+        val start = wholeSecondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        var body = "[${eventJson(start = start, rule = rule)}]"
+        val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        val calendar = fixture.calendarFor(externalCalendarId)
+        val occurrenceUid = "discord:101:201:$start"
+        fixture.external.setExceptionId(fixture.eventIdFor(externalCalendarId, occurrenceUid), "901")
+
+        body = "[${eventJson(
+            start = start,
+            rule = rule,
+            exceptions = "[${exceptionJson(canceled = true)}]",
+        )}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        val stored = fixture.stored(externalCalendarId).single { it.uid == occurrenceUid }
+        assertEquals(EventStatus.CANCELLED, stored.status)
+        assertEquals(start, stored.start)
+        assertEquals(
+            EventStatus.CANCELLED,
+            fixture.store.listEvents(calendar.id, fixture.user.id)
+                .single { it.externalUid == occurrenceUid }
+                .status,
+        )
+    }
+
+    @Test
+    fun discordExceptionWithoutLocalExceptionIdIsIgnored() = testApplication {
+        val start = wholeSecondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        var body = "[${eventJson(start = start, rule = rule)}]"
+        val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        val occurrenceUid = "discord:101:201:$start"
+
+        // No local row tracks exception 901 (it was created in the Discord
+        // client), so there is no occurrence to correlate it with.
+        body = "[${eventJson(
+            start = start,
+            rule = rule,
+            exceptions = "[${exceptionJson(start = start + 3.hours)}]",
+        )}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        assertEquals(start, fixture.stored(externalCalendarId).single { it.uid == occurrenceUid }.start)
     }
 
     @Test
@@ -754,6 +843,20 @@ class DiscordImportServiceTest {
                     .single()
             }
         }
+
+        suspend fun eventIdFor(externalCalendarId: String, uid: String): EventId =
+            withContext(Dispatchers.IO) {
+                suspendTransaction(database) {
+                    EventId(
+                        EventsTable.selectAll()
+                            .where {
+                                (EventsTable.externalCalendarId eq Uuid.parse(externalCalendarId)) and
+                                    (EventsTable.externalUid eq uid)
+                            }
+                            .single()[EventsTable.id].toString(),
+                    )
+                }
+            }
     }
 
     private suspend fun ApplicationTestBuilder.installImportFixture(
@@ -838,14 +941,31 @@ class DiscordImportServiceTest {
         start: Instant,
         status: Int = 1,
         rule: String? = null,
+        exceptions: String? = null,
     ): String = buildString {
         append("""{"id":"$id","guild_id":"101","channel_id":null,"name":"$name",""")
         append(""""description":"Hello","scheduled_start_time":"$start","scheduled_end_time":"${start + 1.hours}",""")
         append(""""privacy_level":2,"status":$status,"entity_type":3,"entity_id":null,""")
         append(""""entity_metadata":{"location":"Lounge"},"user_count":3""")
         rule?.let { append(""","recurrence_rule":$it""") }
+        exceptions?.let { append(""","guild_scheduled_event_exceptions":$it""") }
         append('}')
     }
+
+    private fun exceptionJson(
+        id: String = "901",
+        start: Instant? = null,
+        end: Instant? = null,
+        canceled: Boolean = false,
+    ): String {
+        val startValue = start?.let { "\"$it\"" } ?: "null"
+        val endValue = end?.let { "\"$it\"" } ?: "null"
+        return """{"event_id":"201","event_exception_id":"$id","scheduled_start_time":$startValue,""" +
+            """"scheduled_end_time":$endValue,"is_canceled":$canceled}"""
+    }
+
+    private fun wholeSecondsFromNow(offset: Duration): Instant =
+        Instant.fromEpochSeconds((Clock.System.now() + offset).epochSeconds)
 
     private fun guildJson(
         id: String,

@@ -161,6 +161,7 @@ class PostgresExternalEventStore(
                     enabled = row[ExternalCalendarsTable.enabled],
                     start = row[EventsTable.startAt],
                     end = row[EventsTable.endAt],
+                    externalExceptionId = row[EventsTable.externalExceptionId],
                 )
             }
     }
@@ -185,6 +186,41 @@ class PostgresExternalEventStore(
         }
     }
 
+    override suspend fun setExceptionId(eventId: EventId, exceptionId: String) {
+        dbQuery {
+            EventsTable.update({ EventsTable.id eq eventId.toUuid() }) {
+                it[externalExceptionId] = exceptionId
+            }
+        }
+    }
+
+    override suspend fun applyException(
+        externalCalendarId: Uuid,
+        exceptionId: String,
+        start: Instant?,
+        end: Instant?,
+        cancelled: Boolean,
+    ) {
+        dbQuery {
+            val now = clock.now()
+            EventsTable.update({
+                (EventsTable.externalCalendarId eq externalCalendarId) and
+                    (EventsTable.externalExceptionId eq exceptionId)
+            }) {
+                start?.let { value -> it[startAt] = value }
+                end?.let { value -> it[endAt] = value }
+                it[status] = if (cancelled) {
+                    EventStatus.CANCELLED.name
+                } else {
+                    EventStatus.CONFIRMED.name
+                }
+                it[etag] = newEtag()
+                it[externalUpdatedAt] = now
+                it[updatedAt] = now
+            }
+        }
+    }
+
     private fun ResultRow.toStoredExternalEvent(statuses: Map<String, EventStatus>): StoredExternalEvent =
         StoredExternalEvent(
             uid = this[EventsTable.externalUid] ?: "",
@@ -192,6 +228,7 @@ class PostgresExternalEventStore(
             start = this[EventsTable.startAt],
             end = this[EventsTable.endAt],
             status = statuses[this[EventsTable.status]] ?: EventStatus.CONFIRMED,
+            exceptionId = this[EventsTable.externalExceptionId],
         )
 
     private suspend fun <T> dbQuery(block: suspend JdbcTransaction.() -> T): T =

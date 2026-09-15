@@ -257,6 +257,7 @@ object EventsTable : Table("events") {
         .nullable()
     val externalUid = text("external_uid").nullable()
     val externalEtag = text("external_etag").nullable()
+    val externalExceptionId = text("external_exception_id").nullable()
     val externalUpdatedAt = instant("external_updated_at").nullable()
     val createdAt = instant("created_at")
     val updatedAt = instant("updated_at")
@@ -266,6 +267,7 @@ object EventsTable : Table("events") {
     init {
         index(false, calendarId, startAt, endAt)
         uniqueIndex(externalCalendarId, externalUid)
+        index(false, externalCalendarId, externalExceptionId)
     }
 }
 

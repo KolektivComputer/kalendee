@@ -353,7 +353,7 @@ class DiscordImportServiceTest {
         val start = Clock.System.now() + 2.days
         var body = "[${eventJson(start = start, name = "First")}]"
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
-        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         val calendar = fixture.calendarFor(externalCalendarId)
         val event = fixture.store.listEvents(calendar.id, fixture.user.id).single()

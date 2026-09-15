@@ -118,9 +118,6 @@
       </div>
     </div>
   {/if}
-      </div>
-    </div>
-  {/if}
   {#if showVerificationBanner}
     <div role="alert" class="flex shrink-0 items-center gap-3 border-b border-warning/40 bg-warning/15 px-3 py-2 text-sm">
       <TriangleAlert class="h-4 w-4 shrink-0 text-warning" />

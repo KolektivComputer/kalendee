@@ -31,7 +31,7 @@ import dev.kolektiv.kalendee.friends.RelationshipPendingOut
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.notifications.NotificationService
 import dev.kolektiv.kalendee.reminders.ReminderService
-import dev.kolektiv.kalendee.storage.AvatarStorage
+import dev.kolektiv.kalendee.storage.ObjectStorage
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.util.zip.CRC32
@@ -72,7 +72,7 @@ class DemoSeeder(
     private val notifications: NotificationService,
     private val friendships: FriendshipService,
     private val availability: AvailabilityService,
-    private val storage: AvatarStorage,
+    private val storage: ObjectStorage,
     private val settings: AppSettings,
     private val clock: Clock,
 ) {

@@ -27,6 +27,12 @@ server/pack/dist/
 /application.conf
 /application.conf.dev
 
+# Agent / tooling artifacts
+/.ai/
+/.claude/
+/.kilo/
+skills-lock.json
+
 # Nix
 /result
 /result-*

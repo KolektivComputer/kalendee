@@ -1,0 +1,38 @@
+/*
+ * Kalendee docs global stylesheet.
+ *
+ * Framework, daisyUI, theme palettes and the shipped chrome all come from
+ * @kolektiv/common-docs-chrome. Do not add a second `@plugin "daisyui"` block or
+ * re-import @kolektiv/themes — `chrome.css` already owns both.
+ */
+@import "tailwindcss";
+@import "@kolektiv/common-docs-chrome/styles/chrome.css";
+@import "@kolektiv/common-docs-chrome/styles/brand-fonts.css";
+
+/* ---- Kalendee-specific touches ---------------------------------------- */
+
+/* Product links inherit the Kalendee accent for a little brand warmth. */
+.kdc-prose :where(a) {
+  text-decoration-color: color-mix(in oklab, var(--color-accent) 55%, transparent);
+}
+
+.kdc-prose :where(a:hover) {
+  color: var(--color-accent);
+}
+
+/* Screenshot placeholders on the landing page (images arrive later). */
+.shot-missing {
+  display: grid;
+  place-content: center;
+  gap: 0.4rem;
+  aspect-ratio: 16 / 10;
+  padding: 1.5rem;
+  text-align: center;
+  color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  background: var(--color-base-300);
+  border-radius: var(--radius-box);
+}
+
+.shot-missing strong {
+  color: var(--color-base-content);
+}

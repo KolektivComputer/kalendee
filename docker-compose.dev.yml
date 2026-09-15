@@ -1,12 +1,23 @@
 # Kalendee development example.
 #
+# Configuration is HOCON-file-first, same as production (docker-compose.yml):
+# a mounted ./application.conf.dev is loaded from /config/application.conf.
+#
 #   cp .env.dev.example .env.dev
+#   cp application.conf.dev.example application.conf.dev
 #   docker compose -f docker-compose.dev.yml up
 #
 # The server runs from the bind-mounted source tree with Gradle; Gradle
 # recompiles on restart, so stop/start the kalendee service after code changes.
 # On Docker Desktop (macOS/Windows) remove the `user:` line below so the
 # container is not restricted to a Linux host UID.
+#
+# How config reaches `:server:run`: the dev container has no entrypoint
+# (compose overrides `command`), so this compose file exports KALENDEE_CONFIG
+# for the Gradle-launched process. That process environment is inherited by
+# `:server:run` and the Ktor `-config` argument is threaded through it. The
+# repo's `.env.local` (loaded by Gradle for a *host* run) is irrelevant here:
+# Gradle only reads it for variables not already present in the environment.
 
 name: kalendee-dev
 
@@ -14,14 +25,24 @@ services:
   kalendee:
     build:
       context: .
+      # Select the intermediate `dev` stage explicitly; the final Dockerfile
+      # stage is the production runtime used by docker-compose.yml.
       target: dev
     user: "${KALENDEE_UID:-1000}:${KALENDEE_GID:-1000}"
     env_file:
       - .env.dev
+    environment:
+      # Tells the Gradle-launched server to load the mounted dev HOCON config.
+      # This file always mounts ./application.conf.dev; create it from the
+      # example first. To use pure env-var configuration instead, unset this and
+      # remove the mount below.
+      KALENDEE_CONFIG: ${KALENDEE_CONFIG:-/config/application.conf}
     ports:
       - "${KALENDEE_HOST_PORT:-8080}:8080"
     volumes:
       - .:/src
+      # Operator-authored dev config, read-only.
+      - ./application.conf.dev:/config/application.conf:ro
       - gradle-home:/gradle-home
       - pnpm-store:/pnpm-store
     working_dir: /src
@@ -45,7 +66,8 @@ services:
     restart: unless-stopped
 
   # Optional: Keel pack watch mode, rebuilding the Svelte pack on change.
-  # KALENDEE_KEEL_PACK=/src/server/pack/dist is already set in .env.dev.example.
+  # KALENDEE_KEEL_PACK=/src/server/pack/dist is set in the dev config and
+  # .env.dev.example.
   # pack:
   #   image: node:22-alpine
   #   working_dir: /src/server/pack

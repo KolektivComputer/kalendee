@@ -1,0 +1,17 @@
+---
+import PackageBaseLayout from "@kolektiv/common-docs-chrome/astro/BaseLayout.astro";
+
+import { docs } from "../docs-chrome";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<PackageBaseLayout config={docs} title={title} description={description}>
+  <slot />
+</PackageBaseLayout>

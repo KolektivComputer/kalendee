@@ -1,14 +1,39 @@
 # Kalendee production example.
 #
+# Configuration is HOCON-file-first: the server reads a mounted
+# ./application.conf. Only secrets and a few container-level knobs live in the
+# environment. Precedence, highest first:
+#
+#   1. An explicit `-config=<path>` argument passed to the entrypoint.
+#   2. KALENDEE_CONFIG from .env (defaults to /config/application.conf below).
+#   3. /config/application.conf, the file mounted here.
+#   4. /app/application.conf, the default baked into the image.
+#
+# Environment variables are `${?VAR}` substitutions inside whichever file wins,
+# so a setting can live in either place. Put non-secret settings in
+# application.conf; put secrets in .env. See application.conf.example.
+#
+# Quick start:
+#
 #   cp .env.example .env
-#   # edit .env: strong passwords, KALENDEE_PUBLIC_URL, ...
+#   cp application.conf.example application.conf
+#   # edit both files, then:
 #   docker compose up -d
 #
 # By default this pulls the published image from docker.yuri.capital. To build
 # this checkout instead, comment out `image:` and uncomment the `build:` block below.
 #
-# TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...).
-# KALENDEE_COOKIE_SECURE defaults to true; leave it unless you serve plain HTTP.
+# TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...). Keep
+# auth.cookieSecure = true in application.conf and set app.baseUrl (or
+# KALENDEE_PUBLIC_URL) to the public https:// URL. The proxy should forward
+# X-Forwarded-For / X-Forwarded-Proto.
+#
+# Config mount choice: ./application.conf is bind-mounted rather than kept in a
+# named volume. The config is operator-authored source that should live in the
+# deployment repo (or Ansible/SOPS/agenix-managed path), be diff-able, and be
+# editable in place and picked up on `docker compose restart`. A named volume
+# would hide it behind a UUID path and make backup/review awkward. Avatars are
+# runtime data, so they stay on the `kalendee-avatars` named volume at /data.
 
 name: kalendee
 
@@ -17,18 +42,29 @@ services:
     image: docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
     # build:
     #   context: .
+    #   # No `target:`: the Dockerfile's final stage is the production runtime
+    #   # image. docker-compose.dev.yml selects the opt-in `dev` stage instead.
     #   args:
     #     VERSION: local
+    # Secrets and overrides only (DB password, secret key, mail token, S3 keys,
+    # and optional KALENDEE_* HOCON fallbacks). See .env.example.
     env_file:
       - .env
+    environment:
+      # Tell the entrypoint which config file to load. Matches the mount below.
+      KALENDEE_CONFIG: ${KALENDEE_CONFIG:-/config/application.conf}
+      # Server listen settings are HOCON keys; override here only if needed.
+      # KALENDEE_HTTP_PORT: "8080"
+      # KALENDEE_HTTP_HOST: "0.0.0.0"
     ports:
+      # KALENDEE_HOST_PORT is compose-only: it is the host-side port.
       - "${KALENDEE_HOST_PORT:-8080}:8080"
     volumes:
+      # Runtime avatar data (persistent).
       - kalendee-avatars:/data
-      # Optional: mount a full HOCON config file. Uncomment this and set
-      # KALENDEE_CONFIG=/config/application.conf in .env. See
-      # application.conf.example.
-      # - ./application.conf:/config/application.conf:ro
+      # Operator config file, read-only. The mount must exist before `up`:
+      # `cp application.conf.example application.conf` first.
+      - ./application.conf:/config/application.conf:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,5 +87,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  # Holds avatars under /data/avatars (KALENDEE_AVATAR_DIR). The config is a
+  # bind mount, not part of this volume.
   kalendee-avatars:
   kalendee-postgres:

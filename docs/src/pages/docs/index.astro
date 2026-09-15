@@ -1,0 +1,45 @@
+---
+import { getCollection } from "astro:content";
+
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { docsPath, slugFromId, sortDocs } from "../../utils";
+
+const entries = sortDocs(await getCollection("docs"));
+---
+
+<DocsLayout
+  title="Documentation"
+  description="Guides for running, configuring, and integrating Kalendee: product walkthroughs plus self-hosting and operations."
+>
+  <h1>Documentation</h1>
+  <p class="text-lg text-base-content/75">
+    Product guides and self-hosting runbooks for Kalendee. The sidebar shows the full planned
+    structure; pages appear here as they are authored.
+  </p>
+
+  {
+    entries.length === 0 ? (
+      <p class="mt-6 rounded-box border-2 border-dashed border-base-300 p-6 text-base-content/70">
+        No guides published yet.
+      </p>
+    ) : (
+      <ul class="not-prose mt-6 grid list-none gap-4 p-0 sm:grid-cols-2">
+        {entries.map((entry) => (
+          <li>
+            <a
+              class="card h-full border-2 border-base-300 bg-base-200 transition-colors hover:border-accent"
+              href={docsPath(slugFromId(entry.id))}
+            >
+              <div class="card-body">
+                <h2 class="card-title text-lg">{entry.data.title}</h2>
+                {entry.data.description && (
+                  <p class="text-sm text-base-content/70">{entry.data.description}</p>
+                )}
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</DocsLayout>

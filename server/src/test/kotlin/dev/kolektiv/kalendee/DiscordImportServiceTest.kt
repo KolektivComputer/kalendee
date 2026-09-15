@@ -259,6 +259,25 @@ class DiscordImportServiceTest {
     }
 
     @Test
+    fun locallyEditedImportedEventSurvivesSync() = testApplication {
+        val start = Clock.System.now() + 2.days
+        var body = "[${eventJson(start = start, name = "First")}]"
+        val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "guild-1")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        val calendar = fixture.calendarFor(externalCalendarId)
+        val event = fixture.store.listEvents(calendar.id, fixture.user.id).single()
+
+        fixture.store.updateEvent(event.id, fixture.user.id, UpdateEvent(title = "Locally edited"))
+
+        body = "[${eventJson(start = start, name = "Provider rename")}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        assertEquals("Locally edited", fixture.store.listEvents(calendar.id, fixture.user.id).single().title)
+        assertEquals(1, fixture.eventCount(externalCalendarId))
+    }
+
+    @Test
     fun missingFutureEventWith404RemovesStoredRows() = testApplication {
         val start = Clock.System.now() + 2.days
         var list = "[${eventJson(start = start)}]"

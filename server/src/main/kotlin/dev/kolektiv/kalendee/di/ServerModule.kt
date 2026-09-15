@@ -21,8 +21,11 @@ import dev.kolektiv.kalendee.external.store.PostgresExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.PostgresExternalEventStore
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
+import dev.kolektiv.kalendee.mail.CloudflareMailer
 import dev.kolektiv.kalendee.mail.LoggingMailer
+import dev.kolektiv.kalendee.mail.MailProvider
 import dev.kolektiv.kalendee.mail.MailService
+import dev.kolektiv.kalendee.mail.MailgunMailer
 import dev.kolektiv.kalendee.mail.MailSettings
 import dev.kolektiv.kalendee.mail.Mailer
 import dev.kolektiv.kalendee.mail.SmtpMailer
@@ -39,9 +42,9 @@ import dev.kolektiv.kalendee.oauth.providers.DiscordProvider
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.reminders.ReminderService
-import dev.kolektiv.kalendee.storage.AvatarStorage
-import dev.kolektiv.kalendee.storage.LocalAvatarStorage
-import dev.kolektiv.kalendee.storage.S3AvatarStorage
+import dev.kolektiv.kalendee.storage.LocalObjectStorage
+import dev.kolektiv.kalendee.storage.ObjectStorage
+import dev.kolektiv.kalendee.storage.S3ObjectStorage
 import dev.kolektiv.kalendee.storage.StorageSettings
 import dev.kolektiv.kalendee.store.PostgresCalendarStore
 import dev.kolektiv.kalendee.web.AdminActions
@@ -65,6 +68,9 @@ import io.ktor.server.application.ApplicationEnvironment
 import kotlin.time.Clock
 import org.koin.dsl.module
 import org.koin.dsl.onClose
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger("dev.kolektiv.kalendee.di.ServerModule")
 
 fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) = module {
     single { DatabaseSettings.from(environment.config) }
@@ -74,16 +80,50 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { MailSettings.from(environment.config) }
     single<Mailer> {
         val mail = get<MailSettings>()
-        if (mail.enabled && mail.host.isNotBlank()) SmtpMailer(mail) else LoggingMailer()
+        when (mail.provider) {
+            MailProvider.SMTP -> {
+                if (mail.host.isNotBlank()) {
+                    SmtpMailer(mail)
+                } else {
+                    log.warn(
+                        "mail.provider is 'smtp' but mail.host is blank; falling back to the logging mailer",
+                    )
+                    LoggingMailer()
+                }
+            }
+            MailProvider.CLOUDFLARE -> {
+                if (mail.cloudflare.isComplete) {
+                    CloudflareMailer(mail)
+                } else {
+                    log.warn(
+                        "mail.provider is 'cloudflare' but mail.cloudflare.endpoint and " +
+                            "mail.cloudflare.token are not both set; falling back to the logging mailer",
+                    )
+                    LoggingMailer()
+                }
+            }
+            MailProvider.MAILGUN -> {
+                if (mail.mailgun.isComplete) {
+                    MailgunMailer(mail)
+                } else {
+                    log.warn(
+                        "mail.provider is 'mailgun' but mail.mailgun.apiKey and " +
+                            "mail.mailgun.domain are not both set; falling back to the logging mailer",
+                    )
+                    LoggingMailer()
+                }
+            }
+            MailProvider.LOG -> LoggingMailer()
+        }
     }
     single { MailService(get(), get()) }
     single { StorageSettings.from(environment.config) }
-    single<AvatarStorage> {
+    single<ObjectStorage> {
         val storage = get<StorageSettings>()
         if (storage.s3.enabled && storage.s3.bucket.isNotBlank()) {
-            S3AvatarStorage(storage.s3)
+            S3ObjectStorage(storage.s3)
         } else {
-            LocalAvatarStorage(storage.localDir)
+            LocalObjectStorage(storage.localDir)
         }
     }
     single(createdAtStart = true) { DatabaseProvider.connect(get()) }

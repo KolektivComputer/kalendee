@@ -1,0 +1,152 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const features = [
+  {
+    tag: "Server",
+    title: "Self-hosted CalDAV",
+    body: "Run your own calendar server on your own infrastructure. Revocable public read-only links, invitations with view or edit access, and a public calendar page that opens without an account where you allow it.",
+  },
+  {
+    tag: "Clients",
+    title: "Native KMP clients",
+    body: "First-party Kotlin Multiplatform clients for Android, iOS, and Desktop share one Compose Multiplatform UI, in the spirit of Notion Calendar / Cron — not a wrapped web app.",
+  },
+  {
+    tag: "Web",
+    title: "Themeable web UI",
+    body: "The same product in a browser, served from the same server. Themes are a user-facing preference, so the clients and the web UI match end to end.",
+  },
+  {
+    tag: "Scheduling",
+    title: "Scheduling proposals",
+    body: "Link your calendar and let people propose times against it. Access is configurable: anonymous visitors, logged-in users only, or off.",
+  },
+  {
+    tag: "Storage",
+    title: "S3 / R2 object storage",
+    body: "Avatars and profile pictures live in S3-compatible storage and are proxied through the server, so clients never hold credentials and the bucket stays private.",
+  },
+  {
+    tag: "Email",
+    title: "Optional Cloudflare email",
+    body: "Account verification, security alerts, calendar invites, and follower activity can go out over your own transactional email provider. Disabled, mail is logged instead.",
+  },
+];
+
+const selfHost = `cp .env.example .env
+# set POSTGRES_PASSWORD / KALENDEE_DATABASE_PASSWORD,
+# KALENDEE_ADMIN_PASSWORD, and KALENDEE_PUBLIC_URL
+docker compose up -d`;
+
+const shots = [
+  { src: "/screenshots/week-view.svg", label: "Week view" },
+  { src: "/screenshots/event-dialog.svg", label: "Event dialog" },
+  { src: "/screenshots/public-calendar.svg", label: "Public calendar page" },
+];
+---
+
+<BaseLayout
+  title="Kalendee"
+  description="Self-hosted CalDAV server with first-party Kotlin Multiplatform clients for Android, iOS, and Desktop, plus a themeable web UI."
+>
+  <section class="py-10">
+    <div class="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+      <div>
+        <span class="badge badge-outline badge-accent">AGPL-3.0-only · Self-hosted</span>
+        <h1 class="display mt-4 text-5xl leading-tight">Your calendar, on your server.</h1>
+        <p class="mt-4 max-w-2xl text-lg text-base-content/80">
+          Kalendee is a self-hosted CalDAV server with first-party Kotlin Multiplatform clients for
+          Android, iOS, and Desktop, plus a themeable web UI. Own your data, link the
+          calendars you already use, and let people propose times without handing everything to
+          someone else's cloud.
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a class="btn btn-primary" href="https://github.com/KolektivComputer/kalendee" rel="noopener">
+            View on GitHub
+          </a>
+          <a class="btn btn-ghost" href="/docs/">Read the docs</a>
+        </div>
+      </div>
+      <aside class="card border-2 border-base-300 bg-base-200" aria-label="At a glance">
+        <div class="card-body">
+          <h2 class="card-title font-mono text-xs uppercase tracking-widest opacity-70">
+            At a glance
+          </h2>
+          <ul class="mt-2 space-y-2 text-sm">
+            <li>Pure-KMP CalDAV protocol library, shared by server and clients</li>
+            <li>One Compose UI across Android, iOS, and Desktop</li>
+            <li>Follow users and public calendars, with optional RSS feeds</li>
+            <li>RSVP yes / no / maybe and upcoming-event reminders</li>
+            <li>S3-compatible storage and optional transactional email</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="py-10" aria-labelledby="features-title">
+    <div class="max-w-2xl">
+      <h2 id="features-title" class="text-3xl">Built for running it yourself</h2>
+      <p class="mt-2 text-base-content/75">
+        The server, the clients, and the protocol library are one project. Pick the pieces you want
+        and host the whole thing.
+      </p>
+    </div>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2">
+      {
+        features.map((feature) => (
+          <article class="card border-2 border-base-300 bg-base-100">
+            <div class="card-body">
+              <span class="font-mono text-xs uppercase tracking-widest text-accent">
+                {feature.tag}
+              </span>
+              <h3 class="card-title text-lg">{feature.title}</h3>
+              <p class="text-sm text-base-content/75">{feature.body}</p>
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="py-10" aria-labelledby="screenshots-title">
+    <div class="max-w-2xl">
+      <h2 id="screenshots-title" class="text-3xl">A look at Kalendee</h2>
+      <p class="mt-2 text-base-content/75">
+        Preview graphics of the week view, event dialog, and public calendar page, served from
+        <code>/screenshots/</code>. They are stand-ins until real screenshots are captured from the
+        seeded demo data.
+      </p>
+    </div>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2">
+      {
+        shots.map((shot) => (
+          <figure class="overflow-hidden rounded-box border-2 border-base-300">
+            <img class="block w-full" src={shot.src} alt={shot.label} loading="lazy" />
+          </figure>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="py-10" aria-labelledby="selfhost-title">
+    <div class="max-w-2xl">
+      <h2 id="selfhost-title" class="text-3xl">Self-host in minutes</h2>
+      <p class="mt-2 text-base-content/75">
+        The production compose file pulls the published image and runs PostgreSQL 17 next to it.
+        Copy the example environment, set a few secrets, and start it.
+      </p>
+    </div>
+    <div class="kdc-code mt-4 overflow-hidden rounded-box border-2 border-base-300">
+      <pre class="astro-code"><code>{selfHost}</code></pre>
+    </div>
+    <p class="mt-4 text-sm text-base-content/70">
+      Full setup, clients, and configuration are in the
+      <a href="/docs/">documentation</a>. Licensed under
+      <a href="https://github.com/KolektivComputer/kalendee/blob/main/LICENSE" rel="noopener">
+        AGPL-3.0-only
+      </a>.
+    </p>
+  </section>
+</BaseLayout>

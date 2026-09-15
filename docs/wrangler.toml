@@ -1,0 +1,10 @@
+# Cloudflare Pages project for the Kalendee documentation site.
+#
+# Cloudflare Pages builds and deploys this project through its Git integration:
+# a push to `main` runs the build and publishes to production, and pull requests
+# get an immutable https://<branch-hash>.kalendee-docs.pages.dev preview URL.
+#
+# For a manual local deploy:
+#   wrangler pages deploy dist --project-name=kalendee-docs --branch=main
+name = "kalendee-docs"
+pages_build_output_dir = "./dist"

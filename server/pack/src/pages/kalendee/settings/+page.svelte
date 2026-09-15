@@ -875,7 +875,7 @@
         {:else if tab === "appearance"}
           <div class="settings-stack">
             <p class="settings-hint">
-              Backgrounds stay daisyUI greys. Pick a primary color for buttons, today, and other accents.
+              Pick a primary color for buttons, today, and other accents.
             </p>
             <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {#each ACCENT_IDS as id (id)}
@@ -1122,8 +1122,7 @@
                 <div class="settings-field">
                   <span class="settings-label">Browser notifications</span>
                   <p class="settings-hint">
-                    Reminders appear as browser notifications while Kalendee is open in this browser. Native clients
-                    will come later.
+                    Reminders appear as browser notifications while Kalendee is open in this browser.
                   </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">

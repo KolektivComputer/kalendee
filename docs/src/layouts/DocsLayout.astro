@@ -1,0 +1,29 @@
+---
+import PackageDocsLayout from "@kolektiv/common-docs-chrome/astro/DocsLayout.astro";
+
+import { docs } from "../docs-chrome";
+import { navHref, slugFromId } from "../utils";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Collection id of the current entry, used to highlight the sidebar. */
+  id?: string;
+}
+
+const { title, description, id } = Astro.props;
+
+// Bridge the content-collection slug to the href listed in docs-chrome.ts so the
+// sidebar active state and navbar page label line up.
+const currentPath = id ? navHref(slugFromId(id)) : Astro.url.pathname;
+---
+
+<PackageDocsLayout
+  config={docs}
+  title={title}
+  description={description}
+  currentPath={currentPath}
+>
+  <slot />
+</PackageDocsLayout>

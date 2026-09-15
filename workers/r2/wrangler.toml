@@ -1,0 +1,24 @@
+name = "kalendee-r2"
+main = "src/index.ts"
+compatibility_date = "2025-05-01"
+
+# R2 binding: a private bucket holding user-uploadable objects (avatars and
+# similar). This Worker is a read gateway in front of the bucket so objects can
+# be served with correct caching and an optional read token without making the
+# bucket public.
+#
+# Create the bucket first:
+#
+#   wrangler r2 bucket create <bucket-name>
+#
+# then uncomment the binding and replace <bucket-name>.
+#
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "<bucket-name>"
+
+# READ_TOKEN is optional. When set, every request must present it either as
+# `?token=<READ_TOKEN>` or as `Authorization: Bearer <READ_TOKEN>`. When unset,
+# reads are anonymous. Set it out of band:
+#
+#   wrangler secret put READ_TOKEN

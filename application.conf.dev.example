@@ -1,27 +1,48 @@
-# Kalendee -- optional file-based configuration (development example).
+# Kalendee -- full HOCON configuration (development example).
 #
-#   cp application.conf.dev.example application.conf
-#   # mount application.conf at /config/application.conf in
-#   # docker-compose.dev.yml and set KALENDEE_CONFIG=/config/application.conf
-#   # in .env.dev
+# Copy to application.conf.dev and docker-compose.dev.yml mounts it at
+# /config/application.conf:
 #
-# Environment variables still override the values below. This is a complete
-# standalone config: it does not rely on Ktor merging it with the config
-# embedded in the jar.
+#     cp application.conf.dev.example application.conf.dev
+#     # then, if not already done:
+#     cp .env.dev.example .env.dev
+#     docker compose -f docker-compose.dev.yml up
+#
+# Precedence, highest first:
+#   1. A `-config=/path` argument passed to the container entrypoint.
+#   2. The file KALENDEE_CONFIG points at (mounted config, e.g. /config/...).
+#   3. The config baked into the image at /app/application.conf.
+#   4. Defaults embedded in the jar (server/src/main/resources/application.conf).
+# Environment variables are substitutions *inside* whichever file wins: every
+# value below is followed by a `${?VAR}` fallback.
+#
+# Note for local `:server:run` (desktop, not the dev container): the Gradle run
+# task loads .env.local itself and process environment variables win over the
+# file, so an exported KALENDEE_CONFIG works there too.
+#
+# This is a complete standalone config: it does not rely on Ktor merging it
+# with the config embedded in the jar, so it must carry the `ktor.application`
+# module entry point.
 
 ktor {
+    # Development mode in Ktor terms (verbose errors). Mirrors app.development.
     development = true
     deployment {
+        # Port bound inside the dev container. The compose port mapping decides
+        # which host port reaches it.
         port = 8080
+        port = ${?KALENDEE_HTTP_PORT}
         host = "0.0.0.0"
+        host = ${?KALENDEE_HTTP_HOST}
     }
     application {
         modules = [ dev.kolektiv.kalendee.ApplicationKt.module ]
     }
 }
 
-# JDBC connection settings. The URL, user, and password live here; the
-# KALENDEE_DATABASE_* environment substitutions are optional overrides.
+# JDBC connection settings. Inside docker-compose.dev.yml the database host is
+# the `postgres` service. For a host-run `./gradlew :server:run` without the dev
+# stack, point KALENDEE_DATABASE_URL at 127.0.0.1 instead.
 database {
     url = "jdbc:postgresql://postgres:5432/kalendee"
     url = ${?KALENDEE_DATABASE_URL}
@@ -32,21 +53,31 @@ database {
 }
 
 auth {
+    # Public registration policy: "first-user", "open", or "closed".
     registration = "first-user"
     registration = ${?KALENDEE_AUTH_REGISTRATION}
+    # Session lifetime in days.
     sessionDays = 30
+    sessionDays = ${?KALENDEE_AUTH_SESSION_DAYS}
+    # Session cookie name.
     cookieName = "kalendee_session"
-    # Development default: plain HTTP on localhost, so cookies do not require
-    # TLS. Set KALENDEE_COOKIE_SECURE=true to override.
+    cookieName = ${?KALENDEE_SESSION_COOKIE_NAME}
+    # Development default: plain HTTP on localhost, so cookies must not require
+    # TLS. Set KALENDEE_COOKIE_SECURE=true to test HTTPS locally.
     cookieSecure = false
     cookieSecure = ${?KALENDEE_COOKIE_SECURE}
+    # Username of the admin seeded on first startup.
     adminUsername = "admin"
     adminUsername = ${?KALENDEE_ADMIN_USERNAME}
+    # Development-only password; never reuse outside a local dev stack.
     adminPassword = "admin"
     adminPassword = ${?KALENDEE_ADMIN_PASSWORD}
+    # Optional username granted superadmin rights.
     superadminUsername = ${?KALENDEE_SUPERADMIN_USERNAME}
+    # Email verification policy: "required", "optional", or "off".
     emailVerification = "optional"
     emailVerification = ${?KALENDEE_AUTH_EMAIL_VERIFICATION}
+    # Verification email lifetime in hours.
     emailVerificationTtlHours = 24
     emailVerificationTtlHours = ${?KALENDEE_AUTH_EMAIL_VERIFICATION_TTL_HOURS}
     # Allow OAuth sign-ins to create new accounts (still gated by `registration`).
@@ -63,9 +94,12 @@ auth {
 }
 
 app {
+    # Local development URL. Plain HTTP: TLS is not terminated in front of the
+    # dev container.
     baseUrl = "http://localhost:8080"
     baseUrl = ${?KALENDEE_PUBLIC_URL}
     baseUrl = ${?KALENDEE_BASE_URL}
+    # Development mode: pretty error page and localhost base URL default.
     development = true
     development = ${?KALENDEE_DEVELOPMENT}
     # Instance-wide default for anonymous access to public calendars:
@@ -74,6 +108,7 @@ app {
     publicAccess = ${?KALENDEE_PUBLIC_ACCESS}
     # Seed a demo user with sample calendars/events on startup. Intended for
     # development and for capturing screenshots; never enable in production.
+    # Log in as demo / demo.
     seedDemo = true
     seedDemo = ${?KALENDEE_SEED_DEMO}
     demoPassword = "demo"
@@ -83,9 +118,12 @@ app {
 }
 
 # External calendar connections. Providers with a blank client id are disabled.
+# The OAuth client secrets below are secrets: supply them through .env.dev.
 oauth {
     discord {
+        # Discord OAuth client id; blank disables the provider.
         clientId = ${?KALENDEE_DISCORD_CLIENT_ID}
+        # Discord OAuth client secret.
         clientSecret = ${?KALENDEE_DISCORD_CLIENT_SECRET}
         # Bot token for reading guild scheduled events. Invite the bot to the
         # guild first; optional, user linking works without it.
@@ -99,8 +137,21 @@ oauth {
 }
 
 mail {
+    # Master switch for outgoing mail. In development the default transport
+    # logs messages instead of sending them, so this can stay false while
+    # exercising verification/reminder flows.
     enabled = false
     enabled = ${?KALENDEE_MAIL_ENABLED}
+    # Mail transport: "smtp", "cloudflare", "mailgun", or "log". Blank
+    # auto-detects: SMTP when `host` is set, otherwise Cloudflare when its
+    # endpoint/token are set, otherwise Mailgun when its apiKey/domain are set,
+    # otherwise the logging mailer. Force "log" to capture mail in the server
+    # log even if SMTP values leak in from the environment. Note that
+    # Cloudflare's send_email binding is a paid Email Routing feature; Mailgun
+    # is the non-SMTP alternative.
+    provider = ""
+    provider = ${?KALENDEE_MAIL_PROVIDER}
+    # SMTP host; blank disables SMTP.
     host = ""
     host = ${?KALENDEE_SMTP_HOST}
     port = 587
@@ -111,29 +162,77 @@ mail {
     password = ${?KALENDEE_SMTP_PASSWORD}
     from = "Kalendee <no-reply@localhost>"
     from = ${?KALENDEE_MAIL_FROM}
+    # Enable STARTTLS on the SMTP connection.
     startTls = true
     startTls = ${?KALENDEE_SMTP_STARTTLS}
+    # Cloudflare Email Routing bridge (workers/mailer). Optional; see
+    # workers/mailer/README.md. The token is the Worker's MAILER_TOKEN.
+    cloudflare {
+        # Base URL of the deployed mailer Worker, e.g.
+        # https://kalendee-mailer.<your-subdomain>.workers.dev
+        endpoint = ""
+        endpoint = ${?KALENDEE_MAIL_CLOUDFLARE_ENDPOINT}
+        # Bearer token the Worker expects. Secret: supply via .env.dev.
+        token = ""
+        token = ${?KALENDEE_MAIL_CLOUDFLARE_TOKEN}
+        # Request timeout in seconds.
+        timeoutSeconds = 10
+        timeoutSeconds = ${?KALENDEE_MAIL_CLOUDFLARE_TIMEOUT_SECONDS}
+    }
+    # Mailgun HTTP API. Optional locally; use a sandbox domain or a test key.
+    mailgun {
+        # Private API key (secret: supply via .env.dev).
+        apiKey = ${?KALENDEE_MAILGUN_API_KEY}
+        # Sending domain verified in Mailgun.
+        domain = ${?KALENDEE_MAILGUN_DOMAIN}
+        # Control-plane region: "us" or "eu".
+        region = "us"
+        region = ${?KALENDEE_MAILGUN_REGION}
+        # Optional API base URL override; blank derives it from `region`.
+        baseUrl = ""
+        baseUrl = ${?KALENDEE_MAILGUN_BASE_URL}
+        # Request timeout in seconds.
+        timeoutSeconds = 10
+        timeoutSeconds = ${?KALENDEE_MAILGUN_TIMEOUT_SECONDS}
+    }
 }
 
 storage {
+    # Directory backing local object storage. The repo is bind-mounted at /src
+    # in the dev container, so avatars land under /src/build and are visible on
+    # the host; override with KALENDEE_AVATAR_DIR if you prefer elsewhere.
     localDir = "/src/build/avatars"
     localDir = ${?KALENDEE_AVATAR_DIR}
+    # Optional public base URL for objects. Leave blank locally: avatar reads
+    # are proxied through the server.
+    publicBaseUrl = ""
+    publicBaseUrl = ${?KALENDEE_STORAGE_PUBLIC_URL}
+    # S3-compatible object storage. Leave disabled for local development.
     s3 {
         enabled = false
         enabled = ${?KALENDEE_S3_ENABLED}
+        # Endpoint; set for non-AWS providers such as Cloudflare R2.
         endpoint = ""
         endpoint = ${?KALENDEE_S3_ENDPOINT}
+        # Region. "auto" for Cloudflare R2, otherwise a real region.
         region = "us-east-1"
         region = ${?KALENDEE_S3_REGION}
+        # Bucket name.
         bucket = ""
         bucket = ${?KALENDEE_S3_BUCKET}
+        # Access key id; blank falls back to the SDK default credential chain.
         accessKey = ${?KALENDEE_S3_ACCESS_KEY}
+        # Secret access key. Secret: supply via .env.dev.
         secretKey = ${?KALENDEE_S3_SECRET_KEY}
+        # Use path-style addressing. Required by Cloudflare R2.
         pathStyle = true
         pathStyle = ${?KALENDEE_S3_PATH_STYLE}
     }
 }
 
 keel {
+    # Exploded Keel pack directory. .env.dev.example points this at the pack
+    # build output inside the bind-mounted source tree; omit it to use the pack
+    # bundled into the jar.
     packDir = ${?KALENDEE_KEEL_PACK}
 }

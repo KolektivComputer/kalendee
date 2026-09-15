@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" role="img" aria-labelledby="event-dialog-title">
+  <title id="event-dialog-title">New event dialog in Kalendee</title>
+  <defs>
+    <clipPath id="event-dialog-frame"><rect width="800" height="500" rx="18"/></clipPath>
+  </defs>
+  <g clip-path="url(#event-dialog-frame)">
+    <rect width="800" height="500" fill="#141414"/>
+    <rect width="800" height="48" fill="#1f1f1f"/>
+    <circle cx="30" cy="24" r="7" fill="#e07a33"/>
+    <circle cx="54" cy="24" r="7" fill="#2f8fbf"/>
+    <circle cx="78" cy="24" r="7" fill="#c700de"/>
+    <rect x="108" y="64" width="170" height="18" rx="9" fill="#333333"/>
+    <rect x="620" y="62" width="150" height="22" rx="11" fill="#242424"/>
+    <rect x="622" y="64" width="70" height="18" rx="9" fill="#e07a33"/>
+    <g stroke="#202020" stroke-width="1">
+      <path d="M162 104V480M268 104V480M374 104V480M480 104V480M586 104V480M692 104V480"/>
+      <path d="M56 193.3H798M56 250.7H798M56 308H798M56 365.3H798M56 422.7H798"/>
+    </g>
+    <rect x="274" y="142" width="94" height="46" rx="8" fill="#e07a33" fill-opacity="0.22"/>
+    <rect x="62" y="199" width="94" height="46" rx="8" fill="#2f8fbf" fill-opacity="0.22"/>
+    <rect x="380" y="199" width="94" height="105" rx="8" fill="#e07a33" fill-opacity="0.22"/>
+    <rect width="800" height="500" fill="#000000" fill-opacity="0.55"/>
+    <rect x="230" y="96" width="340" height="308" rx="18" fill="#1f1f1f" stroke="#3a3a3a" stroke-width="2"/>
+    <rect x="254" y="122" width="140" height="14" rx="7" fill="#e8e8e8"/>
+    <circle cx="530" cy="129" r="10" fill="#2a2a2a"/>
+    <path d="M526 125l8 8M534 125l-8 8" stroke="#8a8a8a" stroke-width="2" stroke-linecap="round"/>
+    <path d="M230 150H570" stroke="#2f2f2f" stroke-width="1"/>
+    <rect x="254" y="166" width="290" height="28" rx="8" fill="#141414" stroke="#333333" stroke-width="1"/>
+    <rect x="254" y="206" width="138" height="26" rx="8" fill="#141414" stroke="#333333" stroke-width="1"/>
+    <rect x="406" y="206" width="138" height="26" rx="8" fill="#141414" stroke="#333333" stroke-width="1"/>
+    <rect x="254" y="242" width="290" height="26" rx="8" fill="#141414" stroke="#333333" stroke-width="1"/>
+    <circle cx="264" cy="292" r="9" fill="#e07a33"/>
+    <circle cx="288" cy="292" r="9" fill="#2f8fbf"/>
+    <circle cx="312" cy="292" r="9" fill="#c700de"/>
+    <circle cx="336" cy="292" r="9" fill="#8a8a8a"/>
+    <circle cx="264" cy="292" r="12" fill="none" stroke="#e8e8e8" stroke-width="2"/>
+    <rect x="396" y="352" width="68" height="30" rx="9" fill="#2a2a2a"/>
+    <rect x="476" y="352" width="68" height="30" rx="9" fill="#e07a33"/>
+  </g>
+</svg>

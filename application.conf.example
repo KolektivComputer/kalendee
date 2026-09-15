@@ -1,64 +1,113 @@
-# Kalendee -- optional file-based configuration (production example).
+# Kalendee -- full HOCON configuration (production example).
 #
-# Most deployments configure Kalendee entirely through environment variables
-# (see .env.example). This file is for advanced/HOCON settings: mount it at
-# /config/application.conf and set KALENDEE_CONFIG=/config/application.conf in
-# .env. Environment variables still override the values below.
+# Copy to application.conf and mount it read-only at /config/application.conf:
+#
+#     cp application.conf.example application.conf
+#     # edit it, then in .env set:
+#     KALENDEE_CONFIG=/config/application.conf
+#
+# docker-compose.yml already mounts ./application.conf there by default, so an
+# operator edits a file instead of a wall of environment variables.
+#
+# Precedence, highest first:
+#   1. A `-config=/path` argument passed to the container entrypoint.
+#   2. The file KALENDEE_CONFIG points at (mounted config, e.g. /config/...).
+#   3. The config baked into the image at /app/application.conf (this example).
+#   4. Defaults embedded in the jar (server/src/main/resources/application.conf).
+# Environment variables are substitutions *inside* whichever file wins: every
+# value below is followed by a `${?VAR}` fallback, so an unset variable leaves
+# the committed default and a set variable overrides it. This means the same
+# file works with or without environment overrides.
+#
+# Keep secrets out of this file. Put them in .env (see .env.example) -- compose
+# passes them to the container and the `${?VAR}` lines below pick them up.
 #
 # This is a complete standalone config: it does not rely on Ktor merging it
-# with the config embedded in the jar.
+# with the config embedded in the jar, so it must carry the `ktor.application`
+# module entry point.
 
 ktor {
     deployment {
+        # TCP port the server binds inside the container.
         port = 8080
+        port = ${?KALENDEE_HTTP_PORT}
+        # Interface to bind. 0.0.0.0 listens on every interface, which is what
+        # you want in a container behind a reverse proxy.
         host = "0.0.0.0"
+        host = ${?KALENDEE_HTTP_HOST}
     }
     application {
+        # Ktor module entry point. Required in a standalone config file.
         modules = [ dev.kolektiv.kalendee.ApplicationKt.module ]
     }
 }
 
-# JDBC connection settings. The URL, user, and password live here; the
-# KALENDEE_DATABASE_* environment substitutions are optional overrides.
+# JDBC connection settings for PostgreSQL. In docker-compose.yml the host is
+# the `postgres` service name. The password has no default: set it via the
+# KALENDEE_DATABASE_PASSWORD secret substitution rather than in this file.
 database {
     url = "jdbc:postgresql://postgres:5432/kalendee"
     url = ${?KALENDEE_DATABASE_URL}
     user = "kalendee"
     user = ${?KALENDEE_DATABASE_USER}
+    # No default password: supply KALENDEE_DATABASE_PASSWORD (see .env.example).
     password = ${?KALENDEE_DATABASE_PASSWORD}
 }
 
 auth {
+    # Public registration policy: "first-user", "open", or "closed".
     registration = "first-user"
     registration = ${?KALENDEE_AUTH_REGISTRATION}
+    # Session lifetime in days.
     sessionDays = 30
+    sessionDays = ${?KALENDEE_AUTH_SESSION_DAYS}
+    # Session cookie name.
     cookieName = "kalendee_session"
+    cookieName = ${?KALENDEE_SESSION_COOKIE_NAME}
+    # Require HTTPS for the session cookie. Leave true in production: cookies
+    # are only sent over the TLS connection terminated by the reverse proxy.
+    # The server defaults this to true outside development; keep it explicit.
+    cookieSecure = true
     cookieSecure = ${?KALENDEE_COOKIE_SECURE}
+    # Username of the admin seeded on first startup.
     adminUsername = "admin"
     adminUsername = ${?KALENDEE_ADMIN_USERNAME}
+    # Password of that admin; blank disables seeding. Supply via secret env.
     adminPassword = ${?KALENDEE_ADMIN_PASSWORD}
+    # Optional username granted superadmin rights.
     superadminUsername = ${?KALENDEE_SUPERADMIN_USERNAME}
+    # Email verification policy: "required", "optional", or "off".
     emailVerification = "optional"
     emailVerification = ${?KALENDEE_AUTH_EMAIL_VERIFICATION}
+    # Verification email lifetime in hours.
     emailVerificationTtlHours = 24
     emailVerificationTtlHours = ${?KALENDEE_AUTH_EMAIL_VERIFICATION_TTL_HOURS}
     # Allow OAuth sign-ins to create new accounts (still gated by `registration`).
     oauthRegistration = false
     oauthRegistration = ${?KALENDEE_AUTH_OAUTH_REGISTRATION}
     argon2 {
+        # Argon2id memory cost in KiB.
         memoryKib = 19456
         memoryKib = ${?KALENDEE_ARGON2_MEMORY_KIB}
+        # Argon2id iteration count.
         iterations = 2
         iterations = ${?KALENDEE_ARGON2_ITERATIONS}
+        # Argon2id parallelism factor.
         parallelism = 1
         parallelism = ${?KALENDEE_ARGON2_PARALLELISM}
     }
 }
 
 app {
+    # Canonical public URL. Put the real reverse-proxy URL here (scheme + host,
+    # optionally a path prefix), no trailing slash. Used for email links, RSS,
+    # and OAuth redirect URIs. Replace the placeholder before going live.
     baseUrl = "https://calendar.example.com"
     baseUrl = ${?KALENDEE_PUBLIC_URL}
+    # Deprecated alias kept for backwards compatibility with older deployments.
     baseUrl = ${?KALENDEE_BASE_URL}
+    # Development mode: pretty error page and localhost base URL default. Must
+    # stay false in production.
     development = false
     development = ${?KALENDEE_DEVELOPMENT}
     # Instance-wide default for anonymous access to public calendars:
@@ -69,16 +118,22 @@ app {
     # development and for capturing screenshots; never enable in production.
     seedDemo = false
     seedDemo = ${?KALENDEE_SEED_DEMO}
+    # Password of the seeded demo users.
     demoPassword = "demo"
     demoPassword = ${?KALENDEE_DEMO_PASSWORD}
+    # Time zone of the seeded demo data.
     demoTimezone = "Europe/Berlin"
     demoTimezone = ${?KALENDEE_DEMO_TIMEZONE}
 }
 
 # External calendar connections. Providers with a blank client id are disabled.
+# The OAuth client secrets below are secrets: supply them through .env, not in
+# a committed config file.
 oauth {
     discord {
+        # Discord OAuth client id; blank disables the provider.
         clientId = ${?KALENDEE_DISCORD_CLIENT_ID}
+        # Discord OAuth client secret.
         clientSecret = ${?KALENDEE_DISCORD_CLIENT_SECRET}
         # Bot token for reading guild scheduled events. Invite the bot to the
         # guild first; optional, user linking works without it.
@@ -86,47 +141,130 @@ oauth {
     }
     # Token-encryption keys: KALENDEE_SECRET_KEY is a base64 32-byte key (version 1);
     # KALENDEE_SECRET_KEYS is an optional JSON object for rotation, e.g.
-    # { "1": "<base64>", "2": "<base64>" }.
+    # { "1": "<base64>", "2": "<base64>" }. Required before any provider can be
+    # connected. Generate with: openssl rand -base64 32
     secretKey = ${?KALENDEE_SECRET_KEY}
     secretKeys = ${?KALENDEE_SECRET_KEYS}
 }
 
 mail {
+    # Master switch for outgoing mail. When false, mail is logged and dropped.
     enabled = false
     enabled = ${?KALENDEE_MAIL_ENABLED}
+    # Mail transport: "smtp", "cloudflare", "mailgun", or "log". Blank
+    # auto-detects: SMTP when `host` is set, otherwise Cloudflare when both
+    # cloudflare.endpoint and cloudflare.token are set, otherwise Mailgun when
+    # both mailgun.apiKey and mailgun.domain are set, otherwise the logging
+    # mailer. Set it explicitly when you configure more than one.
+    #
+    # Note: Cloudflare's send_email binding is a paid Email Routing feature.
+    # Mailgun's HTTP API is the non-SMTP alternative that works without it.
+    provider = ""
+    provider = ${?KALENDEE_MAIL_PROVIDER}
+    # SMTP host. To use plain SMTP, set this (and port/user/password) and leave
+    # provider blank or "smtp". Skip the SMTP block entirely when using
+    # Cloudflare. Port 587 with STARTTLS is the common submission setup; some
+    # providers use 465 (implicit TLS) -- check before going live.
     host = ""
     host = ${?KALENDEE_SMTP_HOST}
     port = 587
     port = ${?KALENDEE_SMTP_PORT}
+    # SMTP username; blank disables authentication (useful for a local relay).
     username = ""
     username = ${?KALENDEE_SMTP_USER}
+    # SMTP password. Secret: supply via .env.
     password = ""
     password = ${?KALENDEE_SMTP_PASSWORD}
+    # From address used for every message. Use an address your mail provider is
+    # allowed to send as.
     from = "Kalendee <no-reply@localhost>"
     from = ${?KALENDEE_MAIL_FROM}
+    # Enable STARTTLS on the SMTP connection. Keep true for port 587.
     startTls = true
     startTls = ${?KALENDEE_SMTP_STARTTLS}
+    # Cloudflare Email Routing bridge. Deploy workers/mailer and point the
+    # server at it to send mail without an SMTP relay. This is fully optional:
+    # leave the endpoint/token blank unless you use it. See
+    # workers/mailer/README.md. The token is the same MAILER_TOKEN the Worker
+    # expects in its Authorization header -- keep it in .env, not here.
+    cloudflare {
+        # Base URL of the deployed mailer Worker, e.g.
+        # https://kalendee-mailer.<your-subdomain>.workers.dev
+        endpoint = ""
+        endpoint = ${?KALENDEE_MAIL_CLOUDFLARE_ENDPOINT}
+        # Bearer token the Worker expects. Secret: supply via .env.
+        token = ""
+        token = ${?KALENDEE_MAIL_CLOUDFLARE_TOKEN}
+        # Request timeout in seconds.
+        timeoutSeconds = 10
+        timeoutSeconds = ${?KALENDEE_MAIL_CLOUDFLARE_TIMEOUT_SECONDS}
+    }
+    # Mailgun HTTP API. This is the practical non-SMTP option when Cloudflare's
+    # paid `send_email` Email Routing binding is unavailable. Verify the domain
+    # in Mailgun first, then send as an address on that domain via mail.from.
+    # apiKey is a secret: put it in .env, not here.
+    mailgun {
+        # Private API key from the Mailgun dashboard (secret: supply via .env).
+        apiKey = ${?KALENDEE_MAILGUN_API_KEY}
+        # Sending domain verified in Mailgun, e.g. mg.example.com.
+        domain = ${?KALENDEE_MAILGUN_DOMAIN}
+        # Control-plane region: "us" or "eu". Picks api.mailgun.net or
+        # api.eu.mailgun.net when baseUrl is blank.
+        region = "us"
+        region = ${?KALENDEE_MAILGUN_REGION}
+        # Optional override for the API base URL (e.g. a custom Mailgun
+        # endpoint). Leave blank to derive it from `region`.
+        baseUrl = ""
+        baseUrl = ${?KALENDEE_MAILGUN_BASE_URL}
+        # Request timeout in seconds.
+        timeoutSeconds = 10
+        timeoutSeconds = ${?KALENDEE_MAILGUN_TIMEOUT_SECONDS}
+    }
 }
 
 storage {
+    # Directory backing local object storage (avatars). The image sets
+    # KALENDEE_AVATAR_DIR=/data/avatars and docker-compose mounts a named volume
+    # at /data, so leave this unless you have another writable location.
     localDir = "/data/avatars"
     localDir = ${?KALENDEE_AVATAR_DIR}
+    # Optional public base URL for objects (e.g. an R2 or CDN domain). When set,
+    # avatar GETs 302-redirect here instead of proxying bytes through the
+    # server, which keeps image traffic off the app. Point it at a public R2
+    # bucket/custom domain (see workers/ for an R2 read gateway).
+    publicBaseUrl = ""
+    publicBaseUrl = ${?KALENDEE_STORAGE_PUBLIC_URL}
+    # S3-compatible object storage. To put avatars in Cloudflare R2, set
+    # enabled=true, endpoint=https://<account-id>.r2.cloudflarestorage.com,
+    # region="auto", bucket=<bucket>, pathStyle=true, and provide the access
+    # key/secret via .env. R2 ignores the region but the SDK requires one;
+    # "auto" is the documented value. Path-style addressing is mandatory for
+    # R2. Credentials are secrets and belong in .env.
     s3 {
+        # Enable the S3-compatible backend. When disabled, localDir is used.
         enabled = false
         enabled = ${?KALENDEE_S3_ENABLED}
+        # Endpoint; set for non-AWS providers such as Cloudflare R2.
         endpoint = ""
         endpoint = ${?KALENDEE_S3_ENDPOINT}
+        # Region. "auto" for Cloudflare R2, otherwise a real region.
         region = "us-east-1"
         region = ${?KALENDEE_S3_REGION}
+        # Bucket name.
         bucket = ""
         bucket = ${?KALENDEE_S3_BUCKET}
+        # Access key id; blank falls back to the SDK default credential chain.
         accessKey = ${?KALENDEE_S3_ACCESS_KEY}
+        # Secret access key. Secret: supply via .env.
         secretKey = ${?KALENDEE_S3_SECRET_KEY}
+        # Use path-style addressing. Required by Cloudflare R2.
         pathStyle = true
         pathStyle = ${?KALENDEE_S3_PATH_STYLE}
     }
 }
 
 keel {
+    # Optional exploded Keel web-pack directory. Leave unset in production: the
+    # image bundles the built pack (kalendee.feb) inside the jar.
     packDir = ${?KALENDEE_KEEL_PACK}
 }

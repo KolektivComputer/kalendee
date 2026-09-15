@@ -29,6 +29,7 @@
   import type { ReminderSelection } from "../reminders"
   import { settingsHref } from "../settings-ui.svelte"
   import { clientTimeZone, datesBetween } from "../time"
+  import BuiltByKolektiv from "./BuiltByKolektiv.svelte"
   import CalendarSidebar from "./CalendarSidebar.svelte"
   import EventDialog from "./EventDialog.svelte"
   import MonthGrid from "./MonthGrid.svelte"
@@ -328,29 +329,34 @@
   </div>
   <div class="drawer-side z-20">
     <label for="calendar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
-    <aside class="bg-base-100 min-h-full w-64 border-r border-base-300">
-      <CalendarSidebar
-        calendars={data.calendars}
-        bind:selectedId
-        timeZone={data.viewer?.timeZone || viewTimeZone}
-        showHolidays={data.showHolidays}
-        friends={data.friends}
-        friendRequests={data.friendRequests}
-        organizations={data.readOnly ? [] : organizations}
-        teams={data.readOnly ? [] : data.teams}
-        createPending={createCalendar.isPending}
-        updatePending={updateCalendar.isPending}
-        deletePending={deleteCalendar.isPending}
-        createError={createCalendar.error}
-        updateError={updateCalendar.error}
-        readOnly={data.readOnly}
-        onCreate={onCreateCalendar}
-        onUpdate={onUpdateCalendar}
-        onDelete={onDeleteCalendar}
-        onHidden={onHiddenCalendar}
-        onShowHolidays={(show: boolean) => setShowHolidays.mutateAsync({ showHolidays: show })}
-        onUnfollow={onUnfollow}
-      />
+    <aside class="bg-base-100 flex h-full min-h-0 w-64 flex-col border-r border-base-300">
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <CalendarSidebar
+          calendars={data.calendars}
+          bind:selectedId
+          timeZone={data.viewer?.timeZone || viewTimeZone}
+          showHolidays={data.showHolidays}
+          friends={data.friends}
+          friendRequests={data.friendRequests}
+          organizations={data.readOnly ? [] : organizations}
+          teams={data.readOnly ? [] : data.teams}
+          createPending={createCalendar.isPending}
+          updatePending={updateCalendar.isPending}
+          deletePending={deleteCalendar.isPending}
+          createError={createCalendar.error}
+          updateError={updateCalendar.error}
+          readOnly={data.readOnly}
+          onCreate={onCreateCalendar}
+          onUpdate={onUpdateCalendar}
+          onDelete={onDeleteCalendar}
+          onHidden={onHiddenCalendar}
+          onShowHolidays={(show: boolean) => setShowHolidays.mutateAsync({ showHolidays: show })}
+          onUnfollow={onUnfollow}
+        />
+      </div>
+      <div class="shrink-0 border-t border-base-300 p-3">
+        <BuiltByKolektiv />
+      </div>
     </aside>
   </div>
 </div>

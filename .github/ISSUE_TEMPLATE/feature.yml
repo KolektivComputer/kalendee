@@ -1,0 +1,28 @@
+name: Feature request
+description: A new capability
+type: Feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [GOALS.md](../../GOALS.md) first — requests that fit the goals are much more likely to land.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what’s in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Proposed approach
+      description: Optional — how you think this could work.
+    validations:
+      required: false
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+    validations:
+      required: false

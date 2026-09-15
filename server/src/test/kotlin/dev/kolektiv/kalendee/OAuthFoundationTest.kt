@@ -413,7 +413,7 @@ private fun oauthTestConfig(
 )
 
 private fun mockDiscordEngine(
-    externalId: String = "discord-1",
+    externalId: String = "302",
     username: String = "oauthuser",
     globalName: String? = "OAuth User",
 ): MockEngine = MockEngine { request ->
@@ -434,7 +434,7 @@ private fun mockDiscordEngine(
             headers = json,
         )
         request.method == HttpMethod.Get && path.endsWith("/users/@me") -> respond(
-            content = """{"id":"$externalId","username":"$username","global_name":${globalName.jsonOrNull()}}""",
+            content = """{"id":"$externalId","username":"$username","global_name":${globalName.jsonOrNull()},"avatar":null}""",
             status = HttpStatusCode.OK,
             headers = json,
         )

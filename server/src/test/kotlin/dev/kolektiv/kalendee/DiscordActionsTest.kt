@@ -61,41 +61,41 @@ class DiscordActionsTest {
             """{"connectionId":"${connection.id}"}""",
             DiscordGuildsOut.serializer(),
         )
-        assertEquals(listOf("guild-1", "guild-2", "guild-3"), listed.guilds.map { it.id }.sorted())
-        val guild = listed.guilds.first { it.id == "guild-1" }
+        assertEquals(listOf("101", "102", "103"), listed.guilds.map { it.id }.sorted())
+        val guild = listed.guilds.first { it.id == "101" }
         assertEquals("Kolektiv", guild.name)
         assertTrue(guild.owner)
         assertTrue(guild.botPresent)
         assertTrue(guild.manageable)
         assertFalse(guild.imported)
-        assertEquals("https://cdn.discordapp.com/icons/guild-1/icon-hash.png?size=128", guild.iconUrl)
+        assertEquals("https://cdn.discordapp.com/icons/101/icon-hash.png?size=128", guild.iconUrl)
         assertNull(guild.inviteUrl)
-        val botMissing = listed.guilds.first { it.id == "guild-2" }
+        val botMissing = listed.guilds.first { it.id == "102" }
         assertFalse(botMissing.botPresent)
         assertTrue(botMissing.manageable)
         assertEquals(
-            "https://cdn.discordapp.com/icons/guild-2/a_animated-hash.webp?animated=true&size=128",
+            "https://cdn.discordapp.com/icons/102/a_animated-hash.webp?animated=true&size=128",
             botMissing.iconUrl,
         )
         val invite = assertNotNull(botMissing.inviteUrl)
         assertEquals("discord-client", Url(invite).parameters["client_id"])
-        val botOnly = listed.guilds.first { it.id == "guild-3" }
+        val botOnly = listed.guilds.first { it.id == "103" }
         assertTrue(botOnly.botPresent)
         assertFalse(botOnly.manageable)
         assertNull(botOnly.inviteUrl)
         assertNull(botOnly.iconUrl)
-        assertNull(listed.guilds.firstOrNull { it.id == "guild-4" })
+        assertNull(listed.guilds.firstOrNull { it.id == "104" })
 
         val rejected = client.actionErrors(
             "kalendee.importDiscordGuild",
-            """{"connectionId":"${connection.id}","guildId":"guild-2"}""",
+            """{"connectionId":"${connection.id}","guildId":"102"}""",
         )
         val guildIdErrors = assertNotNull(rejected["guildId"]).joinToString(" ")
         assertTrue("oauth2/authorize" in guildIdErrors, guildIdErrors)
 
         val imported = client.action(
             "kalendee.importDiscordGuild",
-            """{"connectionId":"${connection.id}","guildId":"guild-1"}""",
+            """{"connectionId":"${connection.id}","guildId":"101"}""",
             DiscordGuildSummary.serializer(),
         )
         assertTrue(imported.imported)
@@ -135,7 +135,7 @@ class DiscordActionsTest {
             """{"connectionId":"${connection.id}"}""",
             DiscordGuildsOut.serializer(),
         )
-        val removedGuild = after.guilds.first { it.id == "guild-1" }
+        val removedGuild = after.guilds.first { it.id == "101" }
         assertFalse(removedGuild.imported)
         assertTrue(removedGuild.manageable)
         assertNull(removedGuild.externalCalendarId)
@@ -156,7 +156,7 @@ class DiscordActionsTest {
 
         val setup = client.action(
             "kalendee.discordSyncSetup",
-            """{"connectionId":"${connection.id}","guildId":"guild-1"}""",
+            """{"connectionId":"${connection.id}","guildId":"101"}""",
             DiscordSyncSetupOut.serializer(),
         )
 
@@ -167,7 +167,7 @@ class DiscordActionsTest {
         assertNull(setup.lastError)
         assertTrue(setup.calendars.any { it.id == anime.id })
         val event = setup.events.single()
-        assertEquals("event-1", event.id)
+        assertEquals("201", event.id)
         assertEquals("Community call", event.name)
         assertEquals("2026-09-20T14:00:00Z", event.start)
         assertFalse(event.recurring)
@@ -195,8 +195,8 @@ class DiscordActionsTest {
 
         val saved = client.action(
             "kalendee.saveDiscordSync",
-            """{"connectionId":"${connection.id}","guildId":"guild-1","defaultCalendarId":"${anime.id}",""" +
-                """"routes":[{"eventId":"event-1","calendarId":"${gaming.id}"}],"enabled":true}""",
+            """{"connectionId":"${connection.id}","guildId":"101","defaultCalendarId":"${anime.id}",""" +
+                """"routes":[{"eventId":"201","calendarId":"${gaming.id}"}],"enabled":true}""",
             DiscordGuildSummary.serializer(),
         )
 
@@ -209,7 +209,7 @@ class DiscordActionsTest {
 
         val routed = client.action(
             "kalendee.discordSyncSetup",
-            """{"connectionId":"${connection.id}","guildId":"guild-1"}""",
+            """{"connectionId":"${connection.id}","guildId":"101"}""",
             DiscordSyncSetupOut.serializer(),
         )
         assertTrue(routed.imported)
@@ -222,15 +222,15 @@ class DiscordActionsTest {
 
         val skipped = client.action(
             "kalendee.saveDiscordSync",
-            """{"connectionId":"${connection.id}","guildId":"guild-1",""" +
-                """"routes":[{"eventId":"event-1","skipped":true}],"enabled":true}""",
+            """{"connectionId":"${connection.id}","guildId":"101",""" +
+                """"routes":[{"eventId":"201","skipped":true}],"enabled":true}""",
             DiscordGuildSummary.serializer(),
         )
         assertEquals(saved.externalCalendarId, skipped.externalCalendarId)
 
         val after = client.action(
             "kalendee.discordSyncSetup",
-            """{"connectionId":"${connection.id}","guildId":"guild-1"}""",
+            """{"connectionId":"${connection.id}","guildId":"101"}""",
             DiscordSyncSetupOut.serializer(),
         )
         assertTrue(after.events.single().skipped)
@@ -255,7 +255,7 @@ class DiscordActionsTest {
 
         val errors = client.actionErrors(
             "kalendee.saveDiscordSync",
-            """{"connectionId":"${connection.id}","guildId":"guild-1",""" +
+            """{"connectionId":"${connection.id}","guildId":"101",""" +
                 """"defaultCalendarId":"${otherCalendar.id}","enabled":true}""",
         )
 
@@ -341,23 +341,23 @@ class DiscordActionsTest {
 
     private companion object {
         val UserGuildsJson =
-            """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash","owner":true},""" +
-                """{"id":"guild-2","name":"Another server","icon":"a_animated-hash","owner":false,""" +
-                """"permissions":"32"},""" +
-                """{"id":"guild-3","name":"Bot only","icon":null,"owner":false,"permissions":"1024"},""" +
-                """{"id":"guild-4","name":"Unmanageable","icon":null,"owner":false,"permissions":"1024"}]"""
+            """[{"id":"101","name":"Kolektiv","icon":"icon-hash","owner":true,"features":[]},""" +
+                """{"id":"102","name":"Another server","icon":"a_animated-hash","owner":false,""" +
+                """"permissions":"32","features":[]},""" +
+                """{"id":"103","name":"Bot only","icon":null,"owner":false,"permissions":"1024","features":[]},""" +
+                """{"id":"104","name":"Unmanageable","icon":null,"owner":false,"permissions":"1024","features":[]}]"""
         val BotGuildsJson =
-            """[{"id":"guild-1","name":"Kolektiv","icon":"icon-hash"},""" +
-                """{"id":"guild-3","name":"Bot only","icon":null}]"""
-        val IdentityJson = """{"id":"discord-1","username":"mey","global_name":"Mey"}"""
+            """[{"id":"101","name":"Kolektiv","icon":"icon-hash","features":[]},""" +
+                """{"id":"103","name":"Bot only","icon":null,"features":[]}]"""
+        val IdentityJson = """{"id":"302","username":"mey","global_name":"Mey","avatar":null}"""
         val TokenJson =
             """{"access_token":"access-1","refresh_token":"refresh-1","expires_in":604800,""" +
                 """"scope":"identify guilds","token_type":"Bearer"}"""
         val ScheduledEventsJson =
-            """[{"id":"event-1","guild_id":"guild-1","channel_id":null,"name":"Community call",""" +
+            """[{"id":"201","guild_id":"101","channel_id":null,"name":"Community call",""" +
                 """"description":"Hello","scheduled_start_time":"2026-09-20T14:00:00Z",""" +
                 """"scheduled_end_time":"2026-09-20T15:00:00Z","privacy_level":2,"status":1,""" +
-                """"entity_type":3,"entity_metadata":{"location":"Lounge"},"user_count":3}]"""
+                """"entity_type":3,"entity_id":null,"entity_metadata":{"location":"Lounge"},"user_count":3}]"""
         val discordActionsSecretKey: String = Base64.getEncoder().encodeToString(ByteArray(32) { it.toByte() })
     }
 }

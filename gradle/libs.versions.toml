@@ -28,6 +28,7 @@ koin = "4.1.1"
 password4j = "1.8.4"
 keel = "0.0.1"
 aws-sdk = "2.54.17"
+kord = "0.18.1-kalendee.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -75,6 +76,7 @@ koin-logger-slf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref =
 keel-core = { module = "dev.kolektiv.keel:core", version.ref = "keel" }
 keel-ktor = { module = "dev.kolektiv.keel:ktor", version.ref = "keel" }
 aws-sdk-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
+kord-rest = { module = "dev.kord:kord-rest", version.ref = "kord" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

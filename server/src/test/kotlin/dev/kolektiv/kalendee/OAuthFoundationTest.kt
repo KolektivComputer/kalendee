@@ -340,7 +340,7 @@ class OAuthFoundationTest {
             assertTrue("KALENDEE_SECRET_KEY" in text, "missing secret key in $file")
             assertTrue("KALENDEE_AUTH_OAUTH_REGISTRATION" in text, "missing oauth registration env in $file")
             assertFalse(text.contains("oauthRegistration = true"), "oauth registration must default to off in $file")
-            assertFalse(text.contains("KALENDEE_GOOGLE_CLIENT_ID"), "google must be removed from $file")
+            assertTrue(text.contains("KALENDEE_GOOGLE_CLIENT_ID"), "missing google client id in $file")
             assertFalse(text.contains("KALENDEE_MICROSOFT_CLIENT_ID"), "microsoft must be removed from $file")
             val config = ConfigFactory.parseFile(file.toFile()).resolve()
             assertTrue(config.hasPath("auth.oauthRegistration"), "auth.oauthRegistration must resolve in $file")
@@ -353,7 +353,7 @@ class OAuthFoundationTest {
             assertTrue("KALENDEE_DISCORD_CLIENT_ID" in text, "missing discord client placeholder in $file")
             assertTrue("KALENDEE_DISCORD_CLIENT_SECRET" in text, "missing discord client secret placeholder in $file")
             assertTrue("KALENDEE_DISCORD_BOT_TOKEN" in text, "missing discord bot token placeholder in $file")
-            assertFalse(text.contains("KALENDEE_GOOGLE_CLIENT_ID"), "google must be removed from $file")
+            assertTrue(text.contains("KALENDEE_GOOGLE_CLIENT_ID"), "missing google client id placeholder in $file")
             assertFalse(text.contains("KALENDEE_MICROSOFT_CLIENT_ID"), "microsoft must be removed from $file")
         }
     }

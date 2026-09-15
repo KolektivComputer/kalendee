@@ -75,6 +75,13 @@
         .map((calendar) => calendar.id),
     ),
   )
+  const pushCalendarIds = $derived(
+    new Set(
+      calendars
+        .filter((calendar) => calendar.syncDirection === "push" || calendar.syncDirection === "both")
+        .map((calendar) => calendar.id),
+    ),
+  )
   const timed = $derived(layoutTimed(events, startDate, columns, timeZone))
   const allDay = $derived(layoutAllDay(events, startDate, columns, timeZone))
   const hours = Array.from({ length: 24 }, (_, hour) => hour)
@@ -165,7 +172,7 @@
   const moveDestinations = $derived.by(() => {
     if (menu.kind !== "event") return []
     const event = menu.event
-    if (readOnly || !writableCalendarIds.has(event.calendarId)) return []
+    if (readOnly || event.externalCalendarId || !writableCalendarIds.has(event.calendarId)) return []
     return (moveTargets ?? calendars).filter(
       (calendar) =>
         calendar.id !== event.calendarId &&
@@ -203,6 +210,24 @@
     return zonedToInstant(dates[dayIndex], minutes, timeZone)
   }
 
+  function isExternalOccurrence(event: EventSummary): boolean {
+    const uid = event.externalUid
+    return (
+      event.externalCalendarId != null &&
+      uid != null &&
+      uid.startsWith("discord:") &&
+      uid.split(":").length > 3
+    )
+  }
+
+  function canEditEventTimes(item: EventSummary): boolean {
+    if (readOnly || isHolidayEvent(item) || item.recurrence) return false
+    if (item.externalCalendarId != null) {
+      return pushCalendarIds.has(item.calendarId) && !isExternalOccurrence(item)
+    }
+    return writableCalendarIds.has(item.calendarId)
+  }
+
   function onTimedPointerDown(event: PointerEvent) {
     if (readOnly || event.button !== 0 || !event.isPrimary || drag) return
     const target = event.target as HTMLElement
@@ -217,7 +242,7 @@
     if (event.button !== 0 || !event.isPrimary || drag) return
     event.stopPropagation()
     const item = block.event
-    if (readOnly || isHolidayEvent(item) || item.recurrence || !writableCalendarIds.has(item.calendarId)) {
+    if (!canEditEventTimes(item)) {
       onSelect(item)
       return
     }
@@ -244,7 +269,7 @@
 
   function onResizePointerDown(event: PointerEvent, item: EventSummary) {
     if (readOnly || event.button !== 0 || !event.isPrimary || drag) return
-    if (!writableCalendarIds.has(item.calendarId)) return
+    if (!canEditEventTimes(item)) return
     event.stopPropagation()
     drag = { kind: "resize", pointerId: event.pointerId, event: item, liveEnd: item.end }
     ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
@@ -379,10 +404,12 @@
           menu = { kind: "holiday", event: found }
           return true
         }
-        if (!readOnly && writableCalendarIds.has(found.calendarId)) {
+        if (!readOnly && !found.externalCalendarId && writableCalendarIds.has(found.calendarId)) {
           menu = { kind: "event", event: found }
           return true
         }
+        menu = { kind: "none" }
+        return false
       }
     }
     if (readOnly) {
@@ -556,7 +583,7 @@
               >
                 <strong class="block font-semibold">{block.event.title}</strong>
                 <span class="text-[0.68rem] opacity-75">{formatClock(block.startMin)}</span>
-                {#if !readOnly && writableCalendarIds.has(block.event.calendarId) && !block.event.recurrence && !isHolidayEvent(block.event)}
+                {#if canEditEventTimes(block.event)}
                   <div
                     class="absolute right-0 bottom-0 left-0 h-2 cursor-ns-resize"
                     data-resize

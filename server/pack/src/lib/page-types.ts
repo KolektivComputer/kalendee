@@ -157,6 +157,8 @@ export interface EventSummary {
   openRsvp: boolean
   rsvpStatus: string | null
   attendeeCount: number
+  externalCalendarId: string | null
+  externalUid: string | null
 }
 
 export interface FriendSummary {

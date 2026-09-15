@@ -206,6 +206,92 @@ class DiscordImportServiceTest {
     }
 
     @Test
+    fun importStoresBothDirectionWhenUserAndBotCanManageEvents() = testApplication {
+        val manageEvents = "8589934592"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = {
+                    ok(
+                        "[" +
+                            guildJson("111", owner = true) + "," +
+                            guildJson("112", permissions = manageEvents) + "," +
+                            guildJson("113", permissions = "8") +
+                            "]",
+                    )
+                },
+                botGuilds = {
+                    ok(
+                        "[" +
+                            guildJson("111", permissions = manageEvents) + "," +
+                            guildJson("112", permissions = manageEvents) + "," +
+                            guildJson("113", permissions = manageEvents) +
+                            "]",
+                    )
+                },
+            ),
+        )
+
+        listOf("111", "112", "113").forEach { guildId ->
+            val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, guildId)
+            val row = fixture.externalRow(assertNotNull(summary.externalCalendarId))
+            assertEquals("both", row[ExternalCalendarsTable.syncDirection])
+        }
+    }
+
+    @Test
+    fun importStoresPullDirectionWhenEitherSideLacksManageEvents() = testApplication {
+        val manageEvents = "8589934592"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = {
+                    ok("[${guildJson("111", owner = true)},${guildJson("112")}]")
+                },
+                botGuilds = {
+                    ok(
+                        "[" +
+                            guildJson("111", permissions = "1024") + "," +
+                            guildJson("112", permissions = manageEvents) +
+                            "]",
+                    )
+                },
+            ),
+        )
+
+        listOf("111", "112").forEach { guildId ->
+            val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, guildId)
+            val row = fixture.externalRow(assertNotNull(summary.externalCalendarId))
+            assertEquals("pull", row[ExternalCalendarsTable.syncDirection])
+        }
+    }
+
+    @Test
+    fun guildListingRefreshesStaleSyncDirection() = testApplication {
+        val manageEvents = "8589934592"
+        var userGuilds = "[${guildJson("101", permissions = "1024")}]"
+        var botGuilds = "[${guildJson("101", permissions = "1024")}]"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok(userGuilds) },
+                botGuilds = { ok(botGuilds) },
+            ),
+        )
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+
+        userGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        botGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        fixture.imports.guilds(fixture.user.id, fixture.connectionId)
+
+        assertEquals("both", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+
+        botGuilds = "[${guildJson("101", permissions = "1024")}]"
+        fixture.imports.guilds(fixture.user.id, fixture.connectionId)
+
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+    }
+
+    @Test
     fun importedGuildStaysListedAfterLosingBotAndManageability() = testApplication {
         var userGuilds = "[${guildJson("101", permissions = "32")}]"
         var botGuilds = "[${guildJson("101")}]"
@@ -723,7 +809,7 @@ class DiscordImportServiceTest {
 
     private fun discordEngine(
         userGuilds: () -> Pair<HttpStatusCode, String> = { ok(UserGuildsJson) },
-        botGuilds: () -> Pair<HttpStatusCode, String> = { ok(UserGuildsJson) },
+        botGuilds: () -> Pair<HttpStatusCode, String> = { ok(BotGuildsJson) },
         scheduledEvents: () -> Pair<HttpStatusCode, String> = { ok("[]") },
         scheduledEvent: (String) -> Pair<HttpStatusCode, String> = { HttpStatusCode.NotFound to "{}" },
     ): MockEngine = MockEngine { request ->
@@ -781,6 +867,8 @@ class DiscordImportServiceTest {
 
     private companion object {
         val UserGuildsJson = """[{"id":"101","name":"Kolektiv","icon":"icon-hash","owner":true,"features":[]}]"""
+        val BotGuildsJson =
+            """[{"id":"101","name":"Kolektiv","icon":"icon-hash","owner":false,"permissions":"1024","features":[]}]"""
         val IdentityJson = """{"id":"302","username":"mey","global_name":"Mey","avatar":null}"""
         val TokenJson =
             """{"access_token":"access-1","refresh_token":"refresh-1","expires_in":604800,""" +

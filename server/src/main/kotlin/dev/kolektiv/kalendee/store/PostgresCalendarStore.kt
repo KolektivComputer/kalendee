@@ -1284,5 +1284,7 @@ private fun ResultRow.toEvent(rsvpStatus: String? = null): Event {
         updatedAt = this[EventsTable.updatedAt],
         openRsvp = this[EventsTable.openRsvp],
         rsvpStatus = rsvpStatus,
+        externalCalendarId = this[EventsTable.externalCalendarId]?.let { CalendarId(it.toString()) },
+        externalUid = this[EventsTable.externalUid],
     )
 }

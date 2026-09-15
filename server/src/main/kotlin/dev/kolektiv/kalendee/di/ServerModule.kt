@@ -16,6 +16,7 @@ import dev.kolektiv.kalendee.db.DatabaseSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
 import dev.kolektiv.kalendee.events.EventUpdateService
+import dev.kolektiv.kalendee.events.RsvpSettingsService
 import dev.kolektiv.kalendee.external.store.ExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.ExternalEventStore
 import dev.kolektiv.kalendee.external.store.PostgresExternalEventRouteStore
@@ -172,6 +173,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
             clock = get(),
         )
     }
+    single { RsvpSettingsService(database = get(), store = get(), clock = get()) }
     single {
         AvailabilityService(
             database = get(),
@@ -223,7 +225,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
         )
     }
     single { EventActions(store = get(), auth = get(), settings = get(), eventUpdates = get()) }
-    single { EventInviteActions(service = get(), auth = get(), settings = get()) }
+    single { EventInviteActions(service = get(), rsvpSettings = get(), auth = get(), settings = get()) }
     single { HolidayActions(store = get(), auth = get(), settings = get()) }
     single {
         AdminActions(

@@ -301,13 +301,18 @@ class ExternalEventStoreTest {
     }
 
     @Test
-    fun openRsvpOnMirroredCalendarIsRejected() = testApplication {
+    fun rsvpOverridesOnMirroredCalendarAreRejected() = testApplication {
         val fixture = installFixture()
         fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
         val mirroredEventId = fixture.importedEventId()
 
         assertFailsWith<CalendarException.Forbidden> {
-            fixture.invites.setOpenRsvp(mirroredEventId, fixture.user.id, enabled = true)
+            fixture.invites.setRsvpOverrides(
+                mirroredEventId,
+                fixture.user.id,
+                rsvpOverride = true,
+                anonymousRsvpOverride = true,
+            )
         }
     }
 

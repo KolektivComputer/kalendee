@@ -30,6 +30,7 @@ import dev.kolektiv.kalendee.config.AppSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
 import dev.kolektiv.kalendee.events.EventUpdateService
+import dev.kolektiv.kalendee.events.RsvpSettingsService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.MailService
 import dev.kolektiv.kalendee.notifications.NotificationService
@@ -83,6 +84,7 @@ internal fun Application.configureApplication() {
     val reminders by inject<ReminderService>()
     val availability by inject<AvailabilityService>()
     val eventInvites by inject<EventInviteService>()
+    val rsvpSettings by inject<RsvpSettingsService>()
     val eventUpdates by inject<EventUpdateService>()
     val avatarStorage by inject<AvatarStorage>()
     val shareActions by inject<ShareActions>()
@@ -124,7 +126,7 @@ internal fun Application.configureApplication() {
             avatarRoutes(authService, groups, avatarStorage)
             calendarRoutes(store)
             eventRoutes(store, eventUpdates)
-            eventInviteRoutes(eventInvites)
+            eventInviteRoutes(eventInvites, rsvpSettings)
             reminderRoutes(reminders)
             holidayRoutes(store)
             availabilityRoutes(availability)

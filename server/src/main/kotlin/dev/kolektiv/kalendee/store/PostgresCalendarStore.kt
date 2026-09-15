@@ -659,6 +659,8 @@ class PostgresCalendarStore(
                 etag = etag,
                 createdAt = now,
                 updatedAt = now,
+                rsvpEnabled = calendar[CalendarsTable.rsvpEnabled],
+                openRsvp = calendar[CalendarsTable.anonymousRsvpEnabled],
             )
         }
     }
@@ -747,6 +749,9 @@ class PostgresCalendarStore(
         val existing = row.toEvent()
         existing.requireEtag(expectedEtag)
         val now = clock.now()
+        val destination = CalendarsTable.selectAll()
+            .where { CalendarsTable.id eq destinationCalendarId.toUuid() }
+            .single()
 
         val zoneId = existing.timeZone ?: row[CalendarsTable.timeZone]
         val from = occurrenceStart ?: existing.start
@@ -766,7 +771,11 @@ class PostgresCalendarStore(
                 it[updatedAt] = now
             }
             return@dbQuery listOf(
-                existing.copy(calendarId = destinationCalendarId, etag = etag, updatedAt = now),
+                existing.copy(calendarId = destinationCalendarId, etag = etag, updatedAt = now)
+                    .withCalendarRsvp(
+                        destination[CalendarsTable.rsvpEnabled],
+                        destination[CalendarsTable.anonymousRsvpEnabled],
+                    ),
             )
         }
 
@@ -801,7 +810,8 @@ class PostgresCalendarStore(
             it[recurrenceUntil] = followingRule.until
             it[recurrenceCount] = followingRule.count
             it[EventsTable.etag] = followingEtag
-            it[openRsvp] = existing.openRsvp
+            it[EventsTable.rsvpOverride] = existing.rsvpOverride
+            it[EventsTable.anonymousRsvpOverride] = existing.anonymousRsvpOverride
             it[createdAt] = now
             it[updatedAt] = now
         }
@@ -816,6 +826,9 @@ class PostgresCalendarStore(
             etag = followingEtag,
             createdAt = now,
             updatedAt = now,
+        ).withCalendarRsvp(
+            destination[CalendarsTable.rsvpEnabled],
+            destination[CalendarsTable.anonymousRsvpEnabled],
         )
         listOf(truncated, following)
     }
@@ -885,7 +898,7 @@ class PostgresCalendarStore(
         fallbackZone: String,
         userId: UserId? = null,
     ): List<Event> {
-        val query = EventsTable.selectAll().where {
+        val query = (EventsTable innerJoin CalendarsTable).selectAll().where {
             val calendarMatch = EventsTable.calendarId eq calendarId
             if (range == null) calendarMatch else calendarMatch and eventOverlaps(range)
         }
@@ -1239,6 +1252,8 @@ private fun ResultRow.toCalendar(
     publicLinkEnabled = ownerScoped && this[CalendarsTable.publicLinkEnabled],
     publicLinkToken = if (ownerScoped) this[CalendarsTable.publicLinkToken] else null,
     requestsEnabled = this[CalendarsTable.requestsEnabled],
+    rsvpEnabled = this[CalendarsTable.rsvpEnabled],
+    anonymousRsvpEnabled = this[CalendarsTable.anonymousRsvpEnabled],
     slotMinutes = this[CalendarsTable.slotMinutes],
     accessMode = PublicAccessMode.fromWire(this[CalendarsTable.accessMode]) ?: PublicAccessMode.INHERIT,
     createdAt = this[CalendarsTable.createdAt],
@@ -1266,6 +1281,8 @@ private fun ResultRow.toEvent(rsvpStatus: String? = null): Event {
             count = this[EventsTable.recurrenceCount],
         )
     }
+    val rsvpOverride = this[EventsTable.rsvpOverride]
+    val anonymousRsvpOverride = this[EventsTable.anonymousRsvpOverride]
     return Event(
         id = EventId(this[EventsTable.id].toString()),
         calendarId = CalendarId(this[EventsTable.calendarId].toString()),
@@ -1282,9 +1299,20 @@ private fun ResultRow.toEvent(rsvpStatus: String? = null): Event {
         etag = this[EventsTable.etag],
         createdAt = this[EventsTable.createdAt],
         updatedAt = this[EventsTable.updatedAt],
-        openRsvp = this[EventsTable.openRsvp],
+        rsvpEnabled = rsvpOverride ?: this[CalendarsTable.rsvpEnabled],
+        openRsvp = anonymousRsvpOverride ?: this[CalendarsTable.anonymousRsvpEnabled],
+        rsvpOverride = rsvpOverride,
+        anonymousRsvpOverride = anonymousRsvpOverride,
         rsvpStatus = rsvpStatus,
         externalCalendarId = this[EventsTable.externalCalendarId]?.let { CalendarId(it.toString()) },
         externalUid = this[EventsTable.externalUid],
     )
 }
+
+private fun Event.withCalendarRsvp(
+    calendarRsvpEnabled: Boolean,
+    calendarAnonymousRsvpEnabled: Boolean,
+): Event = copy(
+    rsvpEnabled = rsvpOverride ?: calendarRsvpEnabled,
+    openRsvp = anonymousRsvpOverride ?: calendarAnonymousRsvpEnabled,
+)

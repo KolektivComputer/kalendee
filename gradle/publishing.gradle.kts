@@ -42,6 +42,19 @@ configure<PublishingExtension> {
     repositories {
         mavenLocal()
 
+        val ghActor = providers.environmentVariable("GITHUB_ACTOR")
+        val ghToken = providers.environmentVariable("GITHUB_TOKEN")
+        if (ghActor.isPresent && ghToken.isPresent) {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/KolektivComputer/kalendee")
+                credentials {
+                    username = ghActor.get()
+                    password = ghToken.get()
+                }
+            }
+        }
+
         val yuriUser = providers.gradleProperty("kalendee.publishing.yuriCapitalRepoUsername")
             .orElse(providers.environmentVariable("YURI_CAPITAL_REPO_USERNAME"))
         val yuriPass = providers.gradleProperty("kalendee.publishing.yuriCapitalRepoPassword")

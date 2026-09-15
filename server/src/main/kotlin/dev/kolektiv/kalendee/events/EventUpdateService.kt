@@ -61,6 +61,6 @@ class EventUpdateService(
     }
 
     private companion object {
-        const val ImportedRescheduleOnlyMessage = "imported Discord events can only be rescheduled"
+        const val ImportedRescheduleOnlyMessage = "imported events can only be rescheduled"
     }
 }

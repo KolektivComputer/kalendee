@@ -31,10 +31,10 @@ class DiscordPushService(
     ): Event {
         val event = store.getEvent(eventId, actorId)
             ?: throw CalendarException.NotFound("event not found")
-        if (event.externalCalendarId == null) throw CalendarException.Forbidden(NotImportedMessage)
+        if (event.externalCalendarId == null) throw CalendarException.Forbidden(ExternalReadOnlyMessage)
         val source = externalEvents.findSource(eventId)
-            ?: throw CalendarException.Forbidden(NotImportedMessage)
-        if (source.provider != DiscordProviderId) throw CalendarException.Forbidden(NotImportedMessage)
+            ?: throw CalendarException.Forbidden(ExternalReadOnlyMessage)
+        if (source.provider != DiscordProviderId) throw CalendarException.Forbidden(ExternalReadOnlyMessage)
         if (source.ownerId != actorId) {
             throw CalendarException.Forbidden(
                 "only the Discord account that imported this event can reschedule it",
@@ -135,6 +135,8 @@ class DiscordPushService(
     private companion object {
         const val DiscordProviderId = "discord"
         const val NotImportedMessage = "this event is not imported from Discord"
+        const val ExternalReadOnlyMessage =
+            "this external calendar is read-only; reschedules are only supported for two-way Discord imports"
         const val ManageEventsMessage = "the Kalendee bot needs MANAGE_EVENTS in this Discord server"
         const val EventGoneMessage = "the Discord scheduled event no longer exists"
         const val HttpStatusCodeForbidden = 403

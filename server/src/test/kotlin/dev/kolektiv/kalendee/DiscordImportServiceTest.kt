@@ -4,6 +4,7 @@ import dev.kolektiv.kalendee.auth.AuthService
 import dev.kolektiv.kalendee.auth.RegisterUser
 import dev.kolektiv.kalendee.auth.User
 import dev.kolektiv.kalendee.calendar.Calendar
+import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.CreateCalendar
@@ -349,7 +350,7 @@ class DiscordImportServiceTest {
     }
 
     @Test
-    fun locallyEditedImportedEventSurvivesSync() = testApplication {
+    fun localEditIsRejectedAndSyncPropagatesProviderChanges() = testApplication {
         val start = Clock.System.now() + 2.days
         var body = "[${eventJson(start = start, name = "First")}]"
         val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
@@ -358,12 +359,15 @@ class DiscordImportServiceTest {
         val calendar = fixture.calendarFor(externalCalendarId)
         val event = fixture.store.listEvents(calendar.id, fixture.user.id).single()
 
-        fixture.store.updateEvent(event.id, fixture.user.id, UpdateEvent(title = "Locally edited"))
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.updateEvent(event.id, fixture.user.id, UpdateEvent(title = "Locally edited"))
+        }
+        assertEquals("First", fixture.store.listEvents(calendar.id, fixture.user.id).single().title)
 
         body = "[${eventJson(start = start, name = "Provider rename")}]"
         fixture.imports.syncNow(fixture.user.id, externalCalendarId)
 
-        assertEquals("Locally edited", fixture.store.listEvents(calendar.id, fixture.user.id).single().title)
+        assertEquals("Provider rename", fixture.store.listEvents(calendar.id, fixture.user.id).single().title)
         assertEquals(1, fixture.eventCount(externalCalendarId))
     }
 

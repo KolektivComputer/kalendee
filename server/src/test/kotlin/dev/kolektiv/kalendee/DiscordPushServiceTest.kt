@@ -8,17 +8,22 @@ import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.CalendarPermission
 import dev.kolektiv.kalendee.calendar.CalendarStore
+import dev.kolektiv.kalendee.calendar.CreateCalendar
 import dev.kolektiv.kalendee.calendar.EventId
+import dev.kolektiv.kalendee.calendar.EventStatus
 import dev.kolektiv.kalendee.calendar.OptionalField
 import dev.kolektiv.kalendee.calendar.UpdateEvent
+import dev.kolektiv.kalendee.db.CalendarConnectionsTable
 import dev.kolektiv.kalendee.db.EventsTable
 import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.events.EventUpdateService
+import dev.kolektiv.kalendee.external.store.ExternalEventStore
 import dev.kolektiv.kalendee.oauth.ConnectionService
 import dev.kolektiv.kalendee.oauth.OAuthCallbackOutcome
 import dev.kolektiv.kalendee.oauth.OAuthStateService
 import dev.kolektiv.kalendee.oauth.Pkce
 import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
+import dev.kolektiv.kalendee.oauth.discord.ImportedCalendarEvent
 import dev.kolektiv.kalendee.oauth.providers.DiscordAuthException
 import dev.kolektiv.kalendee.web.HomePage
 import dev.kolektiv.keel.KeelJson
@@ -60,6 +65,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.koin.ktor.ext.get
@@ -287,7 +293,7 @@ class DiscordPushServiceTest {
                 expectedEtag = event.etag,
             )
         }
-        assertEquals("imported Discord events can only be rescheduled", renamed.message)
+        assertEquals("imported events can only be rescheduled", renamed.message)
 
         val cleared = assertFailsWith<CalendarException.Forbidden> {
             fixture.updates.update(
@@ -297,7 +303,7 @@ class DiscordPushServiceTest {
                 expectedEtag = event.etag,
             )
         }
-        assertEquals("imported Discord events can only be rescheduled", cleared.message)
+        assertEquals("imported events can only be rescheduled", cleared.message)
         assertTrue(mock.patches.isEmpty())
     }
 
@@ -369,6 +375,77 @@ class DiscordPushServiceTest {
     }
 
     @Test
+    fun googleImportedEventRescheduleIsRejectedAsReadOnly() = testApplication {
+        val start = secondsFromNow(2.days)
+        val mock = MockDiscord(scheduledEvents = { ok("[]") })
+        val fixture = installPushFixture(mock)
+        val calendar = fixture.store.createCalendar(
+            fixture.user.id,
+            CreateCalendar(displayName = "Google"),
+        )
+        val connectionId = Uuid.random()
+        val externalCalendarId = Uuid.random()
+        val now = Clock.System.now()
+        withContext(Dispatchers.IO) {
+            suspendTransaction(fixture.database) {
+                CalendarConnectionsTable.insert {
+                    it[id] = connectionId
+                    it[CalendarConnectionsTable.userId] = Uuid.parse(fixture.user.id.value)
+                    it[provider] = "google"
+                    it[externalAccountId] = "google-account"
+                    it[accessTokenCiphertext] = "sealed"
+                    it[accessTokenNonce] = "nonce"
+                    it[tokenKeyVersion] = 1
+                    it[status] = "active"
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+                ExternalCalendarsTable.insert {
+                    it[id] = externalCalendarId
+                    it[ExternalCalendarsTable.connectionId] = connectionId
+                    it[ExternalCalendarsTable.externalId] = "primary"
+                    it[ExternalCalendarsTable.calendarId] = Uuid.parse(calendar.id.value)
+                    it[externalName] = "Google"
+                    it[syncDirection] = "pull"
+                    it[enabled] = true
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+            }
+        }
+        fixture.external.upsert(
+            externalCalendarId,
+            calendar.id,
+            ImportedCalendarEvent(
+                uid = "google:event-1",
+                title = "Google event",
+                description = null,
+                location = null,
+                start = start,
+                end = start + 1.hours,
+                status = EventStatus.CONFIRMED,
+            ),
+        )
+        val event = fixture.store.listEvents(calendar.id, fixture.user.id).single()
+
+        val failure = assertFailsWith<CalendarException.Forbidden> {
+            fixture.updates.update(
+                event.id,
+                fixture.user.id,
+                UpdateEvent(start = start + 1.hours, end = start + 2.hours),
+                expectedEtag = event.etag,
+            )
+        }
+
+        assertEquals(
+            "this external calendar is read-only; reschedules are only supported for two-way Discord imports",
+            failure.message,
+        )
+        assertTrue(mock.patches.isEmpty())
+        assertEquals(start, fixture.store.getEvent(event.id, fixture.user.id)?.start)
+    }
+
+    @Test
     fun homePageCalendarsExposeSyncMetadata() = testApplication {
         val start = secondsFromNow(2.days)
         val mock = MockDiscord(scheduledEvents = { ok("[${eventJson(start = start)}]") })
@@ -400,6 +477,7 @@ class DiscordPushServiceTest {
     private class PushFixture(
         val mock: MockDiscord,
         val store: CalendarStore,
+        val external: ExternalEventStore,
         val imports: DiscordImportService,
         val updates: EventUpdateService,
         val auth: AuthService,
@@ -500,6 +578,7 @@ class DiscordPushServiceTest {
         lateinit var imports: DiscordImportService
         lateinit var updates: EventUpdateService
         lateinit var store: CalendarStore
+        lateinit var external: ExternalEventStore
         lateinit var database: Database
         installApi(
             httpClient = HttpClient(mock.engine),
@@ -511,6 +590,7 @@ class DiscordPushServiceTest {
                 imports = get()
                 updates = get()
                 store = get()
+                external = get()
                 database = get()
             },
         )
@@ -530,6 +610,7 @@ class DiscordPushServiceTest {
         return PushFixture(
             mock = mock,
             store = store,
+            external = external,
             imports = imports,
             updates = updates,
             auth = auth,

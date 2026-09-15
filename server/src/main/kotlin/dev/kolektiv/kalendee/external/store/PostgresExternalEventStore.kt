@@ -77,20 +77,6 @@ class PostgresExternalEventStore(
                 return@dbQuery
             }
             val eventId = existing[EventsTable.id]
-            if (existing[EventsTable.locallyModifiedAt] != null) {
-                // Sticky local override: a user with write permission edited or
-                // moved this imported event, so provider sync must not clobber
-                // the locally owned fields. We keep title, description,
-                // location, url, start, end, allDay, timeZone, status,
-                // recurrence and calendarId as they are locally, and only
-                // refresh external bookkeeping (external_updated_at) so sync
-                // state stays coherent. The override lasts until the import is
-                // removed; the detached row then becomes a normal local event.
-                EventsTable.update({ EventsTable.id eq eventId }) {
-                    it[externalUpdatedAt] = now
-                }
-                return@dbQuery
-            }
             val moved = existing[EventsTable.calendarId] != calendarId.toUuid()
             val changed = moved ||
                 existing[EventsTable.title] != event.title ||

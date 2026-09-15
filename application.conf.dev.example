@@ -129,6 +129,11 @@ oauth {
         # guild first; optional, user linking works without it.
         botToken = ${?KALENDEE_DISCORD_BOT_TOKEN}
     }
+    google {
+        # Google OAuth client id; blank disables the provider.
+        clientId = ${?KALENDEE_GOOGLE_CLIENT_ID}
+        clientSecret = ${?KALENDEE_GOOGLE_CLIENT_SECRET}
+    }
     # Token-encryption keys: KALENDEE_SECRET_KEY is a base64 32-byte key (version 1);
     # KALENDEE_SECRET_KEYS is an optional JSON object for rotation, e.g.
     # { "1": "<base64>", "2": "<base64>" }.

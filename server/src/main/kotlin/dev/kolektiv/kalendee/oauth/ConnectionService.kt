@@ -79,6 +79,17 @@ class ConnectionService(
     fun providers(): List<CalendarProvider> = registry.all()
 
     suspend fun connectUrl(userId: UserId, providerId: String, returnTo: String?): String {
+        return startUrl(userId = userId, providerId = providerId, returnTo = returnTo)
+    }
+
+    suspend fun registerUrl(providerId: String, returnTo: String?): String {
+        if (!auth.isOAuthRegistrationOpen() || !auth.isRegistrationOpen()) {
+            throw CalendarException.Unauthorized("oauth registration is closed")
+        }
+        return startUrl(userId = null, providerId = providerId, returnTo = returnTo)
+    }
+
+    private suspend fun startUrl(userId: UserId?, providerId: String, returnTo: String?): String {
         val provider = registry.require(providerId)
         if (!provider.enabled) throw CalendarException.Invalid("provider is not configured")
         val pkce = Pkce.generate()

@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions
-    url: https://github.com/orgs/KolektivComputer/discussions
+    url: https://github.com/KolektivComputer/.github/discussions
     about: Ask questions and discuss here — not in issues.
   - name: Contributing guide
     url: https://github.com/KolektivComputer/kalendee/blob/main/CONTRIBUTING.md

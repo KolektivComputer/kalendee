@@ -202,6 +202,6 @@ class DiscordApi(
 
     companion object {
         const val DefaultBaseUrl: String = "https://discord.com/api/v10"
-        const val UserAgent: String = "KalendeeDiscord/0.1 (+https://github.com/kolektivdev/kalendee)"
+        const val UserAgent: String = "KalendeeDiscord/0.1 (+https://github.com/KolektivComputer/kalendee)"
     }
 }

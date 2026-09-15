@@ -29,6 +29,8 @@
     SetShowHolidaysIn,
     SetUserPublicAccessIn,
     SettingsPage,
+    SyncConnectionIn,
+    SyncConnectionOut,
     SyncDiscordImportIn,
     UpdateHolidaySubscriptionsIn,
     UpdateReminderSettingsIn,
@@ -68,13 +70,14 @@
   const setUserPublicAccess = useAction<SetUserPublicAccessIn, Viewer>("kalendee.setUserPublicAccess", { reload: false })
   const connectProvider = useAction<ConnectProviderIn, ConnectProviderOut>("kalendee.connectProvider", { reload: false })
   const disconnectAccount = useAction<DisconnectAccountIn, DeletedOut>("kalendee.disconnectAccount")
+  const syncConnection = useAction<SyncConnectionIn, SyncConnectionOut>("kalendee.syncConnection")
   const discordGuildsAction = useAction<DiscordGuildsIn, DiscordGuildsOut>("kalendee.discordGuilds", { reload: false })
   const syncDiscordImport = useAction<SyncDiscordImportIn, DiscordGuildSummary>("kalendee.syncDiscordImport", {
     reload: false,
   })
 
   const OAUTH_RESULTS: Record<string, { tone: string; text: string }> = {
-    ok: { tone: "alert-success", text: "Discord account connected." },
+    ok: { tone: "alert-success", text: "Account connected." },
     error: { tone: "alert-error", text: "Could not connect the account. Try again." },
     registration_closed: { tone: "alert-warning", text: "Registration is closed on this server." },
     email_taken: {
@@ -932,8 +935,8 @@
                 <div class="settings-field">
                   <span class="settings-label">Connect an account</span>
                   <p class="settings-hint">
-                    Link a Discord account to import its server events into a read-only calendar. Nothing is written
-                    back to Discord.
+                    Link Discord to import server events, or Google Calendar for a read-only mirror. Nothing is written
+                    back in this version.
                   </p>
                 </div>
                 {#if ctx.data.providers.filter((provider) => provider.enabled).length === 0}
@@ -998,6 +1001,16 @@
                   </p>
                   {#if connection.lastError}
                     <p class="text-error text-sm">{connection.lastError}</p>
+                  {/if}
+                  {#if connection.provider === "google"}
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      disabled={syncConnection.isPending}
+                      onclick={() => void syncConnection.mutateAsync({ connectionId: connection.id }).catch(() => undefined)}
+                    >
+                      {syncConnection.isPending ? "Syncing…" : "Sync Google calendars"}
+                    </button>
                   {/if}
                   {#if connection.status === "needs_reauth"}
                     <p class="settings-hint">Reconnect this account to keep its imports in sync.</p>

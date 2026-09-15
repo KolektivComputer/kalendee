@@ -1,6 +1,7 @@
 package dev.kolektiv.kalendee.oauth.providers
 
 import dev.kord.common.entity.DiscordGuildScheduledEvent as KordScheduledEvent
+import dev.kord.common.entity.DiscordGuildScheduledEventException as KordScheduledEventException
 import dev.kord.common.entity.DiscordPartialGuild as KordPartialGuild
 import dev.kord.common.entity.DiscordRecurrenceRule as KordRecurrenceRule
 import dev.kord.common.entity.DiscordUser as KordUser
@@ -8,6 +9,8 @@ import dev.kord.common.entity.GuildScheduledEventEntityMetadata
 import dev.kord.common.entity.Snowflake
 import dev.kord.common.entity.optional.Optional
 import dev.kord.common.exception.RequestException
+import dev.kord.rest.builder.scheduled_events.ScheduledEventExceptionCreateBuilder
+import dev.kord.rest.builder.scheduled_events.ScheduledEventExceptionModifyBuilder
 import dev.kord.rest.request.RestRequestException
 import dev.kord.rest.service.RestClient
 import dev.kord.rest.service.modifyScheduledEvent
@@ -98,6 +101,8 @@ data class DiscordScheduledEvent(
     val creator: DiscordUser? = null,
     @SerialName("creator_id") val creatorId: String? = null,
     val image: String? = null,
+    @SerialName("guild_scheduled_event_exceptions")
+    val exceptions: List<DiscordScheduledEventException> = emptyList(),
 ) {
     companion object {
         const val STATUS_SCHEDULED = 1
@@ -112,10 +117,24 @@ data class DiscordScheduledEvent(
 }
 
 /**
+ * One override of a single occurrence of a recurring guild scheduled event.
+ * Discord never returns the original occurrence start, so Kalendee can only
+ * correlate exceptions that it created itself (by stored exception id).
+ */
+@Serializable
+data class DiscordScheduledEventException(
+    @SerialName("event_id") val eventId: String,
+    @SerialName("event_exception_id") val exceptionId: String,
+    @SerialName("scheduled_start_time") val scheduledStartTime: String? = null,
+    @SerialName("scheduled_end_time") val scheduledEndTime: String? = null,
+    @SerialName("is_canceled") val isCanceled: Boolean = false,
+)
+
+/**
  * Thin Discord REST client built on Kord. The OAuth client uses [user] for
  * identity; later waves use [botGuilds], [scheduledEvents], [scheduledEvent],
- * and [modifyScheduledEvent] to read and update guild schedules with the bot
- * token.
+ * [modifyScheduledEvent], and the scheduled-event exception calls to read and
+ * update guild schedules with the bot token.
  */
 class DiscordApi(
     private val http: HttpClient,
@@ -167,6 +186,69 @@ class DiscordApi(
                 location?.let { entityMetadata = GuildScheduledEventEntityMetadata(Optional(it)) }
             }.toDiscordScheduledEvent()
         }
+
+    /**
+     * Creates an exception for the occurrence that originally started at
+     * [originalStart]. Only the provided times are sent; the response never
+     * echoes [originalStart], so callers must keep the returned exception id
+     * to modify the same occurrence later.
+     */
+    suspend fun createScheduledEventException(
+        guildId: String,
+        eventId: String,
+        originalStart: Instant,
+        start: Instant?,
+        end: Instant?,
+        isCanceled: Boolean? = null,
+    ): DiscordScheduledEventException =
+        execute {
+            val request = ScheduledEventExceptionCreateBuilder(originalStart).apply {
+                start?.let { scheduledStartTime = it }
+                end?.let { scheduledEndTime = it }
+                isCanceled?.let { this.isCanceled = it }
+            }.toRequest()
+            botClient.guild
+                .createScheduledEventException(Snowflake(guildId), Snowflake(eventId), request)
+                .toDiscordScheduledEventException()
+        }
+
+    suspend fun modifyScheduledEventException(
+        guildId: String,
+        eventId: String,
+        exceptionId: String,
+        start: Instant?,
+        end: Instant?,
+        isCanceled: Boolean? = null,
+    ): DiscordScheduledEventException =
+        execute {
+            val request = ScheduledEventExceptionModifyBuilder().apply {
+                start?.let { scheduledStartTime = it }
+                end?.let { scheduledEndTime = it }
+                isCanceled?.let { this.isCanceled = it }
+            }.toRequest()
+            botClient.guild
+                .modifyScheduledEventException(
+                    Snowflake(guildId),
+                    Snowflake(eventId),
+                    Snowflake(exceptionId),
+                    request,
+                )
+                .toDiscordScheduledEventException()
+        }
+
+    suspend fun deleteScheduledEventException(
+        guildId: String,
+        eventId: String,
+        exceptionId: String,
+    ) {
+        execute {
+            botClient.guild.deleteScheduledEventException(
+                Snowflake(guildId),
+                Snowflake(eventId),
+                Snowflake(exceptionId),
+            )
+        }
+    }
 
     private fun restClient(token: String, tokenPrefix: String): RestClient =
         RestClient(token = token, client = http, baseUrl = restBaseUrl, tokenPrefix = tokenPrefix)
@@ -236,7 +318,17 @@ class DiscordApi(
         creator = creator.value?.toDiscordUser(),
         creatorId = creatorId?.value?.toString(),
         image = image.value,
+        exceptions = guildScheduledEventExceptions.map { it.toDiscordScheduledEventException() },
     )
+
+    private fun KordScheduledEventException.toDiscordScheduledEventException(): DiscordScheduledEventException =
+        DiscordScheduledEventException(
+            eventId = eventId.toString(),
+            exceptionId = eventExceptionId.toString(),
+            scheduledStartTime = scheduledStartTime?.toString(),
+            scheduledEndTime = scheduledEndTime?.toString(),
+            isCanceled = isCanceled,
+        )
 
     private fun KordRecurrenceRule.toDiscordRecurrenceRule(): DiscordRecurrenceRule = DiscordRecurrenceRule(
         start = start?.toString(),

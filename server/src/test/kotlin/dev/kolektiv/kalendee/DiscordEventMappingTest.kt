@@ -5,6 +5,8 @@ import dev.kolektiv.kalendee.oauth.discord.DiscordOccurrenceCap
 import dev.kolektiv.kalendee.oauth.discord.UnsupportedRecurrenceNote
 import dev.kolektiv.kalendee.oauth.discord.UntitledEventTitle
 import dev.kolektiv.kalendee.oauth.discord.discordEventUid
+import dev.kolektiv.kalendee.oauth.discord.discordOccurrenceStart
+import dev.kolektiv.kalendee.oauth.discord.discordOccurrenceUid
 import dev.kolektiv.kalendee.oauth.discord.mapDiscordEvent
 import dev.kolektiv.kalendee.oauth.providers.DiscordEntityMetadata
 import dev.kolektiv.kalendee.oauth.providers.DiscordRecurrenceRule
@@ -65,6 +67,23 @@ class DiscordEventMappingTest {
         val event = discordEvent(status = DiscordScheduledEvent.STATUS_CANCELED)
 
         assertEquals(EventStatus.CANCELLED, mapDiscordEvent(event, "Kolektiv", now).single().status)
+    }
+
+    @Test
+    fun occurrenceStartParsesTheUidSuffix() {
+        val occurrence = Instant.parse("2026-09-12T15:00:00Z")
+        val uid = discordOccurrenceUid("guild-1", "event-1", occurrence)
+
+        assertEquals(occurrence, discordOccurrenceStart("guild-1", "event-1", uid))
+        assertNull(discordOccurrenceStart("guild-1", "event-1", discordEventUid("guild-1", "event-1")))
+        assertNull(
+            discordOccurrenceStart(
+                "guild-1",
+                "event-1",
+                "discord:guild-1:event-2:2026-09-12T15:00:00Z",
+            ),
+        )
+        assertNull(discordOccurrenceStart("guild-1", "event-1", "discord:guild-1:event-1:garbage"))
     }
 
     @Test

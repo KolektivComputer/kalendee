@@ -58,6 +58,13 @@
                 "GET"
             ]
         },
+        "kalendee.privacy": {
+            "type": "PrivacyPage",
+            "path": "/__keel-typegen/kalendee/privacy",
+            "methods": [
+                "GET"
+            ]
+        },
         "kalendee.profile": {
             "type": "PublicProfilePage",
             "path": "/__keel-typegen/kalendee/profile",
@@ -89,6 +96,13 @@
         "kalendee.settings": {
             "type": "SettingsPage",
             "path": "/__keel-typegen/kalendee/settings",
+            "methods": [
+                "GET"
+            ]
+        },
+        "kalendee.terms": {
+            "type": "TermsPage",
+            "path": "/__keel-typegen/kalendee/terms",
             "methods": [
                 "GET"
             ]
@@ -442,6 +456,10 @@
             "in": "ShareCalendarIn",
             "out": "CalendarSharingOut"
         },
+        "kalendee.syncConnection": {
+            "in": "SyncConnectionIn",
+            "out": "SyncConnectionOut"
+        },
         "kalendee.syncDiscordImport": {
             "in": "SyncDiscordImportIn",
             "out": "DiscordGuildSummary"
@@ -684,7 +702,9 @@
                 "etag": "string",
                 "openRsvp": "boolean",
                 "rsvpStatus": "string | null",
-                "attendeeCount": "number"
+                "attendeeCount": "number",
+                "externalCalendarId": "string | null",
+                "externalUid": "string | null"
             }
         },
         "FriendSummary": {
@@ -745,10 +765,21 @@
                 "teams": "TeamSummary[]"
             }
         },
+        "ProviderSummary": {
+            "kind": "object",
+            "fields": {
+                "id": "string",
+                "displayName": "string",
+                "enabled": "boolean",
+                "connectUrl": "string"
+            }
+        },
         "LoginPage": {
             "kind": "object",
             "fields": {
-                "viewer": "Viewer | null"
+                "viewer": "Viewer | null",
+                "oauthRegistration": "boolean",
+                "providers": "ProviderSummary[]"
             }
         },
         "NotFoundPage": {
@@ -889,6 +920,12 @@
                 "manageableCalendars": "CalendarOptionSummary[]"
             }
         },
+        "PrivacyPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null"
+            }
+        },
         "PublicProfilePage": {
             "kind": "object",
             "fields": {
@@ -928,7 +965,9 @@
             "fields": {
                 "viewer": "Viewer | null",
                 "registrationOpen": "boolean",
-                "emailVerificationPolicy": "string"
+                "emailVerificationPolicy": "string",
+                "oauthRegistration": "boolean",
+                "providers": "ProviderSummary[]"
             }
         },
         "RsvpPage": {
@@ -943,15 +982,6 @@
                 "status": "string | null",
                 "requiresName": "boolean",
                 "viewer": "Viewer | null"
-            }
-        },
-        "ProviderSummary": {
-            "kind": "object",
-            "fields": {
-                "id": "string",
-                "displayName": "string",
-                "enabled": "boolean",
-                "connectUrl": "string"
             }
         },
         "ConnectionSummary": {
@@ -978,6 +1008,12 @@
                 "customHolidays": "CustomHolidaySummary[]",
                 "providers": "ProviderSummary[]",
                 "connections": "ConnectionSummary[]"
+            }
+        },
+        "TermsPage": {
+            "kind": "object",
+            "fields": {
+                "viewer": "Viewer | null"
             }
         },
         "VerifyEmailPage": {
@@ -1950,6 +1986,20 @@
                 "calendarId": "string",
                 "username": "string",
                 "permission": "string"
+            }
+        },
+        "SyncConnectionIn": {
+            "kind": "object",
+            "fields": {
+                "connectionId": "string"
+            }
+        },
+        "SyncConnectionOut": {
+            "kind": "object",
+            "fields": {
+                "ok": "boolean",
+                "lastSyncAt": "string | null",
+                "lastError": "string | null"
             }
         },
         "SyncDiscordImportIn": {

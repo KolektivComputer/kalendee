@@ -63,6 +63,19 @@ fun discordBaseEventId(guildId: String, uid: String): String? {
 }
 
 /**
+ * Parses the original occurrence start out of an occurrence uid produced by
+ * [discordOccurrenceUid]. Returns null for base-event uids and malformed
+ * suffixes.
+ */
+fun discordOccurrenceStart(guildId: String, eventId: String, uid: String): Instant? {
+    val prefix = "${discordEventUid(guildId, eventId)}:"
+    if (!uid.startsWith(prefix)) return null
+    val raw = uid.removePrefix(prefix)
+    if (raw.isEmpty()) return null
+    return runCatching { Instant.parse(raw) }.getOrNull()
+}
+
+/**
  * Maps one Discord scheduled event to the local events that should exist for it.
  * Single events produce one entry; recurring events produce one entry per
  * occurrence inside the materialization window. Unsupported recurrence rules

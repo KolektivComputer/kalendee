@@ -123,6 +123,8 @@ data class EventSummary(
     val openRsvp: Boolean = false,
     val rsvpStatus: String? = null,
     val attendeeCount: Int = 0,
+    val externalCalendarId: String? = null,
+    val externalUid: String? = null,
 )
 
 @KeelType
@@ -1835,6 +1837,8 @@ fun Event.toSummary(): EventSummary = EventSummary(
     openRsvp = openRsvp,
     rsvpStatus = rsvpStatus,
     attendeeCount = 0,
+    externalCalendarId = externalCalendarId?.value,
+    externalUid = externalUid,
 )
 
 fun Recurrence.toSummary(): RecurrenceSummary = RecurrenceSummary(

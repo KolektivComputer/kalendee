@@ -46,6 +46,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
@@ -59,6 +60,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -206,6 +208,92 @@ class DiscordImportServiceTest {
     }
 
     @Test
+    fun importStoresBothDirectionWhenUserAndBotCanManageEvents() = testApplication {
+        val manageEvents = "8589934592"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = {
+                    ok(
+                        "[" +
+                            guildJson("111", owner = true) + "," +
+                            guildJson("112", permissions = manageEvents) + "," +
+                            guildJson("113", permissions = "8") +
+                            "]",
+                    )
+                },
+                botGuilds = {
+                    ok(
+                        "[" +
+                            guildJson("111", permissions = manageEvents) + "," +
+                            guildJson("112", permissions = manageEvents) + "," +
+                            guildJson("113", permissions = manageEvents) +
+                            "]",
+                    )
+                },
+            ),
+        )
+
+        listOf("111", "112", "113").forEach { guildId ->
+            val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, guildId)
+            val row = fixture.externalRow(assertNotNull(summary.externalCalendarId))
+            assertEquals("both", row[ExternalCalendarsTable.syncDirection])
+        }
+    }
+
+    @Test
+    fun importStoresPullDirectionWhenEitherSideLacksManageEvents() = testApplication {
+        val manageEvents = "8589934592"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = {
+                    ok("[${guildJson("111", owner = true)},${guildJson("112")}]")
+                },
+                botGuilds = {
+                    ok(
+                        "[" +
+                            guildJson("111", permissions = "1024") + "," +
+                            guildJson("112", permissions = manageEvents) +
+                            "]",
+                    )
+                },
+            ),
+        )
+
+        listOf("111", "112").forEach { guildId ->
+            val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, guildId)
+            val row = fixture.externalRow(assertNotNull(summary.externalCalendarId))
+            assertEquals("pull", row[ExternalCalendarsTable.syncDirection])
+        }
+    }
+
+    @Test
+    fun guildListingRefreshesStaleSyncDirection() = testApplication {
+        val manageEvents = "8589934592"
+        var userGuilds = "[${guildJson("101", permissions = "1024")}]"
+        var botGuilds = "[${guildJson("101", permissions = "1024")}]"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok(userGuilds) },
+                botGuilds = { ok(botGuilds) },
+            ),
+        )
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+
+        userGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        botGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        fixture.imports.guilds(fixture.user.id, fixture.connectionId)
+
+        assertEquals("both", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+
+        botGuilds = "[${guildJson("101", permissions = "1024")}]"
+        fixture.imports.guilds(fixture.user.id, fixture.connectionId)
+
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+    }
+
+    @Test
     fun importedGuildStaysListedAfterLosingBotAndManageability() = testApplication {
         var userGuilds = "[${guildJson("101", permissions = "32")}]"
         var botGuilds = "[${guildJson("101")}]"
@@ -277,6 +365,93 @@ class DiscordImportServiceTest {
 
         assertEquals("Locally edited", fixture.store.listEvents(calendar.id, fixture.user.id).single().title)
         assertEquals(1, fixture.eventCount(externalCalendarId))
+    }
+
+    @Test
+    fun discordExceptionAppliesOverrideTimesToOccurrence() = testApplication {
+        val start = wholeSecondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        val movedStart = start + 3.hours
+        val movedEnd = movedStart + 2.hours
+        var body = "[${eventJson(start = start, rule = rule)}]"
+        val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        val calendar = fixture.calendarFor(externalCalendarId)
+        val occurrenceUid = "discord:101:201:$start"
+        fixture.external.setExceptionId(fixture.eventIdFor(externalCalendarId, occurrenceUid), "901")
+
+        body = "[${eventJson(
+            start = start,
+            rule = rule,
+            exceptions = "[${exceptionJson(start = movedStart, end = movedEnd)}]",
+        )}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        val stored = fixture.stored(externalCalendarId).single { it.uid == occurrenceUid }
+        assertEquals(movedStart, stored.start)
+        assertEquals(movedEnd, stored.end)
+        assertEquals(EventStatus.CONFIRMED, stored.status)
+        val event = fixture.store.listEvents(calendar.id, fixture.user.id)
+            .single { it.externalUid == occurrenceUid }
+        assertEquals(movedStart, event.start)
+        assertEquals(movedEnd, event.end)
+        assertEquals(EventStatus.CONFIRMED, event.status)
+    }
+
+    @Test
+    fun canceledDiscordExceptionMarksOccurrenceCancelled() = testApplication {
+        val start = wholeSecondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        var body = "[${eventJson(start = start, rule = rule)}]"
+        val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        val calendar = fixture.calendarFor(externalCalendarId)
+        val occurrenceUid = "discord:101:201:$start"
+        fixture.external.setExceptionId(fixture.eventIdFor(externalCalendarId, occurrenceUid), "901")
+
+        body = "[${eventJson(
+            start = start,
+            rule = rule,
+            exceptions = "[${exceptionJson(canceled = true)}]",
+        )}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        val stored = fixture.stored(externalCalendarId).single { it.uid == occurrenceUid }
+        assertEquals(EventStatus.CANCELLED, stored.status)
+        assertEquals(start, stored.start)
+        assertEquals(
+            EventStatus.CANCELLED,
+            fixture.store.listEvents(calendar.id, fixture.user.id)
+                .single { it.externalUid == occurrenceUid }
+                .status,
+        )
+    }
+
+    @Test
+    fun discordExceptionWithoutLocalExceptionIdIsIgnored() = testApplication {
+        val start = wholeSecondsFromNow(1.days)
+        val weekday = start.toLocalDateTime(TimeZone.UTC).dayOfWeek.isoDayNumber - 1
+        val rule = """{"start":"$start","frequency":2,"interval":1,"by_weekday":[$weekday]}"""
+        var body = "[${eventJson(start = start, rule = rule)}]"
+        val fixture = installImportFixture(discordEngine(scheduledEvents = { ok(body) }))
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        val occurrenceUid = "discord:101:201:$start"
+
+        // No local row tracks exception 901 (it was created in the Discord
+        // client), so there is no occurrence to correlate it with.
+        body = "[${eventJson(
+            start = start,
+            rule = rule,
+            exceptions = "[${exceptionJson(start = start + 3.hours)}]",
+        )}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        assertEquals(start, fixture.stored(externalCalendarId).single { it.uid == occurrenceUid }.start)
     }
 
     @Test
@@ -687,6 +862,20 @@ class DiscordImportServiceTest {
                     .single()
             }
         }
+
+        suspend fun eventIdFor(externalCalendarId: String, uid: String): EventId =
+            withContext(Dispatchers.IO) {
+                suspendTransaction(database) {
+                    EventId(
+                        EventsTable.selectAll()
+                            .where {
+                                (EventsTable.externalCalendarId eq Uuid.parse(externalCalendarId)) and
+                                    (EventsTable.externalUid eq uid)
+                            }
+                            .single()[EventsTable.id].toString(),
+                    )
+                }
+            }
     }
 
     private suspend fun ApplicationTestBuilder.installImportFixture(
@@ -742,7 +931,7 @@ class DiscordImportServiceTest {
 
     private fun discordEngine(
         userGuilds: () -> Pair<HttpStatusCode, String> = { ok(UserGuildsJson) },
-        botGuilds: () -> Pair<HttpStatusCode, String> = { ok(UserGuildsJson) },
+        botGuilds: () -> Pair<HttpStatusCode, String> = { ok(BotGuildsJson) },
         scheduledEvents: () -> Pair<HttpStatusCode, String> = { ok("[]") },
         scheduledEvent: (String) -> Pair<HttpStatusCode, String> = { HttpStatusCode.NotFound to "{}" },
     ): MockEngine = MockEngine { request ->
@@ -771,14 +960,31 @@ class DiscordImportServiceTest {
         start: Instant,
         status: Int = 1,
         rule: String? = null,
+        exceptions: String? = null,
     ): String = buildString {
         append("""{"id":"$id","guild_id":"101","channel_id":null,"name":"$name",""")
         append(""""description":"Hello","scheduled_start_time":"$start","scheduled_end_time":"${start + 1.hours}",""")
         append(""""privacy_level":2,"status":$status,"entity_type":3,"entity_id":null,""")
         append(""""entity_metadata":{"location":"Lounge"},"user_count":3""")
         rule?.let { append(""","recurrence_rule":$it""") }
+        exceptions?.let { append(""","guild_scheduled_event_exceptions":$it""") }
         append('}')
     }
+
+    private fun exceptionJson(
+        id: String = "901",
+        start: Instant? = null,
+        end: Instant? = null,
+        canceled: Boolean = false,
+    ): String {
+        val startValue = start?.let { "\"$it\"" } ?: "null"
+        val endValue = end?.let { "\"$it\"" } ?: "null"
+        return """{"event_id":"201","event_exception_id":"$id","scheduled_start_time":$startValue,""" +
+            """"scheduled_end_time":$endValue,"is_canceled":$canceled}"""
+    }
+
+    private fun wholeSecondsFromNow(offset: Duration): Instant =
+        Instant.fromEpochSeconds((Clock.System.now() + offset).epochSeconds)
 
     private fun guildJson(
         id: String,
@@ -800,6 +1006,8 @@ class DiscordImportServiceTest {
 
     private companion object {
         val UserGuildsJson = """[{"id":"101","name":"Kolektiv","icon":"icon-hash","owner":true,"features":[]}]"""
+        val BotGuildsJson =
+            """[{"id":"101","name":"Kolektiv","icon":"icon-hash","owner":false,"permissions":"1024","features":[]}]"""
         val IdentityJson = """{"id":"302","username":"mey","global_name":"Mey","avatar":null}"""
         val TokenJson =
             """{"access_token":"access-1","refresh_token":"refresh-1","expires_in":604800,""" +

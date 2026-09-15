@@ -95,7 +95,9 @@
     data.calendars.filter((calendar) => calendar.permission === "owner" || calendar.permission === "write"),
   )
   const eventDialogReadOnly = $derived(
-    eventMode === "edit" && editingEvent ? !canWriteCalendar(editingEvent.calendarId) : !canEditSelected,
+    eventMode === "edit" && editingEvent
+      ? !canWriteCalendar(editingEvent.calendarId) || editingEvent.externalCalendarId != null
+      : !canEditSelected,
   )
 
   $effect(() => {

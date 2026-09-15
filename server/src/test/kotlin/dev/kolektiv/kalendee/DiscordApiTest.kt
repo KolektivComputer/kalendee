@@ -18,6 +18,7 @@ import io.ktor.http.headersOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -90,6 +91,12 @@ class DiscordApiTest {
         assertEquals(7, event.userCount)
         assertEquals(listOf(1, 3), event.recurrenceRule?.byWeekday)
         assertEquals("301", event.creatorId)
+        val exception = event.exceptions.single()
+        assertEquals("201", exception.eventId)
+        assertEquals("901", exception.exceptionId)
+        assertEquals("2026-09-13T15:00:00Z", exception.scheduledStartTime)
+        assertNull(exception.scheduledEndTime)
+        assertFalse(exception.isCanceled)
 
         val request = engine.requestHistory.single()
         assertEquals("/api/v10/guilds/101/scheduled-events", request.url.encodedPath)
@@ -148,6 +155,77 @@ class DiscordApiTest {
         assertTrue("\"entity_metadata\":{\"location\":\"Lounge\"}" in body, body)
         assertTrue("\"scheduled_end_time\"" !in body, body)
         assertTrue("\"entity_type\"" !in body, body)
+    }
+
+    @Test
+    fun createScheduledEventExceptionPostsOriginalStartAndOverrides() = runBlocking {
+        lateinit var captured: HttpRequestData
+        val engine = MockEngine { request ->
+            captured = request
+            respond(
+                content = """{"event_id":"201","event_exception_id":"901",""" +
+                    """"scheduled_start_time":"2026-09-13T16:00:00Z",""" +
+                    """"scheduled_end_time":"2026-09-13T17:00:00Z","is_canceled":false}""",
+                status = HttpStatusCode.OK,
+                headers = jsonHeaders(),
+            )
+        }
+        val exception = api(engine).createScheduledEventException(
+            guildId = "101",
+            eventId = "201",
+            originalStart = Instant.parse("2026-09-13T15:00:00Z"),
+            start = Instant.parse("2026-09-13T16:00:00Z"),
+            end = Instant.parse("2026-09-13T17:00:00Z"),
+        )
+
+        assertEquals("201", exception.eventId)
+        assertEquals("901", exception.exceptionId)
+        assertEquals("2026-09-13T16:00:00Z", exception.scheduledStartTime)
+        assertEquals("2026-09-13T17:00:00Z", exception.scheduledEndTime)
+        assertFalse(exception.isCanceled)
+        assertEquals(HttpMethod.Post, captured.method)
+        assertEquals("/api/v10/guilds/101/scheduled-events/201/exceptions", captured.url.encodedPath)
+        assertEquals("Bot bot-secret", captured.headers[HttpHeaders.Authorization])
+        val body = (captured.body as? OutgoingContent.ByteArrayContent)?.bytes()?.decodeToString().orEmpty()
+        assertTrue("\"original_scheduled_start_time\":\"2026-09-13T15:00:00Z\"" in body, body)
+        assertTrue("\"scheduled_start_time\":\"2026-09-13T16:00:00Z\"" in body, body)
+        assertTrue("\"scheduled_end_time\":\"2026-09-13T17:00:00Z\"" in body, body)
+        assertTrue("\"is_canceled\"" !in body, body)
+    }
+
+    @Test
+    fun modifyScheduledEventExceptionPatchesByExceptionId() = runBlocking {
+        lateinit var captured: HttpRequestData
+        val engine = MockEngine { request ->
+            captured = request
+            respond(
+                content = """{"event_id":"201","event_exception_id":"901",""" +
+                    """"scheduled_start_time":"2026-09-13T18:00:00Z",""" +
+                    """"scheduled_end_time":null,"is_canceled":true}""",
+                status = HttpStatusCode.OK,
+                headers = jsonHeaders(),
+            )
+        }
+        val exception = api(engine).modifyScheduledEventException(
+            guildId = "101",
+            eventId = "201",
+            exceptionId = "901",
+            start = Instant.parse("2026-09-13T18:00:00Z"),
+            end = null,
+            isCanceled = true,
+        )
+
+        assertEquals("901", exception.exceptionId)
+        assertEquals("2026-09-13T18:00:00Z", exception.scheduledStartTime)
+        assertNull(exception.scheduledEndTime)
+        assertTrue(exception.isCanceled)
+        assertEquals(HttpMethod.Patch, captured.method)
+        assertEquals("/api/v10/guilds/101/scheduled-events/201/exceptions/901", captured.url.encodedPath)
+        val body = (captured.body as? OutgoingContent.ByteArrayContent)?.bytes()?.decodeToString().orEmpty()
+        assertTrue("\"scheduled_start_time\":\"2026-09-13T18:00:00Z\"" in body, body)
+        assertTrue("\"is_canceled\":true" in body, body)
+        assertTrue("\"scheduled_end_time\"" !in body, body)
+        assertTrue("\"original_scheduled_start_time\"" !in body, body)
     }
 
     @Test
@@ -220,6 +298,21 @@ class DiscordApiTest {
         assertFailsWith<DiscordBotNotConfiguredException> {
             api.modifyScheduledEvent("101", "201", start = null, end = null)
         }
+        assertFailsWith<DiscordBotNotConfiguredException> {
+            api.createScheduledEventException(
+                guildId = "101",
+                eventId = "201",
+                originalStart = Instant.parse("2026-09-13T15:00:00Z"),
+                start = null,
+                end = null,
+            )
+        }
+        assertFailsWith<DiscordBotNotConfiguredException> {
+            api.modifyScheduledEventException("101", "201", "901", start = null, end = null)
+        }
+        assertFailsWith<DiscordBotNotConfiguredException> {
+            api.deleteScheduledEventException("101", "201", "901")
+        }
         assertTrue(engine.requestHistory.isEmpty())
     }
 
@@ -263,7 +356,16 @@ class DiscordApiTest {
             "recurrence_rule": {"frequency": 2, "interval": 1, "by_weekday": [1, 3]},
             "creator": {"id": "301", "username": "mey", "global_name": null, "avatar": null},
             "creator_id": "301",
-            "image": null
+            "image": null,
+            "guild_scheduled_event_exceptions": [
+              {
+                "event_id": "201",
+                "event_exception_id": "901",
+                "scheduled_start_time": "2026-09-13T15:00:00+00:00",
+                "scheduled_end_time": null,
+                "is_canceled": false
+              }
+            ]
           }
         ]
     """.trimIndent()

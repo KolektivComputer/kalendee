@@ -512,7 +512,7 @@
     if (transferDrag || transferCalendar.isPending || event.button !== 0 || !event.isPrimary) return
     if (!hasTransferDestination(calendar, organizations, teams, readOnly)) return
     const origin = event.target
-    if (origin instanceof HTMLElement && origin.closest("button, a, input, select, textarea")) return
+    if (origin instanceof Element && origin.closest("button, a, input, select, textarea")) return
     const row = event.currentTarget as HTMLElement
     transferCalendar.reset()
     transferDrag = {

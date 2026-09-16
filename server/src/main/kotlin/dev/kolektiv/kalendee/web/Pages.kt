@@ -71,6 +71,7 @@ data class CalendarSummary(
     val syncDirection: String? = null,
     val syncStatus: String? = null,
     val syncError: String? = null,
+    val syncBlockedReason: String? = null,
 )
 
 @KeelType

@@ -309,6 +309,7 @@ object ExternalCalendarsTable : Table("external_calendars") {
         .uniqueIndex()
     val externalName = text("external_name").nullable()
     val syncDirection = text("sync_direction").default("pull")
+    val syncBlockedReason = text("sync_blocked_reason").nullable()
     val enabled = bool("enabled").default(true)
     val syncToken = text("sync_token").nullable()
     val lastSyncAt = instant("last_sync_at").nullable()

@@ -90,6 +90,7 @@ class DiscordImportServiceTest {
         val row = fixture.externalRow(externalCalendarId)
         assertEquals("101", row[ExternalCalendarsTable.externalId])
         assertEquals("pull", row[ExternalCalendarsTable.syncDirection])
+        assertEquals("bot_manage_events", row[ExternalCalendarsTable.syncBlockedReason])
         assertTrue(row[ExternalCalendarsTable.enabled])
         assertNotNull(row[ExternalCalendarsTable.lastSyncAt])
         assertNull(row[ExternalCalendarsTable.lastError])
@@ -238,6 +239,7 @@ class DiscordImportServiceTest {
             val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, guildId)
             val row = fixture.externalRow(assertNotNull(summary.externalCalendarId))
             assertEquals("both", row[ExternalCalendarsTable.syncDirection])
+            assertNull(row[ExternalCalendarsTable.syncBlockedReason])
         }
     }
 
@@ -260,10 +262,12 @@ class DiscordImportServiceTest {
             ),
         )
 
-        listOf("111", "112").forEach { guildId ->
+        val reasons = mapOf("111" to "bot_manage_events", "112" to "user_manage_events")
+        reasons.forEach { (guildId, reason) ->
             val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, guildId)
             val row = fixture.externalRow(assertNotNull(summary.externalCalendarId))
             assertEquals("pull", row[ExternalCalendarsTable.syncDirection])
+            assertEquals(reason, row[ExternalCalendarsTable.syncBlockedReason])
         }
     }
 
@@ -281,17 +285,34 @@ class DiscordImportServiceTest {
         val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
         val externalCalendarId = assertNotNull(summary.externalCalendarId)
         assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+        assertEquals("bot_manage_events", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncBlockedReason])
 
         userGuilds = "[${guildJson("101", permissions = manageEvents)}]"
         botGuilds = "[${guildJson("101", permissions = manageEvents)}]"
         fixture.imports.guilds(fixture.user.id, fixture.connectionId)
 
         assertEquals("both", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+        assertNull(fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncBlockedReason])
 
         botGuilds = "[${guildJson("101", permissions = "1024")}]"
         fixture.imports.guilds(fixture.user.id, fixture.connectionId)
 
         assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+        assertEquals("bot_manage_events", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncBlockedReason])
+
+        userGuilds = "[${guildJson("101", permissions = "1024")}]"
+        botGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        fixture.imports.guilds(fixture.user.id, fixture.connectionId)
+
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+        assertEquals("user_manage_events", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncBlockedReason])
+
+        userGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        botGuilds = "[]"
+        fixture.imports.guilds(fixture.user.id, fixture.connectionId)
+
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+        assertEquals("bot_missing", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncBlockedReason])
     }
 
     @Test

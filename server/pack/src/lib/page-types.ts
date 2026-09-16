@@ -37,6 +37,7 @@ export interface CalendarSummary {
   syncDirection: string | null
   syncStatus: string | null
   syncError: string | null
+  syncBlockedReason: string | null
 }
 
 export interface AdminUserSummary {

@@ -28,6 +28,7 @@ class CalendarSyncInfoEnricher(private val database: Database) {
             calendar.copy(
                 connectionId = info.connectionId.toString(),
                 syncDirection = info.syncDirection,
+                syncBlockedReason = info.syncBlockedReason,
                 syncStatus = if (info.lastError != null) "error" else "ok",
                 syncError = info.lastError,
             )
@@ -43,6 +44,7 @@ class CalendarSyncInfoEnricher(private val database: Database) {
                     row[ExternalCalendarsTable.calendarId] to SyncInfo(
                         connectionId = row[CalendarConnectionsTable.id],
                         syncDirection = row[ExternalCalendarsTable.syncDirection],
+                        syncBlockedReason = row[ExternalCalendarsTable.syncBlockedReason],
                         lastError = row[ExternalCalendarsTable.lastError],
                     )
                 }
@@ -52,6 +54,7 @@ class CalendarSyncInfoEnricher(private val database: Database) {
     private data class SyncInfo(
         val connectionId: Uuid,
         val syncDirection: String,
+        val syncBlockedReason: String?,
         val lastError: String?,
     )
 }

@@ -4,6 +4,7 @@ import dev.kolektiv.kalendee.auth.AuthService
 import dev.kolektiv.kalendee.auth.PublicAccessMode
 import dev.kolektiv.kalendee.auth.RegisterUser
 import dev.kolektiv.kalendee.auth.User
+import dev.kolektiv.kalendee.calendar.Calendar
 import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.CalendarPermission
@@ -31,6 +32,7 @@ import kotlin.uuid.Uuid
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
 import org.koin.ktor.ext.get
@@ -357,21 +359,120 @@ class TransferCalendarStoreTest {
     }
 
     @Test
-    fun syncedCalendarCannotTransfer() = testApplication {
+    fun connectionOwnerCanTransferSyncedCalendarIntoOrganization() = testApplication {
         lateinit var store: CalendarStore
         lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
         lateinit var database: Database
-        installApi(configure = { store = get(); auth = get(); database = get() })
+        installApi(configure = { store = get(); auth = get(); orgs = get(); database = get() })
         startApplication()
 
         val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.MEMBER)
         val synced = store.createCalendar(alice.id, CreateCalendar(displayName = "Synced"))
+        seedSync(database, alice, synced)
+
+        val moved = requireNotNull(store.transferCalendar(synced.id, alice.id, org.id))
+        assertEquals(org.id, moved.organizationId)
+        assertEquals(alice.id, moved.ownerId)
+        assertEquals(CalendarPermission.OWNER, moved.permission)
+        assertEquals(org.id, store.getCalendar(synced.id, alice.id)?.organizationId)
+        assertEquals(CalendarPermission.WRITE, store.getCalendar(synced.id, bob.id)?.permission)
+        suspendTransaction(database) {
+            val mapping = ExternalCalendarsTable.selectAll()
+                .where { ExternalCalendarsTable.calendarId eq Uuid.parse(synced.id.value) }
+                .single()
+            assertNotNull(
+                CalendarConnectionsTable.selectAll()
+                    .where {
+                        CalendarConnectionsTable.id eq mapping[ExternalCalendarsTable.connectionId]
+                    }
+                    .singleOrNull(),
+            )
+        }
+    }
+
+    @Test
+    fun orgAdminWhoDoesNotOwnConnectionCannotTransferSyncedCalendar() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var database: Database
+        installApi(configure = { store = get(); auth = get(); orgs = get(); database = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.ADMIN)
+        val synced = store.createCalendar(
+            alice.id,
+            CreateCalendar(displayName = "Synced", organizationId = org.id),
+        )
+        seedSync(database, alice, synced)
+
+        assertFailsWith<CalendarException.Forbidden> {
+            store.transferCalendar(synced.id, bob.id, null)
+        }
+        val unchanged = requireNotNull(store.getCalendar(synced.id, alice.id))
+        assertEquals(org.id, unchanged.organizationId)
+        assertEquals(alice.id, unchanged.ownerId)
+        suspendTransaction(database) {
+            assertEquals(
+                1,
+                ExternalCalendarsTable.selectAll()
+                    .where { ExternalCalendarsTable.calendarId eq Uuid.parse(synced.id.value) }
+                    .count(),
+            )
+        }
+    }
+
+    @Test
+    fun onlyConnectionOwnerCanDeleteSyncedCalendar() = testApplication {
+        lateinit var store: CalendarStore
+        lateinit var auth: AuthService
+        lateinit var orgs: OrganizationService
+        lateinit var database: Database
+        installApi(configure = { store = get(); auth = get(); orgs = get(); database = get() })
+        startApplication()
+
+        val alice = registerUser(auth, "alice")
+        val bob = registerUser(auth, "bob")
+        val org = orgs.create(alice.id, "acme", "Acme")
+        orgs.addMember(alice.id, org.id, bob.id, OrganizationRole.ADMIN)
+        val synced = store.createCalendar(
+            alice.id,
+            CreateCalendar(displayName = "Synced", organizationId = org.id),
+        )
+        seedSync(database, alice, synced)
+
+        assertFailsWith<CalendarException.Forbidden> {
+            store.deleteCalendar(synced.id, bob.id)
+        }
+        assertNotNull(store.getCalendar(synced.id, alice.id))
+
+        assertTrue(store.deleteCalendar(synced.id, alice.id))
+        assertNull(store.getCalendar(synced.id, alice.id))
+        suspendTransaction(database) {
+            assertEquals(
+                0,
+                ExternalCalendarsTable.selectAll()
+                    .where { ExternalCalendarsTable.calendarId eq Uuid.parse(synced.id.value) }
+                    .count(),
+            )
+            assertEquals(1, CalendarConnectionsTable.selectAll().count())
+        }
+    }
+
+    private suspend fun seedSync(database: Database, owner: User, calendar: Calendar) {
         suspendTransaction(database) {
             val connectionId = Uuid.random()
             val now = Clock.System.now()
             CalendarConnectionsTable.insert {
                 it[id] = connectionId
-                it[CalendarConnectionsTable.userId] = Uuid.parse(alice.id.value)
+                it[CalendarConnectionsTable.userId] = Uuid.parse(owner.id.value)
                 it[provider] = "discord"
                 it[externalAccountId] = "discord-account"
                 it[accessTokenCiphertext] = "sealed"
@@ -385,20 +486,14 @@ class TransferCalendarStoreTest {
                 it[id] = Uuid.random()
                 it[ExternalCalendarsTable.connectionId] = connectionId
                 it[ExternalCalendarsTable.externalId] = "guild-1"
-                it[ExternalCalendarsTable.calendarId] = Uuid.parse(synced.id.value)
+                it[ExternalCalendarsTable.calendarId] = Uuid.parse(calendar.id.value)
                 it[externalName] = "Synced"
-                it[syncDirection] = "pull"
+                it[syncDirection] = "both"
                 it[enabled] = true
                 it[createdAt] = now
                 it[updatedAt] = now
             }
         }
-
-        assertFailsWith<CalendarException.Forbidden> {
-            store.transferCalendar(synced.id, alice.id, null)
-        }
-        val free = store.createCalendar(alice.id, CreateCalendar(displayName = "Free"))
-        assertNotNull(store.transferCalendar(free.id, alice.id, null))
     }
 
     private suspend fun registerUser(auth: AuthService, username: String): User =

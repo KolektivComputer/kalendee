@@ -1,36 +1,25 @@
-name: Documentation issue
-description: Report missing, outdated, or confusing documentation.
-title: "[Docs]: "
-labels: ["documentation"]
+name: Documentation
+description: Missing, outdated, or confusing docs
+type: Task
 body:
   - type: input
     id: location
     attributes:
-      label: Where is the documentation?
-      description: File path or URL (e.g. DEVELOPING.md, README.md).
+      label: Where
+      description: File path or URL (e.g. DEVELOPING.md).
       placeholder: DEVELOPING.md
     validations:
       required: true
   - type: textarea
     id: problem
     attributes:
-      label: What is wrong or missing?
-      description: Quote the confusing part if you can, and explain what you expected to find.
+      label: What’s wrong or missing
     validations:
       required: true
   - type: textarea
     id: suggestion
     attributes:
-      label: Suggested improvement
-      description: Optional — how would you rewrite or add to it?
+      label: Suggested fix
+      description: Optional.
     validations:
       required: false
-  - type: checkboxes
-    id: checks
-    attributes:
-      label: Before submitting
-      options:
-        - label: I searched existing issues and this has not been reported yet.
-          required: true
-        - label: I am willing to submit a pull request for this.
-          required: false

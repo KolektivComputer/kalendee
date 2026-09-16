@@ -212,7 +212,7 @@ from=<mail.from>&to=<recipient>&subject=<subject>&text=<plain body>
 When no transport is fully configured, the server uses the logging mailer:
 
 - Nothing leaves the process; the message is written at `INFO` level to the
-  `dev.kolektiv.kalendee.mail.LoggingMailer` logger as
+  `computer.kolektiv.kalendee.mail.LoggingMailer` logger as
   `[mail:dev] to=<addr> subject=<subject>` followed by the plain-text body.
 - Email-verification links, invitation links, and sign-in alerts therefore
   appear verbatim in the server log. This is intentional for development and

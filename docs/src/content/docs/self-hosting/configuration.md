@@ -55,7 +55,7 @@ A few rules cover everything you will write:
   characters. Booleans and numbers may be unquoted.
 - Comments start with `#` or `//`.
 - Arrays use square brackets, e.g.
-  `modules = [ dev.kolektiv.kalendee.ApplicationKt.module ]`.
+  `modules = [ computer.kolektiv.kalendee.ApplicationKt.module ]`.
 - Repeating the same key assigns twice. Combined with an optional substitution
   (below), the idiom `key = <default>` followed by `key = ${?ENV}` lets the
   environment override the default while leaving the default in place when the
@@ -89,7 +89,7 @@ it is loaded instead of the jar's config rather than merged with it:
 ```hocon
 ktor {
     application {
-        modules = [ dev.kolektiv.kalendee.ApplicationKt.module ]
+        modules = [ computer.kolektiv.kalendee.ApplicationKt.module ]
     }
 }
 ```
@@ -100,7 +100,7 @@ ktor {
 | --- | --- | --- | --- | --- |
 | `ktor.deployment.port` | integer | `8080` | `KALENDEE_HTTP_PORT` | TCP port the server binds. Can also be overridden with `-port=<n>`. |
 | `ktor.deployment.host` | string | `"0.0.0.0"` | `KALENDEE_HTTP_HOST` | Interface to bind. `0.0.0.0` listens on all interfaces, correct for a container behind a proxy. |
-| `ktor.application.modules` | array | `[ dev.kolektiv.kalendee.ApplicationKt.module ]` | — | Ktor module entry point. Required in a standalone config. |
+| `ktor.application.modules` | array | `[ computer.kolektiv.kalendee.ApplicationKt.module ]` | — | Ktor module entry point. Required in a standalone config. |
 
 The container always exposes port `8080`; the host-side mapping is the
 compose-only `KALENDEE_HOST_PORT` (see
@@ -273,7 +273,7 @@ ktor {
         host = ${?KALENDEE_HTTP_HOST}
     }
     application {
-        modules = [ dev.kolektiv.kalendee.ApplicationKt.module ]
+        modules = [ computer.kolektiv.kalendee.ApplicationKt.module ]
     }
 }
 
@@ -417,7 +417,7 @@ ktor {
         host = ${?KALENDEE_HTTP_HOST}
     }
     application {
-        modules = [ dev.kolektiv.kalendee.ApplicationKt.module ]
+        modules = [ computer.kolektiv.kalendee.ApplicationKt.module ]
     }
 }
 

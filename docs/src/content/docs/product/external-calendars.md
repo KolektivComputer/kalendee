@@ -50,8 +50,9 @@ The only new logic is (a) where mirrored rows come from and (b) routing writes
 through the connection instead of only to Postgres. Read-only mirrors are
 ordinary rows flagged provider-managed: imported events are read-only, the
 store and UI reject local edits, and **Kalendee keeps no local overrides**.
-Edits are pushed to the provider only when the linked account and provider
-allow updates; pull-only imports reject them outright.
+Edits are pushed to the provider only when the acting user has write permission
+on the calendar and the provider allows updates; pull-only imports reject them
+outright.
 
 ## Event sources
 
@@ -75,10 +76,12 @@ settings are loaded (the guild list refresh recomputes sync direction).
   import; the settings UI links to the per-guild invite URL and shows a "bot
   missing" state.
 - **Dragging or resizing a non-recurring imported event** pushes the new
-  start/end to Discord first, then updates the local mirror. There is no local
-  override: nothing changes in Kalendee until Discord confirms. Failures (bot
-  missing permission, event deleted on Discord) surface as errors and change
-  nothing locally.
+  start/end to Discord first, then updates the local mirror. Any user with
+  write permission on the mirrored calendar (calendar owner, organization
+  manager, team `WRITE`, or share `WRITE`) may do this; users who only have
+  read access are rejected. There is no local override: nothing changes in
+  Kalendee until Discord confirms. Failures (bot missing permission, event
+  deleted on Discord) surface as errors and change nothing locally.
 - **Dragging or resizing one occurrence of a recurring imported event**
   creates a Discord scheduled-event exception for that occurrence; later
   edits of the same occurrence patch the same exception. Discord has no GET
@@ -92,6 +95,18 @@ settings are loaded (the guild list refresh recomputes sync direction).
   overrides are not mirrored. Deleting an exception in Discord likewise leaves
   the local override in place; only the next Kalendee edit to that occurrence
   would recreate it.
+- **Moving a mirrored calendar follows the calendar's permissions, but only
+  the connection owner may move it.** A synced calendar can be moved to an
+  organization or team like any other calendar, and the mapping and connection
+  survive the move. Only the account that connected the sync may perform the
+  move; organization owners and admins who are not the connection owner get a
+  `Forbidden` error. Import management (sync now, event routing, enable and
+  disable, removing the import, and disconnecting the account) always stays
+  with the connection owner, not the organization.
+- **Deleting a mirrored calendar requires the connection owner.** Any other
+  manager, including an organization owner or admin, must remove the import
+  first; removing the import keeps the calendar and detaches its events, after
+  which the calendar can be deleted normally.
 - **Other mutations remain unsupported**: editing title/description, deleting,
   moving to another calendar, and creating events in an imported calendar. The
   UI opens imported events view-only.

@@ -467,6 +467,7 @@ class DiscordPushServiceTest {
         assertEquals("both", calendar.syncDirection)
         assertEquals("ok", calendar.syncStatus)
         assertNull(calendar.syncError)
+        assertNull(calendar.syncBlockedReason)
     }
 
     private class ImportedGuild(

@@ -214,6 +214,7 @@ class DiscordImportService(
                 it[calendarId] = calendar.id.toUuid()
                 it[externalName] = guild.name
                 it[syncDirection] = syncDirection(guild, botGuild)
+                it[syncBlockedReason] = syncBlockedReason(guild, botGuild)
                 it[enabled] = true
                 it[createdAt] = now
                 it[updatedAt] = now
@@ -639,19 +640,25 @@ class DiscordImportService(
     ) {
         val updates = userGuilds.mapNotNull { guild ->
             val mapping = mappings[guild.id] ?: return@mapNotNull null
-            val direction = syncDirection(guild, botGuilds[guild.id])
-            if (mapping[ExternalCalendarsTable.syncDirection] == direction) {
+            val botGuild = botGuilds[guild.id]
+            val direction = syncDirection(guild, botGuild)
+            val reason = syncBlockedReason(guild, botGuild)
+            if (
+                mapping[ExternalCalendarsTable.syncDirection] == direction &&
+                mapping[ExternalCalendarsTable.syncBlockedReason] == reason
+            ) {
                 null
             } else {
-                mapping[ExternalCalendarsTable.id] to direction
+                Triple(mapping[ExternalCalendarsTable.id], direction, reason)
             }
         }
         if (updates.isEmpty()) return
         dbQuery {
             val now = clock.now()
-            updates.forEach { (externalCalendarId, direction) ->
+            updates.forEach { (externalCalendarId, direction, reason) ->
                 ExternalCalendarsTable.update({ ExternalCalendarsTable.id eq externalCalendarId }) {
                     it[syncDirection] = direction
+                    it[syncBlockedReason] = reason
                     it[updatedAt] = now
                 }
             }
@@ -791,14 +798,27 @@ class DiscordImportService(
 
     /**
      * Events can be pushed back to Discord only when both the connected user
-     * and the Kalendee bot may manage the guild's scheduled events.
+     * and the Kalendee bot may manage the guild's scheduled events. A guild is
+     * two-way exactly when [syncBlockedReason] finds nothing blocking it.
      */
     private fun syncDirection(userGuild: DiscordGuild, botGuild: DiscordGuild?): String =
-        if (botGuild != null && canManageEvents(userGuild) && canManageEvents(botGuild)) {
+        if (syncBlockedReason(userGuild, botGuild) == null) {
             SyncDirectionBoth
         } else {
             SyncDirectionPull
         }
+
+    /**
+     * Why pushes to Discord are unavailable for one guild, or null when they
+     * are allowed. Bot permission gaps are reported before the user's own
+     * because the bot grant is server-wide and needs an admin to fix it.
+     */
+    private fun syncBlockedReason(userGuild: DiscordGuild, botGuild: DiscordGuild?): String? = when {
+        botGuild == null -> SyncBlockedBotMissing
+        !canManageEvents(botGuild) -> SyncBlockedBotManageEvents
+        !canManageEvents(userGuild) -> SyncBlockedUserManageEvents
+        else -> null
+    }
 
     private fun canManageEvents(guild: DiscordGuild): Boolean =
         guild.owner ||
@@ -849,6 +869,9 @@ class DiscordImportService(
         const val AdministratorPermissionBit = 3
         const val DiscordInviteUrl = "https://discord.com/oauth2/authorize"
         const val DiscordInvitePermissions = "1024"
+        const val SyncBlockedBotMissing = "bot_missing"
+        const val SyncBlockedBotManageEvents = "bot_manage_events"
+        const val SyncBlockedUserManageEvents = "user_manage_events"
     }
 }
 

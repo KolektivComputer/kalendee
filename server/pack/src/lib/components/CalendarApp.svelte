@@ -28,6 +28,7 @@
     UpdateEventIn,
   } from "../page-types"
   import { isHolidayEvent } from "../colors"
+  import { actionMessage } from "../errors"
   import type { ViewerOrganization } from "../organizations"
   import type { ReminderSelection } from "../reminders"
   import { settingsHref } from "../settings-ui.svelte"
@@ -72,6 +73,8 @@
   let draftAllDay = $state(false)
   let requestOpen = $state(false)
   let requestCalendar = $state<CalendarSummary | null>(null)
+  let hiddenPendingId = $state("")
+  let hiddenError = $state("")
 
   const visibleCalendars = $derived(data.calendars.filter((calendar) => !calendar.hidden))
   const visibleEvents = $derived(
@@ -226,8 +229,20 @@
     return deleteCalendar.mutateAsync({ id })
   }
 
-  function onHiddenCalendar(id: string, hidden: boolean) {
-    return setCalendarHidden.mutateAsync({ id, hidden })
+  async function onHiddenCalendar(id: string, hidden: boolean) {
+    if (hiddenPendingId === id) return
+    hiddenPendingId = id
+    hiddenError = ""
+    try {
+      await setCalendarHidden.mutateAsync({ id, hidden })
+    } catch (error) {
+      const message = actionMessage(error)
+      hiddenError = message.includes("unauthorized")
+        ? "Your session expired — sign in again to change calendar visibility."
+        : message
+    } finally {
+      hiddenPendingId = ""
+    }
   }
 
   async function persistEventReminders(eventId: string, reminders: ReminderSelection) {
@@ -421,6 +436,8 @@
           createError={createCalendar.error}
           updateError={updateCalendar.error}
           readOnly={data.readOnly}
+          hiddenPendingId={hiddenPendingId}
+          hiddenError={hiddenError}
           onCreate={onCreateCalendar}
           onUpdate={onUpdateCalendar}
           onDelete={onDeleteCalendar}

@@ -27,11 +27,14 @@ import io.ktor.http.URLBuilder
 import java.math.BigInteger
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -39,6 +42,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -123,6 +127,35 @@ class DiscordImportService(
 ) {
     private val log = LoggerFactory.getLogger(DiscordImportService::class.java)
     private val syncLocks = ConcurrentHashMap<String, Mutex>()
+    private val directionRefreshAt = ConcurrentHashMap<Uuid, Instant>()
+
+    /**
+     * Best-effort capability refresh for page loads. Recomputes
+     * `sync_direction` for the user's Discord connections that still have a
+     * non-two-way import, so a permission grant made after import starts
+     * enabling pushes without waiting for the settings guild list. Each
+     * connection is attempted at most once per [DirectionRefreshInterval];
+     * provider failures are logged and never thrown.
+     */
+    suspend fun refreshUserSyncDirections(userId: UserId) {
+        val connectionIds = try {
+            dbQuery { pendingDirectionConnectionIds(userId) }
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (cause: Exception) {
+            log.warn("discord sync-direction refresh lookup failed: {}", cause.message)
+            return
+        }
+        connectionIds.forEach { connectionId ->
+            val now = clock.now()
+            val lastAttempt = directionRefreshAt[connectionId]
+            if (lastAttempt != null && now - lastAttempt < DirectionRefreshInterval) return@forEach
+            directionRefreshAt[connectionId] = now
+            withTimeoutOrNull(DirectionRefreshTimeout) {
+                refreshSyncDirectionBestEffort(userId, connectionId)
+            }
+        }
+    }
 
     suspend fun guilds(userId: UserId, connectionId: String): List<DiscordGuildSummary> {
         val connection = requireConnection(userId, connectionId)
@@ -365,6 +398,7 @@ class DiscordImportService(
             try {
                 runSync(userId, context)
                 dbQuery { markSyncSuccess(context, clock.now()) }
+                refreshSyncDirectionBestEffort(userId, context.connectionId)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: OAuthReauthRequiredException) {
@@ -569,6 +603,29 @@ class DiscordImportService(
         emptyList()
     }
 
+    private suspend fun refreshSyncDirection(userId: UserId, connectionId: Uuid) {
+        val token = connections.validAccessToken(userId, connectionId.toString())
+        val userGuilds = api.guilds(token)
+        val botGuilds = botGuildList().associateBy { it.id }
+        val mappings = dbQuery { externalMappings(connectionId) }
+        refreshSyncDirections(connectionId, userGuilds, mappings, botGuilds)
+    }
+
+    /**
+     * Capability refreshes run on calendar page loads and manual syncs, so a
+     * rejected token or an unreachable Discord must stay a logged warning: it
+     * neither breaks rendering nor marks the connection for reauth.
+     */
+    private suspend fun refreshSyncDirectionBestEffort(userId: UserId, connectionId: Uuid) {
+        try {
+            refreshSyncDirection(userId, connectionId)
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (cause: Exception) {
+            log.warn("discord sync-direction refresh failed for connection {}: {}", connectionId, cause.message)
+        }
+    }
+
     /**
      * Recomputes push capability for every already-imported mapping from the
      * latest user and bot guild lists. A guild missing from the bot list (or a
@@ -605,6 +662,17 @@ class DiscordImportService(
         ExternalCalendarsTable.selectAll()
             .where { ExternalCalendarsTable.connectionId eq connectionId }
             .associateBy { it[ExternalCalendarsTable.externalId] }
+
+    private fun JdbcTransaction.pendingDirectionConnectionIds(userId: UserId): List<Uuid> =
+        (ExternalCalendarsTable innerJoin CalendarConnectionsTable)
+            .selectAll()
+            .where {
+                (CalendarConnectionsTable.userId eq userId.toUuid()) and
+                    (CalendarConnectionsTable.provider eq DiscordProviderId) and
+                    (ExternalCalendarsTable.syncDirection neq SyncDirectionBoth)
+            }
+            .map { it[ExternalCalendarsTable.connectionId] }
+            .distinct()
 
     private fun JdbcTransaction.mappingRow(connectionId: Uuid, guildId: String): ResultRow? =
         ExternalCalendarsTable.selectAll()
@@ -770,6 +838,8 @@ class DiscordImportService(
         }
 
     private companion object {
+        val DirectionRefreshInterval = 2.minutes
+        val DirectionRefreshTimeout = 5.seconds
         const val DiscordProviderId = "discord"
         const val ReauthMessage = "external connection must be reconnected"
         const val MaxLastErrorLength = 500

@@ -63,8 +63,9 @@ scheduled events are read with the bot token. When the linked Discord user has
 `MANAGE_EVENTS` (or `ADMINISTRATOR`, or owns the guild) **and** the Kalendee
 bot has `MANAGE_EVENTS` in that guild, the import becomes two-way for event
 times (`sync_direction = both`); otherwise it stays read-only (`pull`).
-Permission changes are picked up the next time the Connected Accounts /
-Discord settings are loaded (the guild list refresh recomputes sync direction).
+Permission changes are picked up when the calendar page is loaded (throttled
+per connection), on manual sync, and when the Connected Accounts / Discord
+settings are loaded (the guild list refresh recomputes sync direction).
 
 - **User OAuth (scopes `identify` + `guilds`)** lists the guilds the signed-in
   user belongs to and which of them have the Kalendee bot. The user token never

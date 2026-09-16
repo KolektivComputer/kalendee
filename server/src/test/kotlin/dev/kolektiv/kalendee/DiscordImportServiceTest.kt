@@ -295,6 +295,104 @@ class DiscordImportServiceTest {
     }
 
     @Test
+    fun syncNowRefreshesPushCapabilityWhenPermissionsAreGranted() = testApplication {
+        val manageEvents = "8589934592"
+        var userGuilds = "[${guildJson("101", permissions = "1024")}]"
+        var botGuilds = "[${guildJson("101", permissions = "1024")}]"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok(userGuilds) },
+                botGuilds = { ok(botGuilds) },
+            ),
+        )
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+
+        userGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        botGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        fixture.imports.syncNow(fixture.user.id, externalCalendarId)
+
+        assertEquals("both", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+    }
+
+    @Test
+    fun calendarLoadRefreshPromotesPullImports() = testApplication {
+        val manageEvents = "8589934592"
+        var userGuilds = "[${guildJson("101", permissions = "1024")}]"
+        var botGuilds = "[${guildJson("101", permissions = "1024")}]"
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = { ok(userGuilds) },
+                botGuilds = { ok(botGuilds) },
+            ),
+        )
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+
+        userGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        botGuilds = "[${guildJson("101", permissions = manageEvents)}]"
+        fixture.imports.refreshUserSyncDirections(fixture.user.id)
+
+        assertEquals("both", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+    }
+
+    @Test
+    fun calendarLoadRefreshIsThrottled() = testApplication {
+        var botGuildRequests = 0
+        val fixture = installImportFixture(
+            discordEngine(
+                botGuilds = {
+                    botGuildRequests++
+                    ok(BotGuildsJson)
+                },
+            ),
+        )
+        fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+
+        val beforeFirstRefresh = botGuildRequests
+        fixture.imports.refreshUserSyncDirections(fixture.user.id)
+        val afterFirstRefresh = botGuildRequests
+        assertTrue(afterFirstRefresh > beforeFirstRefresh)
+
+        fixture.imports.refreshUserSyncDirections(fixture.user.id)
+
+        assertEquals(afterFirstRefresh, botGuildRequests)
+    }
+
+    @Test
+    fun calendarLoadRefreshSwallowsDiscordFailures() = testApplication {
+        var discordFailing = false
+        val fixture = installImportFixture(
+            discordEngine(
+                userGuilds = {
+                    if (discordFailing) {
+                        HttpStatusCode.InternalServerError to "{}"
+                    } else {
+                        ok(UserGuildsJson)
+                    }
+                },
+                botGuilds = {
+                    if (discordFailing) {
+                        HttpStatusCode.InternalServerError to "{}"
+                    } else {
+                        ok(BotGuildsJson)
+                    }
+                },
+            ),
+        )
+        val summary = fixture.imports.importGuild(fixture.user.id, fixture.connectionId, "101")
+        val externalCalendarId = assertNotNull(summary.externalCalendarId)
+        discordFailing = true
+
+        fixture.imports.refreshUserSyncDirections(fixture.user.id)
+
+        assertEquals("pull", fixture.externalRow(externalCalendarId)[ExternalCalendarsTable.syncDirection])
+        assertEquals("active", fixture.connections.connections(fixture.user.id).single().status)
+    }
+
+    @Test
     fun importedGuildStaysListedAfterLosingBotAndManageability() = testApplication {
         var userGuilds = "[${guildJson("101", permissions = "32")}]"
         var botGuilds = "[${guildJson("101")}]"

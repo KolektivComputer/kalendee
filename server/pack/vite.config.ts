@@ -9,7 +9,7 @@ export default defineConfig({
     svelte(),
     keelPack({
       id: "kalendee",
-      version: "0.1.0",
+      version: "0.2.0",
       framework: "svelte",
       pagesDir: "src/pages",
       bootstrap: "src/bootstrap.ts",

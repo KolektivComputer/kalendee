@@ -12,11 +12,11 @@ import dev.kolektiv.kalendee.oauth.providers.DiscordApiHttpException
 import kotlin.time.Instant
 
 /**
- * Pushes local reschedules of imported Discord events back to Discord. Only
- * the connection owner may push and the import must be two-way enabled. Base
- * event edits patch the scheduled event itself; edits of a materialized
- * occurrence create or modify a Discord scheduled-event exception, tracked by
- * the exception id stored on the mirrored row.
+ * Pushes local reschedules of imported Discord events back to Discord. Anyone
+ * with write permission on the mirrored calendar may push and the import must
+ * be two-way enabled. Base event edits patch the scheduled event itself; edits
+ * of a materialized occurrence create or modify a Discord scheduled-event
+ * exception, tracked by the exception id stored on the mirrored row.
  */
 class DiscordPushService(
     private val store: CalendarStore,
@@ -35,10 +35,9 @@ class DiscordPushService(
         val source = externalEvents.findSource(eventId)
             ?: throw CalendarException.Forbidden(ExternalReadOnlyMessage)
         if (source.provider != DiscordProviderId) throw CalendarException.Forbidden(ExternalReadOnlyMessage)
-        if (source.ownerId != actorId) {
-            throw CalendarException.Forbidden(
-                "only the Discord account that imported this event can reschedule it",
-            )
+        val permission = store.getCalendar(source.calendarId, actorId)?.permission
+        if (permission?.canWrite != true) {
+            throw CalendarException.Forbidden("you do not have permission to reschedule this event")
         }
         if (source.syncDirection != SyncDirectionBoth) {
             throw CalendarException.Forbidden(

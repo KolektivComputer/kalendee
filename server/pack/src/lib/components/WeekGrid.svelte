@@ -213,7 +213,7 @@
   function canEditEventTimes(item: EventSummary): boolean {
     if (readOnly || isHolidayEvent(item) || item.recurrence) return false
     if (item.externalCalendarId != null) {
-      return pushCalendarIds.has(item.calendarId)
+      return pushCalendarIds.has(item.calendarId) && writableCalendarIds.has(item.calendarId)
     }
     return writableCalendarIds.has(item.calendarId)
   }

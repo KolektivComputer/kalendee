@@ -248,9 +248,14 @@ class DiscordPushServiceTest {
     }
 
     @Test
-    fun rescheduleByAnotherUserRejects() = testApplication {
+    fun writerCanRescheduleImportedEvent() = testApplication {
         val start = secondsFromNow(2.days)
-        val mock = MockDiscord(scheduledEvents = { ok("[${eventJson(start = start)}]") })
+        val newStart = start + 1.hours
+        val newEnd = start + 2.hours
+        val mock = MockDiscord(
+            scheduledEvents = { ok("[${eventJson(start = start)}]") },
+            modifyEvent = { ok(eventJson(start = newStart, end = newEnd)) },
+        )
         val fixture = installPushFixture(mock)
         val imported = fixture.importInto()
         val other = fixture.auth.register(RegisterUser(username = "bob", password = "password12"))
@@ -264,6 +269,36 @@ class DiscordPushServiceTest {
         )
         val event = fixture.store.listEvents(imported.calendar.id, other.id).single()
 
+        val updated = fixture.updates.update(
+            event.id,
+            other.id,
+            UpdateEvent(start = newStart, end = newEnd),
+            expectedEtag = event.etag,
+        )
+
+        assertEquals(newStart, updated.start)
+        assertEquals(newEnd, updated.end)
+        assertEquals(1, mock.patches.size)
+        assertEquals(newStart, fixture.store.getEvent(event.id, other.id)?.start)
+    }
+
+    @Test
+    fun readerCannotRescheduleImportedEvent() = testApplication {
+        val start = secondsFromNow(2.days)
+        val mock = MockDiscord(scheduledEvents = { ok("[${eventJson(start = start)}]") })
+        val fixture = installPushFixture(mock)
+        val imported = fixture.importInto()
+        val other = fixture.auth.register(RegisterUser(username = "bob", password = "password12"))
+            .session?.user
+            ?: error("registration did not create a session")
+        fixture.store.addShare(
+            imported.calendar.id,
+            fixture.user.id,
+            other.id,
+            CalendarPermission.READ,
+        )
+        val event = fixture.store.listEvents(imported.calendar.id, other.id).single()
+
         val failure = assertFailsWith<CalendarException.Forbidden> {
             fixture.updates.update(
                 event.id,
@@ -273,8 +308,9 @@ class DiscordPushServiceTest {
             )
         }
 
-        assertTrue("account" in failure.message.orEmpty(), failure.message)
+        assertEquals("you do not have permission to reschedule this event", failure.message)
         assertTrue(mock.patches.isEmpty())
+        assertEquals(start, fixture.store.getEvent(event.id, fixture.user.id)?.start)
     }
 
     @Test

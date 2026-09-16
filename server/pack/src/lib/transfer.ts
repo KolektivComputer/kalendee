@@ -56,7 +56,7 @@ export function targetFromElementData(dataset: DOMStringMap): TransferTarget | n
 }
 
 export function canTransferCalendar(calendar: CalendarSummary, readOnly: boolean): boolean {
-  return !readOnly && calendar.permission === "owner" && !calendar.connectionId
+  return !readOnly && calendar.permission === "owner"
 }
 
 export function canDropCalendar(

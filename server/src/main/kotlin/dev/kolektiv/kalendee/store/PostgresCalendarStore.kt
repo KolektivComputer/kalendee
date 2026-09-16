@@ -31,6 +31,7 @@ import dev.kolektiv.kalendee.calendar.occurrencesIn
 import dev.kolektiv.kalendee.calendar.requireKnownHolidayIds
 import dev.kolektiv.kalendee.calendar.splitAt
 import dev.kolektiv.kalendee.calendar.validated
+import dev.kolektiv.kalendee.db.CalendarConnectionsTable
 import dev.kolektiv.kalendee.db.CalendarFollowersTable
 import dev.kolektiv.kalendee.db.CalendarHiddenTable
 import dev.kolektiv.kalendee.db.CalendarSharesTable
@@ -216,6 +217,13 @@ class PostgresCalendarStore(
     }
 
     override suspend fun deleteCalendar(id: CalendarId, ownerId: UserId): Boolean = dbQuery {
+        val manageable = CalendarsTable.selectAll()
+            .where { manageableCalendarOp(id, ownerId) }
+            .count() > 0
+        if (!manageable) return@dbQuery false
+        if (hasExternalCalendar(id.toUuid()) && !ownsExternalConnection(id.toUuid(), ownerId)) {
+            throw CalendarException.Forbidden("remove the sync import before deleting this calendar")
+        }
         CalendarsTable.deleteWhere { manageableCalendarOp(id, ownerId) } > 0
     }
 
@@ -290,8 +298,10 @@ class PostgresCalendarStore(
             teamGrantId = destinationTeamId
         }
 
-        if (hasExternalCalendar(id.toUuid())) {
-            throw CalendarException.Forbidden("disconnect sync before moving this calendar")
+        if (hasExternalCalendar(id.toUuid()) && !ownsExternalConnection(id.toUuid(), actorId)) {
+            throw CalendarException.Forbidden(
+                "only the account that connected this sync can move this calendar",
+            )
         }
 
         val now = clock.now()
@@ -1137,6 +1147,15 @@ class PostgresCalendarStore(
     private fun JdbcTransaction.hasExternalCalendar(calendarId: Uuid): Boolean =
         ExternalCalendarsTable.selectAll()
             .where { ExternalCalendarsTable.calendarId eq calendarId }
+            .count() > 0
+
+    private fun JdbcTransaction.ownsExternalConnection(calendarId: Uuid, actorId: UserId): Boolean =
+        (ExternalCalendarsTable innerJoin CalendarConnectionsTable)
+            .selectAll()
+            .where {
+                (ExternalCalendarsTable.calendarId eq calendarId) and
+                    (CalendarConnectionsTable.userId eq actorId.toUuid())
+            }
             .count() > 0
 
     private fun JdbcTransaction.shareRow(calendarId: CalendarId, userId: UserId): CalendarShare =

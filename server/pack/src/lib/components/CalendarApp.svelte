@@ -1,8 +1,11 @@
 <script lang="ts">
   import { Link, router, useAction } from "@kolektiv/keel-svelte"
+  import { onMount } from "svelte"
   import ChevronLeft from "@lucide/svelte/icons/chevron-left"
   import ChevronRight from "@lucide/svelte/icons/chevron-right"
   import Menu from "@lucide/svelte/icons/menu"
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert"
+  import X from "@lucide/svelte/icons/x"
   import type {
     CalendarSummary,
     CreateCalendarIn,
@@ -91,6 +94,57 @@
   const canEditSelected = $derived(
     !data.readOnly && (selected?.permission === "owner" || selected?.permission === "write"),
   )
+
+  const SYNC_ALERTS_DISMISSED_KEY = "kalendee.syncAlerts.dismissed"
+
+  function readDismissedSyncAlerts(): Record<string, boolean> {
+    if (typeof localStorage === "undefined") return {}
+    try {
+      const raw = localStorage.getItem(SYNC_ALERTS_DISMISSED_KEY)
+      if (!raw) return {}
+      const parsed: unknown = JSON.parse(raw)
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {}
+      const dismissed: Record<string, boolean> = {}
+      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (value === true) dismissed[key] = true
+      }
+      return dismissed
+    } catch {
+      return {}
+    }
+  }
+
+  function writeDismissedSyncAlerts(dismissed: Record<string, boolean>): void {
+    if (typeof localStorage === "undefined") return
+    try {
+      localStorage.setItem(SYNC_ALERTS_DISMISSED_KEY, JSON.stringify(dismissed))
+    } catch {}
+  }
+
+  let dismissedSyncAlerts = $state<Record<string, boolean>>({})
+  let syncAlertsReady = $state(false)
+
+  onMount(() => {
+    dismissedSyncAlerts = readDismissedSyncAlerts()
+    syncAlertsReady = true
+  })
+
+  const syncBlockedAlert = $derived.by(() => {
+    if (!syncAlertsReady || data.readOnly) return null
+    for (const calendar of visibleCalendars) {
+      const reason = calendar.syncBlockedReason
+      if (reason !== "bot_manage_events" && reason !== "user_manage_events") continue
+      if (dismissedSyncAlerts[`${calendar.id}:${reason}`]) continue
+      return { calendar, reason, server: calendar.displayName.replace(/^Discord · /, "") }
+    }
+    return null
+  })
+
+  function dismissSyncAlert(calendarId: string, reason: string) {
+    dismissedSyncAlerts = { ...dismissedSyncAlerts, [`${calendarId}:${reason}`]: true }
+    writeDismissedSyncAlerts(dismissedSyncAlerts)
+  }
+
   const writableCalendars = $derived(
     data.calendars.filter((calendar) => calendar.permission === "owner" || calendar.permission === "write"),
   )
@@ -295,6 +349,25 @@
           }}
         >
           Request a time…
+        </button>
+      </div>
+    {/if}
+    {#if syncBlockedAlert}
+      {@const alert = syncBlockedAlert}
+      <div role="alert" class="alert alert-warning shrink-0 rounded-none">
+        <TriangleAlert class="h-5 w-5" aria-hidden="true" />
+        <span>
+          {alert.reason === "bot_manage_events"
+            ? `The Kalendee bot needs the "Manage Events" permission in ${alert.server} before Discord events can be moved or resized.`
+            : `You need the "Manage Events" permission in ${alert.server} before Discord events can be moved or resized.`}
+        </span>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm btn-square"
+          aria-label="Dismiss"
+          onclick={() => dismissSyncAlert(alert.calendar.id, alert.reason)}
+        >
+          <X class="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
     {/if}

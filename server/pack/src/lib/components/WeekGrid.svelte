@@ -585,14 +585,18 @@
               </div>
             {/each}
             {#if preview}
+              {@const pending = pendingMove !== null && !(drag?.kind === "move" && drag.active)}
               <div
                 class="pointer-events-none absolute z-3 overflow-hidden rounded-field border border-dashed px-1.5 py-1 text-xs leading-tight opacity-90 shadow-md transition-[top,left] duration-75 ease-out"
                 style={`${ghostStyle(preview)}${fill(preview.event.calendarId)}`}
                 aria-hidden="true"
               >
                 <strong class="block font-semibold">{preview.event.title}</strong>
-                <span class="text-[0.68rem] opacity-75">
+                <span class="flex items-center gap-1 text-[0.68rem] opacity-75">
                   {formatClock(preview.startMin)}–{formatClock(preview.endMin)}
+                  {#if pending}
+                    <span class="loading loading-spinner loading-xs"></span>
+                  {/if}
                 </span>
               </div>
             {/if}

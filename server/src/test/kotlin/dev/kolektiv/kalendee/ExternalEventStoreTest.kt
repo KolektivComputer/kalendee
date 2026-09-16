@@ -160,7 +160,63 @@ class ExternalEventStoreTest {
     }
 
     @Test
-    fun mirroredCalendarAllowsImportedEventUpdateAndMoveButKeepsDeleteForbidden() = testApplication {
+    fun setExceptionIdStoresExceptionOnMirroredOccurrence() = testApplication {
+        val fixture = installFixture()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        val eventId = fixture.importedEventId()
+
+        fixture.external.setExceptionId(eventId, "901")
+
+        assertEquals("901", fixture.rawRows().single()[EventsTable.externalExceptionId])
+        assertEquals("901", fixture.external.findSource(eventId)?.externalExceptionId)
+        assertEquals("901", fixture.external.listBySource(fixture.externalId).single().exceptionId)
+    }
+
+    @Test
+    fun applyExceptionUpdatesMatchingOccurrenceAndBumpsEtag() = testApplication {
+        val fixture = installFixture()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        fixture.external.setExceptionId(fixture.importedEventId(), "901")
+        val before = fixture.rawRows().single()
+
+        val movedStart = start + 3.hours
+        val movedEnd = end + 3.hours
+        fixture.external.applyException(fixture.externalId, "901", movedStart, movedEnd, cancelled = false)
+
+        val moved = fixture.rawRows().single()
+        assertEquals(movedStart, moved[EventsTable.startAt])
+        assertEquals(movedEnd, moved[EventsTable.endAt])
+        assertEquals(EventStatus.CONFIRMED.name, moved[EventsTable.status])
+        assertNotEquals(before[EventsTable.etag], moved[EventsTable.etag])
+
+        fixture.external.applyException(fixture.externalId, "901", null, null, cancelled = true)
+
+        val cancelled = fixture.rawRows().single()
+        assertEquals(EventStatus.CANCELLED.name, cancelled[EventsTable.status])
+        assertEquals(movedStart, cancelled[EventsTable.startAt])
+    }
+
+    @Test
+    fun applyExceptionWithUnknownIdUpdatesNothing() = testApplication {
+        val fixture = installFixture()
+        fixture.external.upsert(fixture.externalId, fixture.calendar.id, importedEvent())
+        val before = fixture.rawRows().single()
+
+        fixture.external.applyException(
+            fixture.externalId,
+            "unknown",
+            start + 3.hours,
+            end + 3.hours,
+            cancelled = false,
+        )
+
+        val after = fixture.rawRows().single()
+        assertEquals(before[EventsTable.startAt], after[EventsTable.startAt])
+        assertEquals(before[EventsTable.etag], after[EventsTable.etag])
+    }
+
+    @Test
+    fun mirroredCalendarRejectsImportedEventUpdateMoveAndDelete() = testApplication {
         val fixture = installFixture()
         val event = importedEvent()
         fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
@@ -177,15 +233,18 @@ class ExternalEventStoreTest {
                 CreateEvent(title = "Nope", start = start, end = end),
             )
         }
-        val updated = fixture.store.updateEvent(mirroredEventId, fixture.user.id, UpdateEvent(title = "Edited"))
-        assertEquals("Edited", updated?.title)
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.updateEvent(mirroredEventId, fixture.user.id, UpdateEvent(title = "Edited"))
+        }
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.moveEvent(mirroredEventId, fixture.user.id, destination.id)
+        }
         assertFailsWith<CalendarException.Forbidden> {
             fixture.store.deleteEvent(mirroredEventId, fixture.user.id)
         }
-        val moved = fixture.store.moveEvent(mirroredEventId, fixture.user.id, destination.id)
-        assertEquals(destination.id, moved?.single()?.calendarId)
-        assertTrue(fixture.store.listEvents(fixture.calendar.id, fixture.user.id).isEmpty())
-        assertEquals("Edited", fixture.store.listEvents(destination.id, fixture.user.id).single().title)
+        val unchanged = fixture.store.getEvent(mirroredEventId, fixture.user.id)
+        assertEquals("Community call", unchanged?.title)
+        assertEquals(fixture.calendar.id, unchanged?.calendarId)
 
         val localEvent = fixture.store.createEvent(
             destination.id,
@@ -198,7 +257,7 @@ class ExternalEventStoreTest {
     }
 
     @Test
-    fun importedEventInLocalCalendarAllowsUpdateAndMoveButKeepsDeleteForbidden() = testApplication {
+    fun importedEventRoutedIntoLocalCalendarStaysReadOnly() = testApplication {
         val fixture = installFixture()
         val routed = fixture.store.createCalendar(
             fixture.user.id,
@@ -211,40 +270,54 @@ class ExternalEventStoreTest {
             CreateCalendar(displayName = "Other"),
         )
 
-        val updated = fixture.store.updateEvent(importedId, fixture.user.id, UpdateEvent(title = "Edited"))
-        assertEquals("Edited", updated?.title)
-        val moved = fixture.store.moveEvent(importedId, fixture.user.id, other.id)
-        assertEquals(other.id, moved?.single()?.calendarId)
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.updateEvent(importedId, fixture.user.id, UpdateEvent(title = "Edited"))
+        }
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.moveEvent(importedId, fixture.user.id, other.id)
+        }
         assertFailsWith<CalendarException.Forbidden> {
             fixture.store.deleteEvent(importedId, fixture.user.id)
         }
-        assertEquals("Edited", fixture.store.getEvent(importedId, fixture.user.id)?.title)
-        assertEquals(other.id, fixture.store.getEvent(importedId, fixture.user.id)?.calendarId)
+        val stored = fixture.store.getEvent(importedId, fixture.user.id)
+        assertEquals("Community call", stored?.title)
+        assertEquals(routed.id, stored?.calendarId)
     }
 
     @Test
-    fun locallyEditedImportedEventSurvivesSubsequentUpsert() = testApplication {
+    fun localUpdateIsRejectedButProviderSyncStillPropagatesChanges() = testApplication {
         val fixture = installFixture()
         val event = importedEvent()
         fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
         val importedId = fixture.importedEventId()
 
-        fixture.store.updateEvent(
-            importedId,
-            fixture.user.id,
-            UpdateEvent(title = "Locally edited", start = start + 2.hours, end = end + 2.hours),
+        assertFailsWith<CalendarException.Forbidden> {
+            fixture.store.updateEvent(
+                importedId,
+                fixture.user.id,
+                UpdateEvent(title = "Locally edited", start = start + 2.hours, end = end + 2.hours),
+            )
+        }
+
+        val beforeSync = fixture.store.getEvent(importedId, fixture.user.id)
+        assertEquals("Community call", beforeSync?.title)
+        assertEquals(start, beforeSync?.start)
+        assertEquals(end, beforeSync?.end)
+
+        // Provider sync owns the row and applies provider fields directly.
+        fixture.external.upsert(
+            fixture.externalId,
+            fixture.calendar.id,
+            event.copy(title = "Provider renamed", start = start + 1.hours, end = end + 1.hours),
         )
 
-        // The provider still reports the original title and times.
-        fixture.external.upsert(fixture.externalId, fixture.calendar.id, event)
-
         val row = fixture.rawRows().single()
-        assertEquals("Locally edited", row[EventsTable.title])
-        assertEquals(start + 2.hours, row[EventsTable.startAt])
-        assertEquals(end + 2.hours, row[EventsTable.endAt])
+        assertEquals("Provider renamed", row[EventsTable.title])
+        assertEquals(start + 1.hours, row[EventsTable.startAt])
+        assertEquals(end + 1.hours, row[EventsTable.endAt])
         val stored = fixture.external.listBySource(fixture.externalId).single()
-        assertEquals(start + 2.hours, stored.start)
-        assertEquals(end + 2.hours, stored.end)
+        assertEquals(start + 1.hours, stored.start)
+        assertEquals(end + 1.hours, stored.end)
     }
 
     @Test

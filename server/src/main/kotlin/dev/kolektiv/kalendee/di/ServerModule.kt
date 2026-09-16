@@ -15,6 +15,7 @@ import dev.kolektiv.kalendee.db.DatabaseProvider
 import dev.kolektiv.kalendee.db.DatabaseSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.events.EventUpdateService
 import dev.kolektiv.kalendee.external.store.ExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.ExternalEventStore
 import dev.kolektiv.kalendee.external.store.PostgresExternalEventRouteStore
@@ -37,6 +38,7 @@ import dev.kolektiv.kalendee.oauth.OAuthStateService
 import dev.kolektiv.kalendee.oauth.ProviderRegistry
 import dev.kolektiv.kalendee.oauth.TokenVault
 import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
+import dev.kolektiv.kalendee.oauth.discord.DiscordPushService
 import dev.kolektiv.kalendee.oauth.google.GoogleSyncService
 import dev.kolektiv.kalendee.oauth.providers.DiscordApi
 import dev.kolektiv.kalendee.oauth.providers.DiscordProvider
@@ -53,6 +55,7 @@ import dev.kolektiv.kalendee.web.AdminActions
 import dev.kolektiv.kalendee.web.AuthActions
 import dev.kolektiv.kalendee.web.AvailabilityActions
 import dev.kolektiv.kalendee.web.CalendarActions
+import dev.kolektiv.kalendee.web.CalendarSyncInfoEnricher
 import dev.kolektiv.kalendee.web.ConnectionActions
 import dev.kolektiv.kalendee.web.DiscordActions
 import dev.kolektiv.kalendee.web.EventActions
@@ -200,6 +203,8 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
             clock = get(),
         )
     }
+    single { DiscordPushService(store = get(), externalEvents = get(), api = get()) }
+    single { EventUpdateService(store = get(), discordPush = get()) }
     single {
         GoogleSyncService(
             database = get(),
@@ -248,8 +253,9 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
         )
     }
     single { loadFrontendBundle(environment) } onClose { it?.close() }
+    single { CalendarSyncInfoEnricher(database = get()) }
     single { AuthActions(auth = get(), settings = get(), verification = get(), loginAlerts = get()) }
-    single { CalendarActions(store = get(), auth = get(), settings = get()) }
+    single { CalendarActions(store = get(), auth = get(), settings = get(), syncInfo = get()) }
     single { ConnectionActions(connections = get(), googleSync = get(), auth = get(), settings = get()) }
     single { DiscordActions(imports = get(), auth = get(), settings = get()) }
     single {
@@ -269,7 +275,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
             settings = get(),
         )
     }
-    single { EventActions(store = get(), auth = get(), settings = get()) }
+    single { EventActions(store = get(), auth = get(), settings = get(), eventUpdates = get()) }
     single { EventInviteActions(service = get(), auth = get(), settings = get()) }
     single { HolidayActions(store = get(), auth = get(), settings = get()) }
     single {

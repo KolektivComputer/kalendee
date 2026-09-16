@@ -133,4 +133,6 @@ data class Event(
     val updatedAt: Instant,
     val openRsvp: Boolean = false,
     val rsvpStatus: String? = null,
+    val externalCalendarId: CalendarId? = null,
+    val externalUid: String? = null,
 )

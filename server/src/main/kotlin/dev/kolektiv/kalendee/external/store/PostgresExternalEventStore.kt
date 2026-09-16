@@ -1,12 +1,17 @@
 package dev.kolektiv.kalendee.external.store
 
+import dev.kolektiv.kalendee.auth.UserId
 import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
+import dev.kolektiv.kalendee.calendar.EventId
 import dev.kolektiv.kalendee.calendar.EventStatus
+import dev.kolektiv.kalendee.db.CalendarConnectionsTable
 import dev.kolektiv.kalendee.db.CalendarsTable
 import dev.kolektiv.kalendee.db.EventsTable
+import dev.kolektiv.kalendee.db.ExternalCalendarsTable
 import dev.kolektiv.kalendee.oauth.discord.ImportedCalendarEvent
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,6 +19,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -71,20 +77,6 @@ class PostgresExternalEventStore(
                 return@dbQuery
             }
             val eventId = existing[EventsTable.id]
-            if (existing[EventsTable.locallyModifiedAt] != null) {
-                // Sticky local override: a user with write permission edited or
-                // moved this imported event, so provider sync must not clobber
-                // the locally owned fields. We keep title, description,
-                // location, url, start, end, allDay, timeZone, status,
-                // recurrence and calendarId as they are locally, and only
-                // refresh external bookkeeping (external_updated_at) so sync
-                // state stays coherent. The override lasts until the import is
-                // removed; the detached row then becomes a normal local event.
-                EventsTable.update({ EventsTable.id eq eventId }) {
-                    it[externalUpdatedAt] = now
-                }
-                return@dbQuery
-            }
             val moved = existing[EventsTable.calendarId] != calendarId.toUuid()
             val changed = moved ||
                 existing[EventsTable.title] != event.title ||
@@ -150,6 +142,85 @@ class PostgresExternalEventStore(
         }
     }
 
+    override suspend fun findSource(eventId: EventId): ExternalEventSource? = dbQuery {
+        (EventsTable innerJoin ExternalCalendarsTable innerJoin CalendarConnectionsTable)
+            .selectAll()
+            .where { EventsTable.id eq eventId.toUuid() }
+            .singleOrNull()
+            ?.let { row ->
+                val externalCalendarId = row[EventsTable.externalCalendarId] ?: return@let null
+                val uid = row[EventsTable.externalUid] ?: return@let null
+                ExternalEventSource(
+                    externalCalendarId = externalCalendarId,
+                    calendarId = CalendarId(row[EventsTable.calendarId].toString()),
+                    uid = uid,
+                    externalId = row[ExternalCalendarsTable.externalId],
+                    provider = row[CalendarConnectionsTable.provider],
+                    ownerId = UserId(row[CalendarConnectionsTable.userId].toString()),
+                    syncDirection = row[ExternalCalendarsTable.syncDirection],
+                    enabled = row[ExternalCalendarsTable.enabled],
+                    start = row[EventsTable.startAt],
+                    end = row[EventsTable.endAt],
+                    externalExceptionId = row[EventsTable.externalExceptionId],
+                )
+            }
+    }
+
+    override suspend fun reschedule(externalCalendarId: Uuid, uid: String, start: Instant, end: Instant) {
+        dbQuery {
+            val row = EventsTable.selectAll()
+                .where {
+                    (EventsTable.externalCalendarId eq externalCalendarId) and
+                        (EventsTable.externalUid eq uid)
+                }
+                .singleOrNull()
+                ?: throw CalendarException.NotFound("external event not found")
+            val now = clock.now()
+            EventsTable.update({ EventsTable.id eq row[EventsTable.id] }) {
+                it[startAt] = start
+                it[endAt] = end
+                it[etag] = newEtag()
+                it[externalUpdatedAt] = now
+                it[updatedAt] = now
+            }
+        }
+    }
+
+    override suspend fun setExceptionId(eventId: EventId, exceptionId: String) {
+        dbQuery {
+            EventsTable.update({ EventsTable.id eq eventId.toUuid() }) {
+                it[externalExceptionId] = exceptionId
+            }
+        }
+    }
+
+    override suspend fun applyException(
+        externalCalendarId: Uuid,
+        exceptionId: String,
+        start: Instant?,
+        end: Instant?,
+        cancelled: Boolean,
+    ) {
+        dbQuery {
+            val now = clock.now()
+            EventsTable.update({
+                (EventsTable.externalCalendarId eq externalCalendarId) and
+                    (EventsTable.externalExceptionId eq exceptionId)
+            }) {
+                start?.let { value -> it[startAt] = value }
+                end?.let { value -> it[endAt] = value }
+                it[status] = if (cancelled) {
+                    EventStatus.CANCELLED.name
+                } else {
+                    EventStatus.CONFIRMED.name
+                }
+                it[etag] = newEtag()
+                it[externalUpdatedAt] = now
+                it[updatedAt] = now
+            }
+        }
+    }
+
     private fun ResultRow.toStoredExternalEvent(statuses: Map<String, EventStatus>): StoredExternalEvent =
         StoredExternalEvent(
             uid = this[EventsTable.externalUid] ?: "",
@@ -157,6 +228,7 @@ class PostgresExternalEventStore(
             start = this[EventsTable.startAt],
             end = this[EventsTable.endAt],
             status = statuses[this[EventsTable.status]] ?: EventStatus.CONFIRMED,
+            exceptionId = this[EventsTable.externalExceptionId],
         )
 
     private suspend fun <T> dbQuery(block: suspend JdbcTransaction.() -> T): T =
@@ -168,3 +240,5 @@ class PostgresExternalEventStore(
 }
 
 private fun CalendarId.toUuid(): Uuid = Uuid.parse(value)
+
+private fun EventId.toUuid(): Uuid = Uuid.parse(value)

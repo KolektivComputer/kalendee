@@ -5,6 +5,7 @@ import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.CreateEvent
 import dev.kolektiv.kalendee.calendar.InstantRange
 import dev.kolektiv.kalendee.calendar.UpdateEvent
+import dev.kolektiv.kalendee.events.EventUpdateService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -15,7 +16,7 @@ import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import kotlin.time.Instant
 
-fun Route.eventRoutes(store: CalendarStore) {
+fun Route.eventRoutes(store: CalendarStore, eventUpdates: EventUpdateService) {
     get("/events") {
         val fromRaw = call.request.queryParameters["from"]
             ?: throw CalendarException.Invalid("from is required")
@@ -46,12 +47,12 @@ fun Route.eventRoutes(store: CalendarStore) {
         call.respondEvent(event)
     }
     patch("/events/{id}") {
-        val updated = store.updateEvent(
+        val updated = eventUpdates.update(
             call.eventId(),
             call.user().id,
             call.receive<UpdateEvent>(),
             call.ifMatchOrNull(),
-        ) ?: throw CalendarException.NotFound("event not found")
+        )
         call.respondEvent(updated)
     }
     delete("/events/{id}") {

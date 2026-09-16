@@ -14,6 +14,7 @@ import dev.kolektiv.kalendee.events.EventInviteService
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.notifications.NotificationService
+import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.web.AdminActions
@@ -22,6 +23,7 @@ import dev.kolektiv.kalendee.web.AvailabilityActions
 import dev.kolektiv.kalendee.web.AdminUserSummary
 import dev.kolektiv.kalendee.web.AuthActions
 import dev.kolektiv.kalendee.web.CalendarActions
+import dev.kolektiv.kalendee.web.CalendarSyncInfoEnricher
 import dev.kolektiv.kalendee.web.ConnectionActions
 import dev.kolektiv.kalendee.web.DiscordActions
 import dev.kolektiv.kalendee.web.EventActions
@@ -95,6 +97,8 @@ fun Application.configureKeel() {
     val store by inject<CalendarStore>()
     val eventInviteService by inject<EventInviteService>()
     val notificationService by inject<NotificationService>()
+    val calendarSyncInfo by inject<CalendarSyncInfoEnricher>()
+    val discordImports by inject<DiscordImportService>()
     val friendshipService by inject<FriendshipService>()
     val groupService by inject<GroupService>()
     val organizationService by inject<OrganizationService>()
@@ -192,6 +196,17 @@ fun Application.configureKeel() {
                 }
                 val friends = sessionUser?.let { friendshipService.friends(it.id) }.orEmpty()
                 val friendRequests = sessionUser?.let { friendshipService.incomingRequests(it.id) }.orEmpty()
+                if (sessionUser != null && subject != null && !readOnly) {
+                    discordImports.refreshUserSyncDirections(subject.id)
+                }
+                val calendarSummaries = calendars.map {
+                    val label = teamLabels[it.id]
+                    it.toSummary(
+                        authService,
+                        ownerName = ownerNames[it.ownerId].orEmpty(),
+                        organization = it.organizationId?.let(calendarOrganizations::get),
+                    ).copy(teamId = label?.teamId?.value, teamName = label?.teamName)
+                }
                 head(
                     title,
                     description = "Self-hosted calendars. Sign in to manage yours, or propose a time.",
@@ -212,14 +227,7 @@ fun Application.configureKeel() {
                     label = window.label,
                     today = today.toString(),
                     now = now.toString(),
-                    calendars = calendars.map {
-                        val label = teamLabels[it.id]
-                        it.toSummary(
-                            authService,
-                            ownerName = ownerNames[it.ownerId].orEmpty(),
-                            organization = it.organizationId?.let(calendarOrganizations::get),
-                        ).copy(teamId = label?.teamId?.value, teamName = label?.teamName)
-                    },
+                    calendars = calendarSyncInfo.attachSyncInfo(calendarSummaries),
                     events = events.map { it.toSummary() } + holidayEvents,
                     showHolidays = holidayState.showHolidays,
                     holidayCatalog = if (sessionUser == null) emptyList() else holidayCatalog(),

@@ -211,6 +211,8 @@
 
   const TRANSFER_HOLD_MS = 500
   const TRANSFER_SLOP_PX = 8
+  const TRANSFER_HINT_KEY = "kalendee.transferHintShown"
+  const TRANSFER_HINT_MS = 5000
 
   type TransferDrag = {
     pointerId: number
@@ -226,6 +228,8 @@
   let transferHover = $state("")
   let transferGhost = $state.raw({ x: 0, y: 0 })
   let transferRaf = 0
+  let transferHint = $state.raw<{ x: number; y: number } | null>(null)
+  let transferHintTimer: ReturnType<typeof setTimeout> | undefined
   let suppressCalendarClick = false
 
   onMount(() => {
@@ -234,6 +238,7 @@
       if (event.key === "Escape" && transferDrag) cancelTransfer()
     }
     const onScroll = () => {
+      hideTransferHint()
       if (transferDrag) cancelTransfer()
     }
     window.addEventListener("keydown", onKeyDown)
@@ -242,6 +247,7 @@
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("scroll", onScroll, { capture: true })
       cancelTransfer()
+      hideTransferHint()
     }
   })
 
@@ -461,7 +467,47 @@
     return holder ? targetFromElementData(holder.dataset) : null
   }
 
+  function transferHintAlreadyShown(): boolean {
+    if (typeof sessionStorage === "undefined") return false
+    try {
+      return sessionStorage.getItem(TRANSFER_HINT_KEY) === "1"
+    } catch {
+      return false
+    }
+  }
+
+  function rememberTransferHint() {
+    if (typeof sessionStorage === "undefined") return
+    try {
+      sessionStorage.setItem(TRANSFER_HINT_KEY, "1")
+    } catch {
+      // Storage can be unavailable; the hint may reappear in that case.
+    }
+  }
+
+  function hideTransferHint() {
+    if (transferHintTimer !== undefined) {
+      clearTimeout(transferHintTimer)
+      transferHintTimer = undefined
+    }
+    transferHint = null
+  }
+
+  function showTransferHint(event: PointerEvent, calendar: CalendarSummary) {
+    if (transferDrag || transferHintAlreadyShown()) return
+    if (!hasTransferDestination(calendar, organizations, teams, readOnly)) return
+    rememberTransferHint()
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    transferHint = { x: rect.right + 8, y: rect.top + rect.height / 2 }
+    if (transferHintTimer !== undefined) clearTimeout(transferHintTimer)
+    transferHintTimer = setTimeout(() => {
+      transferHintTimer = undefined
+      transferHint = null
+    }, TRANSFER_HINT_MS)
+  }
+
   function startTransferPress(event: PointerEvent, calendar: CalendarSummary) {
+    hideTransferHint()
     suppressCalendarClick = false
     if (transferDrag || transferCalendar.isPending || event.button !== 0 || !event.isPrimary) return
     if (!hasTransferDestination(calendar, organizations, teams, readOnly)) return
@@ -605,6 +651,8 @@
                   class:touch-none={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
                   class:cursor-grabbing={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
                   onclick={() => selectCalendar(calendar)}
+                  onpointerenter={(event) => showTransferHint(event, calendar)}
+                  onpointerleave={hideTransferHint}
                   onpointerdown={(event) => {
                     props.onpointerdown?.(event)
                     startTransferPress(event, calendar)
@@ -1075,6 +1123,17 @@
       style={`background:${cssColor(transferDrag.calendar.color)}`}
     ></span>
     <span class="max-w-40 truncate">{transferDrag.calendar.displayName}</span>
+  </div>
+{/if}
+
+{#if transferHint}
+  <div
+    class="pointer-events-none fixed z-50 rounded-field border border-base-300 bg-base-200 px-2 py-1 text-xs whitespace-nowrap text-base-content/70 shadow-sm"
+    style={`left:${transferHint.x}px; top:${transferHint.y}px; transform: translateY(-50%)`}
+    role="tooltip"
+    use:portal
+  >
+    Click & hold to move
   </div>
 {/if}
 

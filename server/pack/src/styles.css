@@ -87,28 +87,23 @@ body,
   background: var(--color-error);
 }
 
-.transfer-charge::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  z-index: 1;
+.transfer-charge {
   border-radius: var(--radius-field);
-  pointer-events: none;
-  background: conic-gradient(var(--color-primary) calc(var(--charge, 0) * 1turn), transparent 0);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
-  opacity: 0.9;
+  background-image: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--color-primary) 32%, transparent) calc(var(--charge, 0) * 100%),
+    transparent 0
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {
-.transfer-charge {
-  -webkit-touch-callout: none;
-}
-
-.transfer-charge::after {
-    background: none;
-    border: 2px solid var(--color-primary);
-    opacity: 0.55;
+  .transfer-charge {
+    -webkit-touch-callout: none;
+    background-image: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-primary) 32%, transparent) calc(var(--charge, 0) * 100%),
+      transparent 0
+    );
   }
 }
 

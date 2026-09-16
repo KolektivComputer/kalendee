@@ -69,6 +69,8 @@
     deletePending = false,
     createError = null,
     updateError = null,
+    hiddenPendingId = "",
+    hiddenError = "",
     readOnly = false,
     onCreate,
     onUpdate,
@@ -90,6 +92,8 @@
     deletePending?: boolean
     createError?: unknown
     updateError?: unknown
+    hiddenPendingId?: string
+    hiddenError?: string
     readOnly?: boolean
     onCreate: (input: CreateCalendarIn) => Promise<unknown>
     onUpdate: (input: UpdateCalendarIn) => Promise<unknown>
@@ -665,13 +669,16 @@
                     class="btn btn-ghost btn-square btn-xs shrink-0"
                     aria-pressed={!calendar.hidden}
                     aria-label={calendar.hidden ? `Show ${calendar.displayName}` : `Hide ${calendar.displayName}`}
-                    title={calendar.hidden ? "Show" : "Hide"}
+                    title={readOnly ? "Read-only view" : calendar.hidden ? "Show" : "Hide"}
+                    disabled={readOnly || hiddenPendingId === calendar.id}
                     onclick={(event) => {
                       event.stopPropagation()
                       void onHidden(calendar.id, !calendar.hidden).catch(() => undefined)
                     }}
                   >
-                    {#if calendar.hidden}
+                    {#if hiddenPendingId === calendar.id}
+                      <span class="loading loading-spinner loading-xs"></span>
+                    {:else if calendar.hidden}
                       <EyeOff class="h-4 w-4" />
                     {:else}
                       <Eye class="h-4 w-4" />
@@ -926,6 +933,10 @@
     <p class="text-xs text-base-content/60" role="status">Moving calendar…</p>
   {:else if transferCalendar.error}
     <p class="text-error text-xs" role="alert">{actionMessage(transferCalendar.error)}</p>
+  {/if}
+
+  {#if hiddenError}
+    <p class="text-error text-xs" role="alert">{hiddenError}</p>
   {/if}
 
   {#if organizationsWithoutCalendars.length > 0}

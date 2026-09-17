@@ -37,6 +37,7 @@ import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.oauth.ConnectionService
 import dev.kolektiv.kalendee.reminders.ReminderService
 import dev.kolektiv.kalendee.web.ShareActions
+import dev.kolektiv.kalendee.plugins.configureCallLogging
 import dev.kolektiv.kalendee.plugins.configureKeel
 import dev.kolektiv.kalendee.plugins.configureKoin
 import dev.kolektiv.kalendee.plugins.configureSerialization
@@ -67,6 +68,7 @@ fun Application.module() {
 }
 
 internal fun Application.configureApplication() {
+    configureCallLogging()
     configureSerialization()
     val appSettings by inject<AppSettings>()
     configureStatusPages(appSettings.development)

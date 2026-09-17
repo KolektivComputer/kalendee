@@ -179,16 +179,18 @@ journalctl -u kalendee -f
 journalctl -u kalendee --since "10 min ago"
 ```
 
-The baked `logback.xml` sets the root logger to `trace`, which is noisy in
-production. Override it with a config you control:
+The baked `logback.xml` sets the root logger to `INFO`, with one access-log
+line per request (method, path, response status). To debug, override it with a
+config you control that enables `TRACE`:
 
 ```bash
 java -Dlogback.configurationFile=/etc/kalendee/logback.xml \
     -jar /opt/kalendee/server-all.jar -config=/etc/kalendee/application.conf
 ```
 
-Add the same `-D` to `ExecStart` in the unit. A minimal override sets the root
-logger to `INFO`.
+Add the same `-D` to `ExecStart` in the unit. A minimal override keeps the root
+logger at `INFO`, and raising it to `TRACE` (or a per-logger `DEBUG`, e.g.
+`Exposed` for SQL) is for temporary debugging only.
 
 ## Health check and operations
 

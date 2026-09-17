@@ -31,7 +31,9 @@ kalendee-entrypoint: using baked config /app/application.conf
 kalendee-entrypoint: no config file found; falling back to jar defaults
 ```
 
-The default `logback.xml` logs at `TRACE`, so output is verbose. To quiet it,
+The default `logback.xml` logs at `INFO` and prints one access-log line per
+request (method, path, response status); static pack assets and favicons are
+excluded. To debug with `TRACE` (or per-logger `DEBUG`, e.g. `Exposed` for SQL),
 mount or pass a logback config:
 
 ```bash

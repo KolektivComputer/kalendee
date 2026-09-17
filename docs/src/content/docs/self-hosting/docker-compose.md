@@ -123,8 +123,9 @@ docker compose logs -f postgres       # database
 Startup lines from the entrypoint name the config file it selected, e.g.
 `kalendee-entrypoint: using mounted config /config/application.conf`. That is
 the fastest way to confirm which file is loaded. The default log level is
-`trace`; see [Troubleshooting](/docs/self-hosting/troubleshooting) for how to
-quiet it.
+`INFO`, with one access-log line per request; see
+[Troubleshooting](/docs/self-hosting/troubleshooting) for how to enable `TRACE`
+debug logging.
 
 ## Applying configuration changes
 

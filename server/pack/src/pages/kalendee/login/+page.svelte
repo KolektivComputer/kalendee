@@ -9,7 +9,7 @@
     ResendVerificationOut,
   } from "../../../lib/page-types"
 
-  page<LoginPage>()
+  const ctx = page<LoginPage>()
   const login = useAction<LoginIn, LoginOut>("kalendee.login", { reload: false })
   const resend = useAction<ResendVerificationIn, ResendVerificationOut>("kalendee.resendVerification", {
     reload: false,

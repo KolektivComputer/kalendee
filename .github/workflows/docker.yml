@@ -8,6 +8,8 @@ name: Docker
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -85,6 +87,7 @@ jobs:
         run: IMAGE_TAG=kalendee-smoke:ci scripts/smoke-image.sh --no-build
 
   docker:
+    if: github.event_name != 'pull_request'
     needs: [pack-check, flake-check, smoke-image]
     runs-on: ubuntu-latest
     steps:

@@ -20,6 +20,7 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Desktop (JVM), an
 - [Demo data and screenshots](#demo-data-and-screenshots)
 - [Docker](#docker)
 - [NixOS](#nixos)
+- [Pre-publish verification](#pre-publish-verification)
 - [Releasing](#releasing)
 - [Running tests](#running-tests)
 - [Troubleshooting](#troubleshooting)
@@ -317,6 +318,16 @@ Configuration is HOCON-file-first there too: `configFile` mounts an operator-man
 ```
 
 Options: `enable` (bool), `image` (`docker.yuri.capital/kolektiv/kalendee`), `imageTag` (`latest`; pin a release for reproducibility), `port` (8080; host port to container 8080), `publicUrl` (exported as `KALENDEE_PUBLIC_URL`), `configFile` (HOCON file mounted read-only at `/config/application.conf` and exported as `KALENDEE_CONFIG`; it is copied into the Nix store, so never put secrets in it — start from [`application.conf.example`](./application.conf.example)), `environment` (extra non-secret variables), `environmentFile` (runtime secrets file; never put secrets in the Nix store), `volumes` (extra mounts; a named volume `kalendee-data` is always mounted at `/data`), `extraOptions` (podman/docker flags), and `openFirewall`. Podman is the default container backend; set `virtualisation.oci-containers.backend = "docker";` for Docker. Plain-HTTP deployments need `KALENDEE_COOKIE_SECURE = "false"` via `environment`.
+
+## Pre-publish verification
+
+Run `scripts/pre-publish-checks.sh` before publishing. It runs, in order:
+
+- `scripts/check-page-context.mjs` — static guard for the v0.2.0 `+page.svelte` bug class: a template that uses `ctx` while the script never binds the `page<...>()` return value. `pnpm typecheck` only covers `.ts` files and `vite build` happily bundles the broken page, so this inspects the page templates directly.
+- `scripts/check-flake.sh` — `nix flake check --no-build` then `nix flake show`; requires Nix (install it or skip this check).
+- `scripts/smoke-image.sh` — builds the Dockerfile's `runtime` stage, boots it with a disposable PostgreSQL, then checks `/api/v1/health`, the `/login` HTML shell, the served `bootstrap.js` and `kalendee.login.js` pack modules, an end-to-end admin login, and an authenticated `/api/v1/calendars` fetch. Prerequisites: docker and curl. `--no-build` reuses `IMAGE_TAG` (default `kalendee-smoke:local`) instead of building; `--keep` leaves the containers and network up on failure for debugging; `HOST_PORT` (default `18080`) and `PG_IMAGE` (default `postgres:17-alpine`) are configurable.
+
+`.github/workflows/docker.yml` runs all three gates (`pack-check`, `flake-check`, `smoke-image`) before the multi-arch build and push, so nothing is published unless they pass.
 
 ## Releasing
 

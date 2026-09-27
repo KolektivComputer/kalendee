@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@kolektiv/keel": "0.0.1",
-    "@kolektiv/keel-svelte": "0.0.1",
+    "@kolektiv/keel": "0.1.1",
+    "@kolektiv/keel-svelte": "0.1.1",
     "@lucide/svelte": "^1.44.0",
     "@tanstack/query-core": "^5.66.0",
     "@tanstack/svelte-query": "^5.66.0",
@@ -19,7 +19,7 @@
     "svelte": "^5.16.0"
   },
   "devDependencies": {
-    "@kolektiv/keel-pack": "0.0.1",
+    "@kolektiv/keel-pack": "0.1.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tailwindcss/vite": "^4.3.3",
     "daisyui": "^5.7.34",

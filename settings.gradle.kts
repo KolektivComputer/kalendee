@@ -25,7 +25,7 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven("https://repo.yuri.capital/repository/maven-releases/")
+        maven("https://repo.kolektiv.computer/repository/maven-releases/")
     }
 }
 

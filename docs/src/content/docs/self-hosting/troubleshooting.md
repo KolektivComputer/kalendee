@@ -60,7 +60,7 @@ Fix: pull the current image and recreate the container.
 docker compose pull
 docker compose up -d
 docker inspect --format '{{.Config.Entrypoint}} {{.Config.User}}' \
-    docker.yuri.capital/kolektiv/kalendee:latest
+    docker.kolektiv.computer/kolektiv/kalendee:latest
 ```
 
 The last command should print `/app/entrypoint.sh 10001`.

@@ -70,7 +70,7 @@ For a server full of sample data, set `KALENDEE_SEED_DEMO=true` and log in as `d
 
 Current catalog versions are in `gradle/libs.versions.toml` (Kotlin, AGP, Compose Multiplatform, Ktor). Kotlin official code style is on (`kotlin.code.style=official`).
 
-The server's Discord REST client is Kord (soft fork), `dev.kord:kord-rest:0.18.1-kalendee.2`, resolved from `mavenLocal()` during development. The fork lives at https://github.com/KolektivComputer/kord (branch `kalendee/recurrence`; local clone `../kord`, patch `/tmp/kord-kalendee.patch`). A fresh checkout or CI build needs the fork artifact first: run `./gradlew :server:publishToMavenLocal` (or `:common:publishToMavenLocal :rest:publishToMavenLocal`) in the clone; CI/Docker needs the fork's artifacts published to `repo.yuri.capital` maven-releases.
+The server's Discord REST client is Kord (soft fork), `dev.kord:kord-rest:0.18.1-kalendee.2`, resolved from `mavenLocal()` during development. The fork lives at https://github.com/KolektivComputer/kord (branch `kalendee/recurrence`; local clone `../kord`, patch `/tmp/kord-kalendee.patch`). A fresh checkout or CI build needs the fork artifact first: run `./gradlew :server:publishToMavenLocal` (or `:common:publishToMavenLocal :rest:publishToMavenLocal`) in the clone; CI/Docker needs the fork's artifacts published to `repo.kolektiv.computer` maven-releases.
 
 ## Getting the code
 
@@ -180,7 +180,7 @@ The clients still point at the Compose template (`App()`, `Greeting`, `Platform`
 
 The web UI uses [keel](https://github.com/lizainslie/keel). The default pack lives in `server/pack` (`@kolektiv/kalendee-pack`) and is built into `kalendee.feb`, which `processResources` bundles onto the server classpath under `keel/`.
 
-- Dependencies: npm `@kolektiv/keel*` from `https://repo.yuri.capital/repository/keel-npm/` (see [`server/pack/.npmrc`](./server/pack/.npmrc)); Maven `dev.kolektiv.keel:ktor` from `https://repo.yuri.capital/repository/maven-releases/`.
+- Dependencies: npm `@kolektiv/keel*` from `https://repo.kolektiv.computer/repository/npm-public/` (see [`server/pack/.npmrc`](./server/pack/.npmrc)); Maven `dev.kolektiv.keel:ktor` from `https://repo.kolektiv.computer/repository/maven-releases/`.
 - Build once: `./gradlew :server:buildPack` (runs `pnpm install --frozen-lockfile` and `pnpm build`); `:server:run` depends on it.
 - Watch mode: `pnpm --dir server/pack dev` (`vite build --watch`) with the server pointing at the exploded output via `KALENDEE_KEEL_PACK=/path/to/server/pack/dist`. `docker-compose.dev.yml` has a commented-out `pack` service for the same job.
 - Types: `./gradlew :server:generateKeelTypes` regenerates `server/pack/src/lib/page-types.ts` and `page-types.json` from the `@KeelType`/`@KeelAction` declarations in `server/src/main/kotlin/dev/kolektiv/kalendee/web`; `pnpm --dir server/pack typecheck` checks the pack.
@@ -234,7 +234,7 @@ pnpm --dir docs build    # static output in docs/dist/
 pnpm --dir docs check    # astro check (types + content schema)
 ```
 
-The site builds to portable static files and is deployed to Cloudflare Pages through its Git integration on push to `main` (project `kalendee-docs`, canonical <https://kalendee.kolektiv.computer>). `@kolektiv/common-docs-chrome` is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it is published to keel-npm and the dependency is switched to `^0.0.1-SNAPSHOT.1`. The default site URL is <https://kalendee.kolektiv.computer>; `PUBLIC_SITE_URL` overrides it. See [`docs/README.md`](./docs/README.md) for authoring and the publish TODO.
+The site builds to portable static files and is deployed to Cloudflare Pages through its Git integration on push to `main` (project `kalendee-docs`, canonical <https://kalendee.kolektiv.computer>). `@kolektiv/common-docs-chrome` is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it is published to npm-public and the dependency is switched to `^0.0.1-SNAPSHOT.1`. The default site URL is <https://kalendee.kolektiv.computer>; `PUBLIC_SITE_URL` overrides it. See [`docs/README.md`](./docs/README.md) for authoring and the publish TODO.
 
 The moved external-calendars guide now lives here as `docs/src/content/docs/product/external-calendars.md` and is served at <https://kalendee.kolektiv.computer/docs/product/external-calendars>.
 
@@ -265,7 +265,7 @@ README screenshots are captured from the seeded demo data.
 
 ## Docker
 
-Configuration is HOCON-file-first. Production compose ([`docker-compose.yml`](./docker-compose.yml)) pulls the published image from docker.yuri.capital, bind-mounts `./application.conf` read-only at `/config/application.conf`, sets `KALENDEE_CONFIG` to that path, and runs PostgreSQL 17 next to it:
+Configuration is HOCON-file-first. Production compose ([`docker-compose.yml`](./docker-compose.yml)) pulls the published image from docker.kolektiv.computer, bind-mounts `./application.conf` read-only at `/config/application.conf`, sets `KALENDEE_CONFIG` to that path, and runs PostgreSQL 17 next to it:
 
 ```bash
 cp .env.example .env
@@ -277,7 +277,7 @@ docker compose up -d
 
 Copying `application.conf.example` is required: the compose mount fails if `./application.conf` does not exist.
 
-- Image `docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}`; to build the checkout instead, comment out `image:` and uncomment the `build:` block in `docker-compose.yml`.
+- Image `docker.kolektiv.computer/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}`; to build the checkout instead, comment out `image:` and uncomment the `build:` block in `docker-compose.yml`.
 - The published `:latest` image is the Dockerfile's final `runtime` stage: the fat jar launched by `/app/entrypoint.sh`, needing PostgreSQL and a HOCON config. The `dev` stage (Gradle `:server:run`, bind-mounted source) is opt-in via `--target dev` and is never what `:latest` should be.
 - Host port `${KALENDEE_HOST_PORT:-8080}` maps to container port 8080.
 - TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...). Keep `auth.cookieSecure = true` in `application.conf` and set `app.baseUrl` (or `KALENDEE_PUBLIC_URL`) to the public https URL; leave `cookieSecure` alone unless you serve plain HTTP on purpose.
@@ -316,7 +316,7 @@ Configuration is HOCON-file-first there too: `configFile` mounts an operator-man
 }
 ```
 
-Options: `enable` (bool), `image` (`docker.yuri.capital/kolektiv/kalendee`), `imageTag` (`latest`; pin a release for reproducibility), `port` (8080; host port to container 8080), `publicUrl` (exported as `KALENDEE_PUBLIC_URL`), `configFile` (HOCON file mounted read-only at `/config/application.conf` and exported as `KALENDEE_CONFIG`; it is copied into the Nix store, so never put secrets in it — start from [`application.conf.example`](./application.conf.example)), `environment` (extra non-secret variables), `environmentFile` (runtime secrets file; never put secrets in the Nix store), `volumes` (extra mounts; a named volume `kalendee-data` is always mounted at `/data`), `extraOptions` (podman/docker flags), and `openFirewall`. Podman is the default container backend; set `virtualisation.oci-containers.backend = "docker";` for Docker. Plain-HTTP deployments need `KALENDEE_COOKIE_SECURE = "false"` via `environment`.
+Options: `enable` (bool), `image` (`docker.kolektiv.computer/kolektiv/kalendee`), `imageTag` (`latest`; pin a release for reproducibility), `port` (8080; host port to container 8080), `publicUrl` (exported as `KALENDEE_PUBLIC_URL`), `configFile` (HOCON file mounted read-only at `/config/application.conf` and exported as `KALENDEE_CONFIG`; it is copied into the Nix store, so never put secrets in it — start from [`application.conf.example`](./application.conf.example)), `environment` (extra non-secret variables), `environmentFile` (runtime secrets file; never put secrets in the Nix store), `volumes` (extra mounts; a named volume `kalendee-data` is always mounted at `/data`), `extraOptions` (podman/docker flags), and `openFirewall`. Podman is the default container backend; set `virtualisation.oci-containers.backend = "docker";` for Docker. Plain-HTTP deployments need `KALENDEE_COOKIE_SECURE = "false"` via `environment`.
 
 ## Releasing
 
@@ -327,10 +327,10 @@ git tag v1.2.3
 git push origin v1.2.3
 ```
 
-- `.github/workflows/docker.yml` — builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to docker.yuri.capital with semver and SHA tags; also supports manual `workflow_dispatch`.
+- `.github/workflows/docker.yml` — builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to docker.kolektiv.computer with semver and SHA tags; also supports manual `workflow_dispatch`.
 - `.github/workflows/publish.yml` — publishes `:core` and `:app:shared` to the Nexus `maven-releases` (or `maven-snapshots` for `SNAPSHOT` versions) with `-Pversion=<version>`, then creates a GitHub Release with `kalendee-server-<version>.jar`, `kalendee-server-<version>.zip`, and `kalendee-<version>.feb`. Manual `workflow_dispatch` takes a `version` input; snapshots are refused for GitHub Releases.
 
-Required secrets: `YURI_CAPITAL_REPO_USERNAME` / `YURI_CAPITAL_REPO_PASSWORD` for Nexus; without them the Maven job skips publication with a warning. The Docker workflow logs in to `docker.yuri.capital` with `YURI_CAPITAL_DOCKER_USERNAME` / `YURI_CAPITAL_DOCKER_PASSWORD`, falling back to the `YURI_CAPITAL_REPO_*` secrets when the docker-specific secrets are absent.
+Required secrets: `YURI_CAPITAL_REPO_USERNAME` / `YURI_CAPITAL_REPO_PASSWORD` for Nexus; without them the Maven job skips publication with a warning. The Docker workflow logs in to `docker.kolektiv.computer` with `YURI_CAPITAL_DOCKER_USERNAME` / `YURI_CAPITAL_DOCKER_PASSWORD`, falling back to the `YURI_CAPITAL_REPO_*` secrets when the docker-specific secrets are absent.
 
 For local consumption by sibling projects, publish the Kotlin modules to Maven Local: `./gradlew :core:publishToMavenLocal` or `./gradlew publishAllToMavenLocal` (`:core` and `:app:shared`).
 
@@ -350,11 +350,11 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
 ## Troubleshooting
 
 - **Android build fails: SDK not found.** Set `sdk.dir` in the gitignored `local.properties` (for example `sdk.dir=/home/you/Android/Sdk`).
-- **Pack build fails: pnpm missing or npm 401/404.** Install pnpm and Node 22+; the pack resolves `@kolektiv/*` from `https://repo.yuri.capital/repository/keel-npm/` (see [`server/pack/.npmrc`](./server/pack/.npmrc)).
+- **Pack build fails: pnpm missing or npm 401/404.** Install pnpm and Node 22+; the pack resolves `@kolektiv/*` from `https://repo.kolektiv.computer/repository/npm-public/` (see [`server/pack/.npmrc`](./server/pack/.npmrc)).
 - **Server fails to start with a missing database password.** `KALENDEE_DATABASE_PASSWORD` is required; set it in `.env.local` or the environment (empty is allowed for trust auth).
 - **Login redirects back or the session cookie never sticks over plain HTTP.** Set `KALENDEE_COOKIE_SECURE=false` and a matching `KALENDEE_PUBLIC_URL=http://localhost:8080`.
 - **Web UI changes do not show up.** Rebuild the pack (`./gradlew :server:buildPack` or `pnpm --dir server/pack build`) and restart the server, or run `pnpm --dir server/pack dev` with `KALENDEE_KEEL_PACK` pointing at the exploded `server/pack/dist`.
-- **Docs site install/build fails on `@kolektiv/common-docs-chrome`.** The package is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it lands on keel-npm; see [`docs/README.md`](./docs/README.md).
+- **Docs site install/build fails on `@kolektiv/common-docs-chrome`.** The package is not published yet, so `docs/package.json` uses a local `link:` to a sibling `common-docs-chrome` checkout and CI cannot install until it lands on npm-public; see [`docs/README.md`](./docs/README.md).
 
 ## Contributing
 

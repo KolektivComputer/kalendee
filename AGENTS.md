@@ -14,7 +14,7 @@ every target.
 Sibling theming project: [keel](https://github.com/lizainslie/keel), checked
 out at `../keel`. Do not vendor or rewrite Keel here. The server consumes
 published `dev.kolektiv.keel:ktor` (Maven releases) and the web pack consumes
-`@kolektiv/keel*` from Nexus `keel-npm`.
+`@kolektiv/keel*` from Nexus `npm-public`.
 
 ## Layout
 
@@ -103,10 +103,10 @@ iOS app: open `app/iosApp` in Xcode and run from there.
 - The web UI is a Keel pack. The host owns URLs, page ids, and payload types
   (`dev.kolektiv.kalendee.web`). Packs implement ids — never paths — and must
   not fetch `/api/v1` for page data. Resolve `@kolektiv/*` from
-  `https://repo.yuri.capital/repository/keel-npm/` (see `server/pack/.npmrc`).
+  `https://repo.kolektiv.computer/repository/npm-public/` (see `server/pack/.npmrc`).
 - The docs site (`docs/`) is an Astro site whose chrome comes from
   `@kolektiv/common-docs-chrome` (currently a local `link:` until it is
-  published to keel-npm). Do not re-declare daisyUI/Tailwind or import
+  published to npm-public). Do not re-declare daisyUI/Tailwind or import
   `@kolektiv/themes` directly; site config lives in `docs/src/docs-chrome.ts`.
   Do not edit generated `docs/dist/` or the guide Markdown unless the task is
   about the docs site.

@@ -74,7 +74,7 @@ mounted file explicit at priority 2. The full key list is in
 
 | Service | Image | Purpose |
 | --- | --- | --- |
-| `kalendee` | `docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}` | The server. Waits for PostgreSQL to be healthy. |
+| `kalendee` | `docker.kolektiv.computer/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}` | The server. Waits for PostgreSQL to be healthy. |
 | `postgres` | `postgres:17-alpine` | Database. `kalendee` connects to host `postgres:5432`. |
 
 | Compose resource | Container path | Contents |
@@ -146,7 +146,7 @@ The published image is used by default. To build this checkout instead, edit
 
 ```yaml
   kalendee:
-    # image: docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
+    # image: docker.kolektiv.computer/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
     build:
       context: .
       args:

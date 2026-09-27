@@ -57,7 +57,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "docker.yuri.capital/kolektiv/kalendee";
+      default = "docker.kolektiv.computer/kolektiv/kalendee";
       description = ''
         Container image to run. Change this if you mirror the image or use a
         different registry.

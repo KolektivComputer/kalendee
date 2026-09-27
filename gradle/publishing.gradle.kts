@@ -64,10 +64,10 @@ configure<PublishingExtension> {
             val pass = yuriPass.get()
             val snapshot = project.version.toString().endsWith("-SNAPSHOT", ignoreCase = true)
             maven {
-                name = if (snapshot) "yuriSnapshots" else "yuriReleases"
+                name = if (snapshot) "kolektivSnapshots" else "kolektivReleases"
                 url = uri(
-                    if (snapshot) "https://repo.yuri.capital/repository/maven-snapshots/"
-                    else "https://repo.yuri.capital/repository/maven-releases/",
+                    if (snapshot) "https://repo.kolektiv.computer/repository/maven-snapshots/"
+                    else "https://repo.kolektiv.computer/repository/maven-releases/",
                 )
                 credentials {
                     username = user

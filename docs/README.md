@@ -84,7 +84,7 @@ the `src/docs-chrome.ts` nav first and then alphabetically.
 `@kolektiv/common-docs-chrome` is consumed as a normal versioned dependency
 (`^0.0.1-SNAPSHOT.1`) from the registry; no sibling checkout is required. `docs/.npmrc`
 points the `@kolektiv` scope at the aggregate read registry
-(`@kolektiv:registry=https://repo.yuri.capital/repository/npm-public/`) and leaves the
+(`@kolektiv:registry=https://repo.kolektiv.computer/repository/npm-public/`) and leaves the
 default registry untouched. Regenerate `docs/pnpm-lock.yaml` with `pnpm install` when the
 dependency changes.
 

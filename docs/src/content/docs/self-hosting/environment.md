@@ -165,7 +165,7 @@ PostgreSQL service.
 | --- | --- | --- | --- |
 | `KALENDEE_CONFIG` | entrypoint / dev compose | `/config/application.conf` | Path to the HOCON file the container loads. See precedence above. |
 | `KALENDEE_HOST_PORT` | compose port mapping | `8080` | Host-side port published to container port `8080`. |
-| `KALENDEE_IMAGE_TAG` | compose `image:` | `latest` | Tag of `docker.yuri.capital/kolektiv/kalendee`. Pin a release for reproducibility. |
+| `KALENDEE_IMAGE_TAG` | compose `image:` | `latest` | Tag of `docker.kolektiv.computer/kolektiv/kalendee`. Pin a release for reproducibility. |
 | `KALENDEE_UID` | dev compose `user:` | `1000` | Host UID the dev container runs as (Linux only; remove `user:` on Docker Desktop). |
 | `KALENDEE_GID` | dev compose `user:` | `1000` | Host GID for the dev container. |
 | `POSTGRES_DB` | postgres service | `kalendee` | Database bootstrapped in the postgres container. Match `KALENDEE_DATABASE_URL`. |

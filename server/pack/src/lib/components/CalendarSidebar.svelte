@@ -37,7 +37,7 @@
     UserSearchOut,
     UserSearchResult,
   } from "../page-types"
-  import { readCollapsed, writeCollapsed, SIDEBAR_LABEL_MIN_WIDTH } from "../sidebar"
+  import { readCollapsed, writeCollapsed } from "../sidebar"
   import {
     canDropCalendar,
     hasTransferDestination,
@@ -74,7 +74,6 @@
     hiddenPendingId = "",
     hiddenError = "",
     readOnly = false,
-    sidebarWidth = 256,
     onCreate,
     onUpdate,
     onDelete,
@@ -99,7 +98,6 @@
     hiddenPendingId?: string
     hiddenError?: string
     readOnly?: boolean
-    sidebarWidth?: number
     onCreate: (input: CreateCalendarIn) => Promise<unknown>
     onUpdate: (input: UpdateCalendarIn) => Promise<unknown>
     onDelete: (id: string) => Promise<unknown>
@@ -213,7 +211,6 @@
   let pendingRequestId = $state("")
   let pendingRemovalId = $state("")
   let collapsed = $state<Record<string, boolean>>({})
-  const showCalendarLabels = $derived(sidebarWidth >= SIDEBAR_LABEL_MIN_WIDTH)
 
   const TRANSFER_HOLD_MS = 500
   const TRANSFER_SLOP_PX = 8
@@ -684,7 +681,6 @@
                     props.oncontextmenu?.(event)
                   }}
                 >
-                  {#if showCalendarLabels}
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" style={`background:${cssColor(calendar.color)}`}></span>
                   <span class="min-w-0 flex-1 overflow-hidden">
                     <span class="block truncate" title={calendar.displayName}>{calendar.displayName}</span>
@@ -719,11 +715,9 @@
                       </span>
                     {/if}
                   </span>
-                  {/if}
                   <button
                     type="button"
                     class="btn btn-ghost btn-square btn-xs shrink-0"
-                    class:ml-auto={!showCalendarLabels}
                     aria-pressed={!calendar.hidden}
                     aria-label={calendar.hidden ? `Show ${calendar.displayName}` : `Hide ${calendar.displayName}`}
                     title={readOnly ? "Read-only view" : calendar.hidden ? "Show" : "Hide"}

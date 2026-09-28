@@ -75,8 +75,11 @@
 
   $effect(() => {
     if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
+    if (open) {
+      if (!dialog.open) dialog.showModal()
+    } else if (dialog.open) {
+      dialog.close()
+    }
   })
 
 
@@ -200,7 +203,9 @@
     {/if}
 
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={close}>Cancel</button>
+      <form method="dialog">
+        <button class="btn btn-ghost">Cancel</button>
+      </form>
       <button type="button" class="btn btn-primary" disabled={busy || !availability} onclick={() => void save()}>
         {saveAvailability.isPending ? "Saving…" : "Save"}
       </button>

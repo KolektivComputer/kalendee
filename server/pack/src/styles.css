@@ -26,7 +26,7 @@
   --color-success: oklch(62% 0.194 149.214);
   --color-success-content: oklch(98% 0.014 180.72);
   --color-warning: oklch(79% 0.184 86.047);
-  --color-warning-content: oklch(98% 0.026 102.212);
+  --color-warning-content: oklch(25% 0.05 86);
   --color-error: oklch(63% 0.237 25.331);
   --color-error-content: oklch(97% 0.013 17.38);
   --radius-selector: 2rem;
@@ -525,4 +525,20 @@ body,
   .settings-tools {
     display: none;
   }
+}
+
+/* Context menu: bits-ui PresenceManager waits on getAnimations().finished.
+   Opening a <dialog showModal()> (or a stuck exit) can leave data-ending-style
+   content mounted forever with body scroll-lock + pointer-events:none. Force
+   exit frames to be non-animated and immediately inert so presence completes. */
+[data-context-menu-content],
+[data-context-menu-sub-content] {
+  transition: none !important;
+  animation: none !important;
+}
+[data-context-menu-content][data-ending-style],
+[data-context-menu-sub-content][data-ending-style] {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }

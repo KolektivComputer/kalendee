@@ -412,20 +412,20 @@
     {/if}
     {#if syncBlockedAlert}
       {@const alert = syncBlockedAlert}
-      <div role="alert" class="alert alert-warning shrink-0 rounded-none">
-        <TriangleAlert class="h-5 w-5" aria-hidden="true" />
-        <span>
+      <div role="alert" class="alert alert-warning shrink-0 rounded-none text-warning-content">
+        <TriangleAlert class="h-5 w-5 shrink-0 text-warning-content" aria-hidden="true" />
+        <span class="text-warning-content">
           {alert.reason === "bot_manage_events"
             ? `The Kalendee bot needs the "Manage Events" permission in ${alert.server} before Discord events can be moved or resized.`
             : `You need the "Manage Events" permission in ${alert.server} before Discord events can be moved or resized.`}
         </span>
         <button
           type="button"
-          class="btn btn-ghost btn-sm btn-square"
+          class="btn btn-ghost btn-sm btn-square text-warning-content"
           aria-label="Dismiss"
           onclick={() => dismissSyncAlert(alert.calendar.id, alert.reason)}
         >
-          <X class="h-4 w-4" aria-hidden="true" />
+          <X class="h-4 w-4 text-warning-content" aria-hidden="true" />
         </button>
       </div>
     {/if}

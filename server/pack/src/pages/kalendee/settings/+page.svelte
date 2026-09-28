@@ -46,6 +46,8 @@
   import { parseSettingsTab, settingsHref, type SettingsTab } from "../../../lib/settings-ui.svelte"
   import { ACCENT_IDS, ACCENTS, accentSwatch, applyAccent, parseAccent } from "../../../lib/theme"
   import { clientTimeZone } from "../../../lib/time"
+  import { sharedTimeZones } from "../../../lib/time-zones"
+  import TzDropdown from "../../../lib/components/TzDropdown.svelte"
 
   const ctx = page<SettingsPage>()
   const saveSettings = useAction<UpdateSettingsIn, Viewer>("kalendee.updateSettings", { reload: false })
@@ -90,6 +92,7 @@
   const avatarTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"]
 
   const localTimeZone = clientTimeZone()
+  const timeZones = $derived(sharedTimeZones(ctx.shared))
   let tab = $state(parseSettingsTab(ctx.data.tab))
   let displayName = $state(ctx.data.viewer.displayName)
   let timeZone = $state(ctx.data.viewer.timeZone)
@@ -728,15 +731,14 @@
                     <span class="text-error text-sm">{fieldError(saveSettings.error, "displayName")}</span>
                   {/if}
                 </label>
-                <label class="settings-field">
+                <div class="settings-field">
                   <span class="settings-label">Time Zone</span>
-                  <input
+                  <TzDropdown
                     id="settings-tz"
-                    class="input"
+                    zones={timeZones}
                     bind:value={timeZone}
                     required
                     placeholder={localTimeZone}
-                    autocomplete="off"
                   />
                   {#if fieldError(saveSettings.error, "timeZone")}
                     <span class="text-error text-sm">{fieldError(saveSettings.error, "timeZone")}</span>
@@ -746,7 +748,7 @@
                       Use {localTimeZone}
                     </button>
                   {/if}
-                </label>
+                </div>
                 <p class="settings-hint">
                   Username <code>{ctx.data.viewer.username}</code> stays the same. The week view follows your browser time
                   zone.

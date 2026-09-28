@@ -30,6 +30,8 @@ export const SIDEBAR_WIDTH_KEY = "kalendee.sidebarWidth"
 export const SIDEBAR_WIDTH_DEFAULT = 256
 export const SIDEBAR_WIDTH_MIN = 200
 export const SIDEBAR_WIDTH_MAX = 480
+/** Below this width, calendar rows keep only the eye (icon-primary). */
+export const SIDEBAR_LABEL_MIN_WIDTH = 228
 
 export function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(width)))

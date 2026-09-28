@@ -468,9 +468,10 @@
       style:min-width={`${sidebarWidth}px`}
       style:max-width={`${sidebarWidth}px`}
     >
-      <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+      <div class="min-h-0 flex-1 overflow-x-clip overflow-y-auto">
         <CalendarSidebar
           calendars={data.calendars}
+          sidebarWidth={sidebarWidth}
           bind:selectedId
           timeZone={data.viewer?.timeZone || viewTimeZone}
           {timeZones}

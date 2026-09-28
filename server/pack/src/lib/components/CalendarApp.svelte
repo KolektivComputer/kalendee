@@ -506,8 +506,10 @@
         aria-valuemin={SIDEBAR_WIDTH_MIN}
         aria-valuemax={SIDEBAR_WIDTH_MAX}
         tabindex="0"
-        class="absolute top-0 right-0 z-10 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-base-content/15"
-        class:bg-primary/40={resizingSidebar}
+        class={[
+          "absolute top-0 right-0 z-10 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-base-content/15",
+          resizingSidebar ? "bg-primary/40" : "",
+        ].filter(Boolean).join(" ")}
         onpointerdown={startSidebarResize}
         onkeydown={(event) => {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return

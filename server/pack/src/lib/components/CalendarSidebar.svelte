@@ -635,7 +635,7 @@
 {#snippet calendarItem(calendar: CalendarSummary)}
   {@const canManage = !readOnly && calendar.permission === "owner"}
   {@const canUnfollow = !readOnly && calendar.permission === "follow"}
-  <li>
+  <li class="w-full min-w-0 max-w-full">
           <ContextMenu.Root
             open={menuCalendarId === calendar.id}
             onOpenChange={(open) => {
@@ -646,7 +646,7 @@
               {#snippet child({ props })}
                 <div
                   {...props}
-                  class="relative !flex min-w-0 items-center gap-2 overflow-hidden"
+                  class="relative !flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden"
                   class:menu-active={calendar.id === selectedId}
                   class:opacity-45={calendar.hidden}
                   class:opacity-40={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
@@ -683,7 +683,7 @@
                 >
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" style={`background:${cssColor(calendar.color)}`}></span>
                   <span class="min-w-0 flex-1 overflow-hidden">
-                    <span class="block min-w-0 truncate">{calendar.displayName}</span>
+                    <span class="block truncate" title={calendar.displayName}>{calendar.displayName}</span>
                     {#if calendar.permission !== "owner"}
                       {@const sharedLabel =
                         calendar.permission === "follow"
@@ -696,11 +696,11 @@
                             ? "Read-only"
                             : "Following"}
                       <span
-                        class="mt-0.5 flex items-center gap-1 text-[0.68rem] opacity-60"
+                        class="mt-0.5 flex min-w-0 items-center gap-1 text-[0.68rem] opacity-60"
                         title={`${sharedLabel} · ${stateLabel}`}
                       >
                         {@render personAvatar(calendar.ownerName, calendar.ownerAvatarUrl, "h-4 w-4 text-[0.55rem]")}
-                        <span class="truncate">{sharedLabel}</span>
+                        <span class="min-w-0 truncate">{sharedLabel}</span>
                         <span class="shrink-0" aria-hidden="true">·</span>
                         <span class="flex shrink-0 items-center gap-0.5">
                           {#if calendar.permission === "write"}
@@ -847,7 +847,7 @@
         </li>
 {/snippet}
 
-<div class="flex flex-col gap-3 p-3" class:select-none={transferDrag !== null}>
+<div class="flex min-w-0 max-w-full flex-col gap-3 p-3" class:select-none={transferDrag !== null}>
   <div class="flex items-center justify-between gap-2">
     <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Calendars</h2>
     {#if !readOnly}
@@ -875,7 +875,7 @@
       >
         <button
           type="button"
-          class="flex w-full items-center gap-1 text-left"
+          class="flex min-w-0 w-full max-w-full items-center gap-1 text-left"
           aria-expanded={!isCollapsed("personal")}
           onclick={() => toggleCollapsed("personal")}
         >
@@ -887,7 +887,7 @@
           <h3 class="truncate text-xs font-medium text-base-content/60">Personal</h3>
         </button>
         {#if !isCollapsed("personal")}
-          <ul class="menu w-full min-w-0 flex-nowrap p-0">
+          <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
             {#each personalCalendars as calendar (calendar.id)}
               {@render calendarItem(calendar)}
             {/each}
@@ -908,7 +908,7 @@
         <div class="flex items-center justify-between gap-2">
           <button
             type="button"
-            class="flex min-w-0 items-center gap-1 text-left"
+            class="flex min-w-0 w-full max-w-full items-center gap-1 text-left"
             aria-expanded={!isCollapsed(orgKey)}
             onclick={() => toggleCollapsed(orgKey)}
           >
@@ -925,7 +925,7 @@
         </div>
         {#if !isCollapsed(orgKey)}
           {#if !group.groupedByTeam}
-            <ul class="menu w-full min-w-0 flex-nowrap p-0">
+            <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
               {#each group.calendars as calendar (calendar.id)}
                 {@render calendarItem(calendar)}
               {/each}
@@ -944,7 +944,7 @@
               >
                 <button
                   type="button"
-                  class="flex min-w-0 items-center gap-1 text-left"
+                  class="flex min-w-0 w-full max-w-full items-center gap-1 text-left"
                   aria-expanded={!isCollapsed(teamKey)}
                   onclick={() => toggleCollapsed(teamKey)}
                 >
@@ -956,7 +956,7 @@
                   <h4 class="truncate text-[0.7rem] text-base-content/50" title={team.name}>{team.name}</h4>
                 </button>
                 {#if !isCollapsed(teamKey)}
-                  <ul class="menu w-full min-w-0 flex-nowrap p-0">
+                  <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
                     {#each team.calendars as calendar (calendar.id)}
                       {@render calendarItem(calendar)}
                     {/each}
@@ -967,7 +967,7 @@
             {#if group.other.length > 0}
               <div class="flex flex-col gap-1 pl-2">
                 <h4 class="px-1 py-1 text-[0.7rem] text-base-content/50">Other calendars</h4>
-                <ul class="menu w-full min-w-0 flex-nowrap p-0">
+                <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
                   {#each group.other as calendar (calendar.id)}
                     {@render calendarItem(calendar)}
                   {/each}
@@ -993,7 +993,7 @@
   {#if organizationsWithoutCalendars.length > 0}
     <div class="flex flex-col gap-1 border-t border-base-300 pt-3">
       <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Organizations</h2>
-      <ul class="menu w-full min-w-0 flex-nowrap p-0">
+      <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
         {#each organizationsWithoutCalendars as organization (organization.id)}
           {@const orgDrop = organizationTarget(organization.id)}
           <li

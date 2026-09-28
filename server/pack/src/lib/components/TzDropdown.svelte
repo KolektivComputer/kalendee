@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Combobox } from "bits-ui"
   import ChevronDown from "@lucide/svelte/icons/chevron-down"
 
   let {
@@ -19,110 +20,86 @@
     class?: string
   } = $props()
 
+  let searchValue = $state("")
   let open = $state(false)
-  let query = $state("")
-  let root: HTMLDivElement | undefined = $state()
+  let rootEl: HTMLDivElement | undefined = $state()
 
-  const listId = $derived(id ? `${id}-list` : undefined)
+  /** Prefer the open <dialog> (top layer) so the list isn't under the modal; fall back to body. */
+  const portalTo = $derived.by(() => {
+    if (!rootEl || typeof document === "undefined") return undefined
+    return (rootEl.closest("dialog") as HTMLElement | null) ?? document.body
+  })
+
+  const items = $derived(zones.map((zone) => ({ value: zone, label: zone })))
 
   const filtered = $derived.by(() => {
-    const q = query.trim().toLowerCase()
+    const q = searchValue.trim().toLowerCase()
     if (q === "") return zones
     return zones.filter((zone) => zone.toLowerCase().includes(q))
   })
 
-  function select(zone: string) {
-    value = zone
-    query = ""
-    open = false
-  }
-
-  function onFocus() {
-    if (disabled) return
-    open = true
-    query = ""
-  }
-
-  function onInput(event: Event) {
-    query = (event.currentTarget as HTMLInputElement).value
-    open = true
-  }
-
-  function onBlur(event: FocusEvent) {
-    const next = event.relatedTarget as Node | null
-    if (root?.contains(next)) return
-    const typed = query.trim()
-    if (typed !== "" && zones.includes(typed)) {
-      value = typed
-    }
-    query = ""
-    open = false
-  }
-
-  function onKeyDown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      query = ""
-      open = false
-      ;(event.currentTarget as HTMLElement).blur()
-      return
-    }
-    if (event.key === "Enter") {
-      event.preventDefault()
-      const first = filtered[0]
-      if (first) select(first)
-    }
-  }
+  /**
+   * bits-ui Combobox keeps selection (`value`) separate from the Input text (`inputValue`).
+   * Drive inputValue ourselves: show the bound IANA id when closed; while open, show the
+   * filter query (empty on open), matching the pre-Combobox TzDropdown contract.
+   */
+  const inputValue = $derived(open ? searchValue : value)
 </script>
 
-<div class={["relative", className].filter(Boolean).join(" ")} bind:this={root}>
-  <input
-    {id}
-    class="input w-full pr-9"
-    type="text"
-    role="combobox"
-    aria-expanded={open}
-    aria-autocomplete="list"
-    aria-controls={listId}
+<div class={["relative w-full", className].filter(Boolean).join(" ")} bind:this={rootEl}>
+  <Combobox.Root
+    type="single"
+    bind:value
+    bind:open
     {disabled}
     {required}
-    {placeholder}
-    value={open ? query : value}
-    onfocus={onFocus}
-    oninput={onInput}
-    onblur={onBlur}
-    onkeydown={onKeyDown}
-    autocomplete="off"
-  />
-  <ChevronDown
-    class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-base-content/50"
-    aria-hidden="true"
-  />
-  {#if open && !disabled}
-    <ul
-      id={listId}
-      role="listbox"
-      class="menu menu-sm absolute z-50 mt-1 max-h-60 w-full flex-nowrap overflow-x-hidden overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
-    >
-      {#each filtered as zone (zone)}
-        <li>
-          <button
-            type="button"
-            role="option"
-            class="rounded-field"
-            class:menu-active={zone === value}
-            aria-selected={zone === value}
-            onmousedown={(event) => event.preventDefault()}
-            onclick={() => select(zone)}
+    allowDeselect={false}
+    {items}
+    {inputValue}
+    onOpenChangeComplete={(isOpen) => {
+      if (!isOpen) searchValue = ""
+    }}
+  >
+    <div class="relative">
+      <Combobox.Input
+        {id}
+        {placeholder}
+        {required}
+        class="input w-full pr-9"
+        autocomplete="off"
+        defaultValue={value}
+        oninput={(event) => {
+          searchValue = event.currentTarget.value
+        }}
+      />
+      <Combobox.Trigger
+        class="absolute top-1/2 right-2.5 -translate-y-1/2 text-base-content/50"
+        tabindex={-1}
+        aria-label="Open time zone list"
+      >
+        <ChevronDown class="h-4 w-4" aria-hidden="true" />
+      </Combobox.Trigger>
+    </div>
+
+    <Combobox.Portal to={portalTo}>
+      <Combobox.Content
+        class="z-[100] max-h-60 w-[var(--bits-combobox-anchor-width)] min-w-[var(--bits-combobox-anchor-width)] overflow-x-hidden overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg outline-none"
+        side="bottom"
+        sideOffset={4}
+        preventScroll={false}
+      >
+        {#each filtered as zone (zone)}
+          <Combobox.Item
+            value={zone}
+            label={zone}
+            class="rounded-field flex w-full cursor-default items-center px-3 py-1.5 text-sm outline-none data-[highlighted]:bg-base-content/10 data-[selected]:font-medium"
           >
             {zone}
-          </button>
-        </li>
-      {:else}
-        <li class="disabled">
-          <span class="text-base-content/50">No matching time zones</span>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+          </Combobox.Item>
+        {:else}
+          <div class="px-3 py-2 text-sm text-base-content/50">No matching time zones</div>
+        {/each}
+      </Combobox.Content>
+    </Combobox.Portal>
+  </Combobox.Root>
 </div>

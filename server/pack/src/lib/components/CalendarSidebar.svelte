@@ -643,7 +643,7 @@
               {#snippet child({ props })}
                 <div
                   {...props}
-                  class="relative flex items-center gap-2"
+                  class="relative flex min-w-0 items-center gap-2 overflow-hidden"
                   class:menu-active={calendar.id === selectedId}
                   class:opacity-45={calendar.hidden}
                   class:opacity-40={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}

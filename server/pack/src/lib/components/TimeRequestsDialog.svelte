@@ -37,8 +37,11 @@
 
   $effect(() => {
     if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
+    if (open) {
+      if (!dialog.open) dialog.showModal()
+    } else if (dialog.open) {
+      dialog.close()
+    }
   })
 
 
@@ -65,8 +68,11 @@
   })
 
   $effect(() => {
-    if (!calendar) return
-    onPendingCount?.(calendar.id, pendingCount)
+    const calendarId = calendar?.id
+    const count = pendingCount
+    if (!calendarId) return
+    // Parent setPendingCount must not re-fire this effect every render.
+    untrack(() => onPendingCount?.(calendarId, count))
   })
 
   async function reload(calendarId: string) {
@@ -211,7 +217,9 @@
     {/if}
 
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={close}>Close</button>
+      <form method="dialog">
+        <button class="btn btn-ghost">Close</button>
+      </form>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>

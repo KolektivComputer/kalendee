@@ -191,6 +191,24 @@
   let availabilityOpen = $state(false)
   let requestsOpen = $state(false)
   let menuCalendarId = $state("")
+
+  /** Close the menu and clear bits-ui scroll-lock styles. Do not remove
+   *  menu DOM nodes — bits PresenceManager still owns them and tearing them
+   *  out triggers Svelte effect_update_depth_exceeded. Exit frames are forced
+   *  inert via styles.css so presence can finish. */
+  function releaseContextMenuLock() {
+    menuCalendarId = ""
+    if (typeof document === "undefined") return
+    document.body.style.removeProperty("overflow")
+    document.body.style.removeProperty("pointer-events")
+    document.body.style.removeProperty("padding-right")
+    document.documentElement.style.removeProperty("overflow")
+  }
+
+  function openAfterMenuClose(openDialog: () => void) {
+    releaseContextMenuLock()
+    openDialog()
+  }
   let displayName = $state("")
   let description = $state("")
   let calendarTimeZone = $state("UTC")
@@ -386,13 +404,14 @@
   }
 
   function openEdit(calendar: CalendarSummary) {
-    menuCalendarId = ""
     editing = calendar
     displayName = calendar.displayName
     description = calendar.description ?? ""
     calendarTimeZone = calendar.timeZone
     color = calendar.color
-    editOpen = true
+    void openAfterMenuClose(() => {
+      editOpen = true
+    })
   }
 
   function closeEdit() {
@@ -401,9 +420,10 @@
   }
 
   function openDelete(calendar: CalendarSummary) {
-    menuCalendarId = ""
     editing = calendar
-    deleteOpen = true
+    void openAfterMenuClose(() => {
+      deleteOpen = true
+    })
   }
 
   function closeDelete() {
@@ -412,21 +432,24 @@
   }
 
   function openShare(calendar: CalendarSummary) {
-    menuCalendarId = ""
     sharing = calendar
-    shareOpen = true
+    void openAfterMenuClose(() => {
+      shareOpen = true
+    })
   }
 
   function openAvailability(calendar: CalendarSummary) {
-    menuCalendarId = ""
     availabilityCalendar = calendar
-    availabilityOpen = true
+    void openAfterMenuClose(() => {
+      availabilityOpen = true
+    })
   }
 
   function openRequests(calendar: CalendarSummary) {
-    menuCalendarId = ""
     requestsCalendar = calendar
-    requestsOpen = true
+    void openAfterMenuClose(() => {
+      requestsOpen = true
+    })
   }
 
   function closeFriends() {
@@ -438,10 +461,12 @@
   }
 
   function setPendingCount(calendarId: string, count: number) {
+    if (pendingCounts[calendarId] === count) return
     pendingCounts = { ...pendingCounts, [calendarId]: count }
   }
 
   function unfollow(calendar: CalendarSummary) {
+    menuCalendarId = ""
     void onUnfollow(calendar.id).catch(() => undefined)
   }
 
@@ -1277,7 +1302,7 @@
     <h3 class="text-lg font-bold">Delete {editing?.displayName}?</h3>
     <p class="py-4 text-base-content/70">Events on this calendar will be deleted. This cannot be undone.</p>
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={closeDelete}>Cancel</button>
+      <form method="dialog"><button class="btn btn-ghost">Cancel</button></form>
       <button
         type="button"
         class="btn btn-error"

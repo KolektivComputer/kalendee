@@ -169,6 +169,20 @@
     menu = { kind: "none" }
   }
 
+  function releaseContextMenuLock() {
+    if (typeof document === "undefined") return
+    document.body.style.removeProperty("overflow")
+    document.body.style.removeProperty("pointer-events")
+    document.body.style.removeProperty("padding-right")
+    document.documentElement.style.removeProperty("overflow")
+  }
+
+  function afterMenuClose(action: () => void) {
+    closeMenu()
+    releaseContextMenuLock()
+    action()
+  }
+
   const moveDestinations = $derived.by(() => {
     if (menu.kind !== "event") return []
     const event = menu.event
@@ -632,8 +646,7 @@
               onSelect={() => {
                 if (menu.kind !== "event") return
                 const selected = menu.event
-                closeMenu()
-                onSelect(selected)
+                void afterMenuClose(() => onSelect(selected))
               }}
             >
               <PenLine class="h-4 w-4" />
@@ -646,8 +659,7 @@
               onSelect={() => {
                 if (menu.kind !== "event") return
                 const target = menu.event
-                closeMenu()
-                onDelete(target)
+                void afterMenuClose(() => onDelete(target))
               }}
             >
               <Trash class="h-4 w-4" />
@@ -673,8 +685,9 @@
                           onSelect={() => {
                             if (menu.kind !== "event") return
                             const target = menu.event
-                            closeMenu()
-                            onMoveToCalendar?.({ event: target, calendarId: calendar.id })
+                            void afterMenuClose(() =>
+                              onMoveToCalendar?.({ event: target, calendarId: calendar.id }),
+                            )
                           }}
                         >
                           {calendar.displayName}
@@ -691,8 +704,9 @@
             <ContextMenu.Item
               class="rounded-field data-[highlighted]:bg-base-content/10"
               onSelect={() => {
-                closeMenu()
-                void router.visit(settingsHref("holidays"))
+                void afterMenuClose(() => {
+                  void router.visit(settingsHref("holidays"))
+                })
               }}
             >
               <Calendar class="h-4 w-4" />
@@ -706,8 +720,7 @@
               onSelect={() => {
                 if (menu.kind !== "allday") return
                 const day = menu.day
-                closeMenu()
-                createAllDay(dates[day])
+                void afterMenuClose(() => createAllDay(dates[day]))
               }}
             >
               <Plus class="h-4 w-4" />
@@ -721,12 +734,13 @@
               onSelect={() => {
                 if (menu.kind !== "timed") return
                 const { day, minutes } = menu
-                closeMenu()
-                onDraft({
-                  start: at(day, minutes),
-                  end: at(day, minutes + 30),
-                  allDay: false,
-                })
+                void afterMenuClose(() =>
+                  onDraft({
+                    start: at(day, minutes),
+                    end: at(day, minutes + 30),
+                    allDay: false,
+                  }),
+                )
               }}
             >
               <Plus class="h-4 w-4" />

@@ -163,11 +163,16 @@
     }
   })
 
+  // One-shot sync: once we request ?tz=<viewTimeZone> (or the URL already has it),
+  // never visit again for this mount even if data.timeZone still disagrees.
+  let tzSyncRequested = false
+
   $effect(() => {
     if (typeof window === "undefined") return
     if (data.timeZone === viewTimeZone) return
     const url = new URL(window.location.href)
-    if (url.searchParams.get("tz") === viewTimeZone) return
+    if (url.searchParams.get("tz") === viewTimeZone || tzSyncRequested) return
+    tzSyncRequested = true
     url.searchParams.set("tz", viewTimeZone)
     void router.visit(`${url.pathname}${url.search}`, { replace: true, preserveScroll: true })
   })

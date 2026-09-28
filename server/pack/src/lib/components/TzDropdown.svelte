@@ -102,7 +102,7 @@
     <ul
       id={listId}
       role="listbox"
-      class="menu menu-sm absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
+      class="menu menu-sm absolute z-50 mt-1 max-h-60 w-full flex-nowrap overflow-x-hidden overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
     >
       {#each filtered as zone (zone)}
         <li>

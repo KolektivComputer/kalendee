@@ -646,7 +646,7 @@
               {#snippet child({ props })}
                 <div
                   {...props}
-                  class="relative flex min-w-0 items-center gap-2 overflow-hidden"
+                  class="relative !flex min-w-0 items-center gap-2 overflow-hidden"
                   class:menu-active={calendar.id === selectedId}
                   class:opacity-45={calendar.hidden}
                   class:opacity-40={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
@@ -682,8 +682,8 @@
                   }}
                 >
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" style={`background:${cssColor(calendar.color)}`}></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block truncate">{calendar.displayName}</span>
+                  <span class="min-w-0 flex-1 overflow-hidden">
+                    <span class="block min-w-0 truncate">{calendar.displayName}</span>
                     {#if calendar.permission !== "owner"}
                       {@const sharedLabel =
                         calendar.permission === "follow"
@@ -887,7 +887,7 @@
           <h3 class="truncate text-xs font-medium text-base-content/60">Personal</h3>
         </button>
         {#if !isCollapsed("personal")}
-          <ul class="menu w-full p-0">
+          <ul class="menu w-full min-w-0 flex-nowrap p-0">
             {#each personalCalendars as calendar (calendar.id)}
               {@render calendarItem(calendar)}
             {/each}
@@ -925,7 +925,7 @@
         </div>
         {#if !isCollapsed(orgKey)}
           {#if !group.groupedByTeam}
-            <ul class="menu w-full p-0">
+            <ul class="menu w-full min-w-0 flex-nowrap p-0">
               {#each group.calendars as calendar (calendar.id)}
                 {@render calendarItem(calendar)}
               {/each}
@@ -956,7 +956,7 @@
                   <h4 class="truncate text-[0.7rem] text-base-content/50" title={team.name}>{team.name}</h4>
                 </button>
                 {#if !isCollapsed(teamKey)}
-                  <ul class="menu w-full p-0">
+                  <ul class="menu w-full min-w-0 flex-nowrap p-0">
                     {#each team.calendars as calendar (calendar.id)}
                       {@render calendarItem(calendar)}
                     {/each}
@@ -967,7 +967,7 @@
             {#if group.other.length > 0}
               <div class="flex flex-col gap-1 pl-2">
                 <h4 class="px-1 py-1 text-[0.7rem] text-base-content/50">Other calendars</h4>
-                <ul class="menu w-full p-0">
+                <ul class="menu w-full min-w-0 flex-nowrap p-0">
                   {#each group.other as calendar (calendar.id)}
                     {@render calendarItem(calendar)}
                   {/each}
@@ -993,7 +993,7 @@
   {#if organizationsWithoutCalendars.length > 0}
     <div class="flex flex-col gap-1 border-t border-base-300 pt-3">
       <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Organizations</h2>
-      <ul class="menu w-full p-0">
+      <ul class="menu w-full min-w-0 flex-nowrap p-0">
         {#each organizationsWithoutCalendars as organization (organization.id)}
           {@const orgDrop = organizationTarget(organization.id)}
           <li

@@ -1,7 +1,7 @@
 name: Documentation issue
 description: Report missing, outdated, or confusing documentation.
 title: "[Docs]: "
-labels: ["documentation"]
+labels: ["t/docs"]
 body:
   - type: input
     id: location

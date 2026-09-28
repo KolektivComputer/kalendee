@@ -1,0 +1,72 @@
+name: Bug report
+description: Something is broken or wrong
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security vulnerabilities, do **not** open a public issue — contact the maintainers privately.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Client
+      options:
+        - Web
+        - Desktop
+        - Android
+        - iOS
+        - Server
+        - CalDAV client
+    validations:
+      required: true
+  - type: dropdown
+    id: integration
+    attributes:
+      label: Integration
+      description: Optional — which external system is involved.
+      options:
+        - None
+        - Google
+        - Microsoft
+        - Discord
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, client, version
+      placeholder: e.g. Linux · v0.0.0 · Docker Compose
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error text
+      description: Optional
+      render: shell
+    validations:
+      required: false

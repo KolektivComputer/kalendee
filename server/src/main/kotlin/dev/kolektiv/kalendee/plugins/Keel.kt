@@ -69,12 +69,16 @@ import io.ktor.server.application.Application
 import kotlin.time.Clock
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.koin.ktor.ext.inject
+
+private val availableTimeZones: List<String> =
+    java.time.ZoneId.getAvailableZoneIds().sorted()
 
 fun Application.configureKeel() {
     val bundle by inject<FrontendBundle>()
@@ -141,6 +145,9 @@ fun Application.configureKeel() {
                         }
                     }
                 } ?: put("unreadNotifications", 0)
+                putJsonArray("timeZones") {
+                    availableTimeZones.forEach { add(it) }
+                }
             }
         }
         pages {

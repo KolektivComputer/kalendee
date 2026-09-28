@@ -51,9 +51,11 @@
   let {
     data,
     organizations = [],
+    timeZones = [],
   }: {
     data: HomePage
     organizations?: ViewerOrganization[]
+    timeZones?: string[]
   } = $props()
 
   const viewTimeZone = clientTimeZone()
@@ -471,6 +473,7 @@
           calendars={data.calendars}
           bind:selectedId
           timeZone={data.viewer?.timeZone || viewTimeZone}
+          {timeZones}
           showHolidays={data.showHolidays}
           friends={data.friends}
           friendRequests={data.friendRequests}

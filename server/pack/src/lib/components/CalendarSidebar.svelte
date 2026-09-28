@@ -52,6 +52,7 @@
     type TransferTarget,
   } from "../transfer"
   import AvailabilityDialog from "./AvailabilityDialog.svelte"
+  import TzDropdown from "./TzDropdown.svelte"
   import ShareDialog from "./ShareDialog.svelte"
   import TimeRequestsDialog from "./TimeRequestsDialog.svelte"
 
@@ -59,6 +60,7 @@
     calendars,
     selectedId = $bindable(""),
     timeZone,
+    timeZones = [],
     showHolidays,
     friends = [],
     friendRequests = [],
@@ -82,6 +84,7 @@
     calendars: CalendarSummary[]
     selectedId: string
     timeZone: string
+    timeZones?: string[]
     showHolidays: boolean
     friends?: FriendSummary[]
     friendRequests?: FriendRequestSummary[]
@@ -1189,7 +1192,7 @@
       </fieldset>
       <fieldset class="fieldset">
         <legend class="fieldset-legend">Time zone</legend>
-        <input id="cal-tz" class="input w-full" bind:value={calendarTimeZone} required />
+        <TzDropdown id="cal-tz" class="w-full" zones={timeZones} bind:value={calendarTimeZone} required />
         {#if fieldError(createError, "timeZone")}
           <p class="label text-error">{fieldError(createError, "timeZone")}</p>
         {/if}
@@ -1256,7 +1259,7 @@
       </fieldset>
       <fieldset class="fieldset">
         <legend class="fieldset-legend">Time zone</legend>
-        <input id="edit-cal-tz" class="input w-full" bind:value={calendarTimeZone} required />
+        <TzDropdown id="edit-cal-tz" class="w-full" zones={timeZones} bind:value={calendarTimeZone} required />
       </fieldset>
       <div class="modal-action">
         <button type="button" class="btn btn-ghost" onclick={closeEdit}>Cancel</button>

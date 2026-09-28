@@ -31,6 +31,14 @@
   import { actionMessage } from "../errors"
   import type { ViewerOrganization } from "../organizations"
   import type { ReminderSelection } from "../reminders"
+  import {
+    SIDEBAR_WIDTH_DEFAULT,
+    SIDEBAR_WIDTH_MAX,
+    SIDEBAR_WIDTH_MIN,
+    clampSidebarWidth,
+    readSidebarWidth,
+    writeSidebarWidth,
+  } from "../sidebar"
   import { settingsHref } from "../settings-ui.svelte"
   import { clientTimeZone, datesBetween } from "../time"
   import BuiltByKolektiv from "./BuiltByKolektiv.svelte"
@@ -126,11 +134,39 @@
 
   let dismissedSyncAlerts = $state<Record<string, boolean>>({})
   let syncAlertsReady = $state(false)
+  let sidebarWidth = $state(SIDEBAR_WIDTH_DEFAULT)
+  let resizingSidebar = $state(false)
 
   onMount(() => {
     dismissedSyncAlerts = readDismissedSyncAlerts()
     syncAlertsReady = true
+    sidebarWidth = readSidebarWidth()
   })
+
+  function startSidebarResize(event: PointerEvent) {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const handle = event.currentTarget as HTMLElement
+    const startX = event.clientX
+    const startWidth = sidebarWidth
+    resizingSidebar = true
+    handle.setPointerCapture(event.pointerId)
+
+    const onMove = (move: PointerEvent) => {
+      sidebarWidth = clampSidebarWidth(startWidth + (move.clientX - startX))
+    }
+    const onUp = (up: PointerEvent) => {
+      resizingSidebar = false
+      writeSidebarWidth(sidebarWidth)
+      handle.releasePointerCapture(up.pointerId)
+      handle.removeEventListener("pointermove", onMove)
+      handle.removeEventListener("pointerup", onUp)
+      handle.removeEventListener("pointercancel", onUp)
+    }
+    handle.addEventListener("pointermove", onMove)
+    handle.addEventListener("pointerup", onUp)
+    handle.addEventListener("pointercancel", onUp)
+  }
 
   const syncBlockedAlert = $derived.by(() => {
     if (!syncAlertsReady || data.readOnly) return null
@@ -424,8 +460,13 @@
   </div>
   <div class="drawer-side z-20">
     <label for="calendar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
-    <aside class="bg-base-100 flex h-full min-h-0 w-64 flex-col border-r border-base-300">
-      <div class="min-h-0 flex-1 overflow-y-auto">
+    <aside
+      class="bg-base-100 relative flex h-full min-h-0 flex-col border-r border-base-300"
+      style:width={`${sidebarWidth}px`}
+      style:min-width={`${sidebarWidth}px`}
+      style:max-width={`${sidebarWidth}px`}
+    >
+      <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <CalendarSidebar
           calendars={data.calendars}
           bind:selectedId
@@ -454,6 +495,25 @@
       <div class="shrink-0 border-t border-base-300 p-3">
         <BuiltByKolektiv />
       </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize calendar sidebar"
+        aria-valuenow={sidebarWidth}
+        aria-valuemin={SIDEBAR_WIDTH_MIN}
+        aria-valuemax={SIDEBAR_WIDTH_MAX}
+        tabindex="0"
+        class="absolute top-0 right-0 z-10 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-base-content/15"
+        class:bg-primary/40={resizingSidebar}
+        onpointerdown={startSidebarResize}
+        onkeydown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+          event.preventDefault()
+          const delta = event.key === "ArrowRight" ? 16 : -16
+          sidebarWidth = clampSidebarWidth(sidebarWidth + delta)
+          writeSidebarWidth(sidebarWidth)
+        }}
+      ></div>
     </aside>
   </div>
 </div>

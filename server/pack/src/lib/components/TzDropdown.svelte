@@ -21,6 +21,7 @@
   } = $props()
 
   let searchValue = $state("")
+  let open = $state(false)
   let rootEl: HTMLDivElement | undefined = $state()
 
   /** Prefer the open <dialog> (top layer) so the list isn't under the modal; fall back to body. */
@@ -36,18 +37,27 @@
     if (q === "") return zones
     return zones.filter((zone) => zone.toLowerCase().includes(q))
   })
+
+  /**
+   * bits-ui Combobox keeps selection (`value`) separate from the Input text (`inputValue`).
+   * Drive inputValue ourselves: show the bound IANA id when closed; while open, show the
+   * filter query (empty on open), matching the pre-Combobox TzDropdown contract.
+   */
+  const inputValue = $derived(open ? searchValue : value)
 </script>
 
 <div class={["relative w-full", className].filter(Boolean).join(" ")} bind:this={rootEl}>
   <Combobox.Root
     type="single"
     bind:value
+    bind:open
     {disabled}
     {required}
     allowDeselect={false}
     {items}
-    onOpenChangeComplete={(open) => {
-      if (!open) searchValue = ""
+    {inputValue}
+    onOpenChangeComplete={(isOpen) => {
+      if (!isOpen) searchValue = ""
     }}
   >
     <div class="relative">
@@ -57,6 +67,7 @@
         {required}
         class="input w-full pr-9"
         autocomplete="off"
+        defaultValue={value}
         oninput={(event) => {
           searchValue = event.currentTarget.value
         }}

@@ -170,9 +170,17 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
 - Desktop app:
     - Hot reload: `./gradlew :app:desktopApp:hotRun --auto`
     - Standard run: `./gradlew :app:desktopApp:run`
-- iOS app: open the [`app/iosApp`](./app/iosApp) directory in Xcode and run it from there.
+- iOS app: open the [`app/iosApp`](./app/iosApp) directory in Xcode and run it from there, or sideload the unsigned CI build (see below).
 
 The clients still point at the Compose template (`App()`, `Greeting`, `Platform`) while the real UI lands.
+
+### iOS sideloading (free Apple ID)
+
+The [`iOS (unsigned IPA)`](./.github/workflows/ios.yml) workflow builds an unsigned IPA on a macOS runner: run it with `workflow_dispatch`, or push to `main` / `feat/mobile-app` touching `app/`, `core/`, or the Gradle build files. Download the `kalendee-unsigned-ipa` artifact from the run's **Summary → Artifacts**, then install it with [SideStore](https://sidestore.io) or [AltStore](https://altstore.io):
+
+1. Pair the device and install the SideStore/AltStore helper app as its setup guide describes; a free Apple ID works, no paid team is needed.
+2. Open `kalendee-unsigned.ipa` in SideStore/AltStore (the `+` action) and sign in with the free Apple ID when prompted.
+3. Re-sign at least every 7 days, since free Apple ID signatures expire; SideStore can refresh in the background.
 
 ## The web UI (Keel pack)
 
@@ -318,7 +326,7 @@ Options: `enable` (bool), `image` (`docker.yuri.capital/kolektiv/kalendee`), `im
 
 ## Releasing
 
-Pushing a `v*` tag runs both release workflows; the version is the tag without the leading `v`:
+Pushing a `v*` tag runs the release workflows; the version is the tag without the leading `v`:
 
 ```bash
 git tag v1.2.3
@@ -327,6 +335,7 @@ git push origin v1.2.3
 
 - `.github/workflows/docker.yml` — builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to docker.yuri.capital with semver and SHA tags; also supports manual `workflow_dispatch`.
 - `.github/workflows/publish.yml` — publishes `:core` and `:app:shared` to the Nexus `maven-releases` (or `maven-snapshots` for `SNAPSHOT` versions) with `-Pversion=<version>`, then creates a GitHub Release with `kalendee-server-<version>.jar`, `kalendee-server-<version>.zip`, and `kalendee-<version>.feb`. Manual `workflow_dispatch` takes a `version` input; snapshots are refused for GitHub Releases.
+- `.github/workflows/ios.yml` — not tag-triggered: dispatch it manually or push to `main` / `feat/mobile-app` to build the unsigned iOS IPA (`kalendee-unsigned.ipa`) for SideStore/AltStore sideloading; see [iOS sideloading](#ios-sideloading). It is not a signed App Store/TestFlight artifact.
 
 Required secrets: `YURI_CAPITAL_REPO_USERNAME` / `YURI_CAPITAL_REPO_PASSWORD` for Nexus; without them the Maven job skips publication with a warning. The Docker workflow logs in to `docker.yuri.capital` with `YURI_CAPITAL_DOCKER_USERNAME` / `YURI_CAPITAL_DOCKER_PASSWORD`, falling back to the `YURI_CAPITAL_REPO_*` secrets when the docker-specific secrets are absent.
 

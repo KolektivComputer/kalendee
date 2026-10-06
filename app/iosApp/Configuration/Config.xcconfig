@@ -1,7 +1,9 @@
 TEAM_ID=
 
 PRODUCT_NAME=kalendee
-PRODUCT_BUNDLE_IDENTIFIER=dev.kolektiv.kalendee.kalendee$(TEAM_ID)
+PRODUCT_BUNDLE_IDENTIFIER=dev.kolektiv.kalendee
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=0.1.0
+
+FRAMEWORK_SEARCH_PATHS=$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)

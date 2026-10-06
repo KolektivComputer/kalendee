@@ -1,0 +1,346 @@
+package dev.kolektiv.kalendee.ui
+
+import dev.kolektiv.kalendee.calendar.CalendarView
+import dev.kolektiv.kalendee.client.KalendeeApi
+import dev.kolektiv.kalendee.client.KalendeeApiException
+import dev.kolektiv.kalendee.client.KeyValueStore
+import dev.kolektiv.kalendee.client.ServerAccount
+import dev.kolektiv.kalendee.client.ServerProfile
+import dev.kolektiv.kalendee.client.ServerRegistry
+import dev.kolektiv.kalendee.ui.nav.Route
+import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Instant
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.TimeZone
+
+private const val USER_ID = "7d444840-9dc0-11d1-b245-5ffdce74fad2"
+private const val CALENDAR_ID = "b1a2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+private const val EVENT_ID = "3f0c6e0a-8b1e-4c2e-9a5d-7f6b1c2d3e4f"
+
+private val jsonHeaders: Headers =
+    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+
+private val DISCOVERY_JSON = """{"service":"kalendee","api":"/api/v1"}"""
+
+private fun userJson(username: String = "alice"): String = """
+    {
+      "id": "$USER_ID",
+      "username": "$username",
+      "displayName": "Alice",
+      "email": null,
+      "emailVerified": false,
+      "avatarVersion": null,
+      "timeZone": "UTC",
+      "accent": "primary",
+      "admin": false,
+      "publicAccess": "inherit",
+      "createdAt": "2026-01-01T00:00:00Z"
+    }
+""".trimIndent()
+
+private fun calendarJson(): String = """
+    {
+      "id": "$CALENDAR_ID",
+      "ownerId": "$USER_ID",
+      "displayName": "Work",
+      "timeZone": "UTC",
+      "color": "#3b82f6",
+      "hidden": false,
+      "permission": "owner",
+      "accessMode": "inherit",
+      "createdAt": "2026-10-01T00:00:00Z",
+      "updatedAt": "2026-10-01T00:00:00Z"
+    }
+""".trimIndent()
+
+private fun eventJson(title: String = "Standup"): String = """
+    {
+      "id": "$EVENT_ID",
+      "calendarId": "$CALENDAR_ID",
+      "title": "$title",
+      "start": "2026-10-06T09:00:00Z",
+      "end": "2026-10-06T09:30:00Z",
+      "allDay": false,
+      "status": "CONFIRMED",
+      "etag": "etag-1",
+      "createdAt": "2026-10-01T08:00:00Z",
+      "updatedAt": "2026-10-01T08:00:00Z"
+    }
+""".trimIndent()
+
+private val REMINDERS_JSON = """
+    [
+      {
+        "eventId": "$EVENT_ID",
+        "calendarId": "$CALENDAR_ID",
+        "calendarName": "Work",
+        "calendarColor": "#3b82f6",
+        "title": "Standup",
+        "start": "2026-10-06T09:00:00Z",
+        "allDay": false,
+        "offsetSeconds": 600,
+        "remindAt": "2026-10-06T08:50:00Z"
+      }
+    ]
+""".trimIndent()
+
+private class TestStore : KeyValueStore {
+    val values = mutableMapOf<String, String>()
+
+    override fun getString(key: String): String? = values[key]
+
+    override fun putString(key: String, value: String) {
+        values[key] = value
+    }
+
+    override fun remove(key: String) {
+        values.remove(key)
+    }
+}
+
+private val neverEngine = MockEngine { error("no requests expected") }
+
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+private fun testState(
+    store: KeyValueStore,
+    engineFor: (ServerAccount) -> HttpClientEngine,
+): AppState = AppState(
+    store = store,
+    apiFactory = { account ->
+        KalendeeApi(
+            baseUrl = account.profile.baseUrl,
+            tokenProvider = { account.token },
+            engine = engineFor(account),
+        )
+    },
+    dispatcher = UnconfinedTestDispatcher(),
+)
+
+private fun signedInAccount(id: String, name: String, baseUrl: String): ServerAccount = ServerAccount(
+    profile = ServerProfile(id = id, name = name, baseUrl = baseUrl),
+    username = "alice",
+    token = "kalendee_session=$id",
+)
+
+class AppStateTest {
+
+    @Test
+    fun addServerValidatesDiscoveryAndPersists() = runTest {
+        val store = TestStore()
+        val engine = MockEngine { request ->
+            assertEquals("/api/v1", request.url.encodedPath)
+            respond(DISCOVERY_JSON, HttpStatusCode.OK, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+
+        val id = state.addServer("calendar.example", "Home")
+
+        val server = state.state.value.servers.single()
+        assertEquals(id, server.account.profile.id)
+        assertEquals("Home", server.account.profile.name)
+        assertEquals("https://calendar.example", server.account.profile.baseUrl)
+        assertNotNull(store.values["kalendee.servers.v1"])
+    }
+
+    @Test
+    fun addServerRejectsBlankUrl() = runTest {
+        val store = TestStore()
+        val state = testState(store) { neverEngine }
+
+        assertFailsWith<IllegalArgumentException> { state.addServer("   ") }
+
+        assertTrue(state.state.value.servers.isEmpty())
+        assertNull(store.values["kalendee.servers.v1"])
+    }
+
+    @Test
+    fun addServerRejectsNonKalendeeServer() = runTest {
+        val store = TestStore()
+        val engine = MockEngine {
+            respond("""{"service":"something-else","api":"/api/v1"}""", HttpStatusCode.OK, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+
+        assertFailsWith<KalendeeApiException> { state.addServer("https://other.example") }
+
+        assertTrue(state.state.value.servers.isEmpty())
+        assertNull(store.values["kalendee.servers.v1"])
+    }
+
+    @Test
+    fun addServerSurfacesDiscoveryHttpErrors() = runTest {
+        val store = TestStore()
+        val engine = MockEngine {
+            respond(
+                content = """{"error":"not_found","message":"no api here"}""",
+                status = HttpStatusCode.NotFound,
+                headers = jsonHeaders,
+            )
+        }
+        val state = testState(store) { engine }
+
+        val failure = assertFailsWith<KalendeeApiException> {
+            state.addServer("https://other.example")
+        }
+
+        assertEquals(404, failure.status)
+        assertEquals("no api here", failure.message)
+    }
+
+    @Test
+    fun refreshAggregatesServersAndToleratesFailures() = runTest {
+        val store = TestStore()
+        val registry = ServerRegistry(store)
+        registry.upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        registry.upsert(signedInAccount("b", "Beta", "https://b.example"))
+
+        val good = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/auth/me" -> respond(userJson(), HttpStatusCode.OK, jsonHeaders)
+                "/api/v1/calendars" -> respond("[${calendarJson()}]", HttpStatusCode.OK, jsonHeaders)
+                "/api/v1/events" -> respond("[${eventJson()}]", HttpStatusCode.OK, jsonHeaders)
+                else -> respond("{}", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val bad = MockEngine { throw IllegalStateException("connection refused") }
+        val state = testState(store) { account ->
+            if (account.profile.id == "a") good else bad
+        }
+
+        state.loadPersisted()
+        state.refreshAll(Instant.parse("2026-10-01T00:00:00Z") to Instant.parse("2026-10-08T00:00:00Z"))
+
+        val ui = state.state.value
+        assertEquals(2, ui.servers.size)
+        assertFalse(ui.loading)
+
+        val alpha = ui.servers.first { it.account.profile.id == "a" }
+        assertEquals(true, alpha.online)
+        assertEquals("alice", alpha.username)
+        assertEquals(1, alpha.calendars.size)
+        assertEquals(1, ui.events.size)
+        assertEquals("Alpha", ui.events.single().serverName)
+        assertEquals("Standup", ui.events.single().event.title)
+
+        val beta = ui.servers.first { it.account.profile.id == "b" }
+        assertEquals(false, beta.online)
+        assertNotNull(beta.error)
+        assertTrue(beta.calendars.isEmpty())
+    }
+
+    @Test
+    fun refreshMarksUnauthorizedServerSignedOut() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val engine = MockEngine {
+            respond(
+                content = """{"error":"unauthorized","message":"unauthorized"}""",
+                status = HttpStatusCode.Unauthorized,
+                headers = jsonHeaders,
+            )
+        }
+        val state = testState(store) { engine }
+
+        state.loadPersisted()
+        state.refreshAll()
+
+        val server = state.state.value.servers.single()
+        assertEquals(true, server.online)
+        assertNull(server.username)
+        assertTrue(server.calendars.isEmpty())
+        assertTrue(state.state.value.events.isEmpty())
+    }
+
+    @Test
+    fun preferencesPersistAndReload() = runTest {
+        val store = TestStore()
+        val first = testState(store) { neverEngine }
+
+        first.setThemeMode(ThemeMode.Dark)
+        first.setDefaultView(CalendarView.Day)
+
+        assertEquals("Dark", store.values["kalendee.prefs.themeMode"])
+        assertEquals("Day", store.values["kalendee.prefs.defaultView"])
+
+        val second = testState(store) { neverEngine }
+        second.loadPersisted()
+
+        assertEquals(ThemeMode.Dark, second.state.value.themeMode)
+        assertEquals(CalendarView.Day, second.state.value.defaultView)
+    }
+
+    @Test
+    fun loadPersistedOpensCalendarWhenASessionExists() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val state = testState(store) { neverEngine }
+
+        state.loadPersisted()
+
+        assertEquals(Route.Calendar, state.navigator.current)
+        assertEquals(1, state.state.value.servers.size)
+    }
+
+    @Test
+    fun loadPersistedIsIdempotent() = runTest {
+        val store = TestStore()
+        val state = testState(store) { neverEngine }
+
+        state.loadPersisted()
+        state.loadPersisted()
+
+        assertTrue(state.state.value.servers.isEmpty())
+        assertEquals(Route.Servers, state.navigator.current)
+    }
+
+    @Test
+    fun refreshRemindersPopulatesStateAndScheduler() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val engine = MockEngine { request ->
+            assertEquals("/api/v1/reminders/upcoming", request.url.encodedPath)
+            respond(REMINDERS_JSON, HttpStatusCode.OK, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+
+        state.loadPersisted()
+        state.refreshReminders()
+
+        val reminder = state.state.value.upcoming.single()
+        assertEquals("a:$EVENT_ID:600", reminder.id)
+        assertEquals("Alpha", reminder.serverName)
+    }
+
+    @Test
+    fun defaultRangeIsTheCurrentWeek() {
+        val (start, end) = defaultCalendarRange(
+            now = Instant.parse("2026-10-07T12:00:00Z"),
+            zone = TimeZone.UTC,
+        )
+
+        assertEquals(Instant.parse("2026-10-05T00:00:00Z"), start)
+        assertEquals(Instant.parse("2026-10-12T00:00:00Z"), end)
+    }
+
+    @Test
+    fun serverNameFallsBackToHost() {
+        assertEquals("cal.example.com", serverNameFromUrl("https://cal.example.com/base"))
+        assertEquals("cal.example.com", serverNameFromUrl("https://cal.example.com"))
+        assertEquals("not a url", serverNameFromUrl("not a url"))
+    }
+}

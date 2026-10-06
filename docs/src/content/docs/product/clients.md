@@ -4,17 +4,17 @@ description: The web UI, the state of the Compose clients, and the planned CalDA
 ---
 
 Kalendee is designed around multiple first-party clients sharing one server.
-Today, one client is complete: the web UI. This page is explicit about what you
-can use right now.
+Today, the web UI is the complete client, and the Compose mobile/desktop apps
+are usable previews. This page is explicit about what you can use right now.
 
 ## Client status
 
 | Client | Status | How to use it |
 | --- | --- | --- |
 | **Web UI** | Complete | Open the server URL in any modern browser. |
-| **Android** (Compose) | Scaffold only | Not a usable calendar yet. |
-| **iOS** (Compose + Swift entry) | Scaffold only | Not a usable calendar yet. |
-| **Desktop** (Compose, JVM) | Scaffold only | Not a usable calendar yet. |
+| **Android** (Compose) | Preview | Build and install the debug APK; shared calendar UI with multi-server accounts and local reminders. |
+| **iOS** (Compose + Swift entry) | Preview | Sideload the unsigned CI IPA with SideStore/AltStore; same shared UI, local notifications only. |
+| **Desktop** (Compose, JVM) | Preview | `./gradlew :app:desktopApp:run`; same shared UI, no OS notifications. |
 | **Third-party CalDAV clients** | Not supported | No CalDAV endpoint exists yet. |
 
 ## The web UI
@@ -33,9 +33,20 @@ sharing, public links, organizations, scheduling, invites, and notifications.
 
 ## The Compose clients
 
-The Android, iOS, and Desktop targets exist and build, but the shared Compose UI
-is still the JetBrains KMP template: a greeting screen and a platform name.
-They are not a calendar client yet and should not be evaluated as one.
+The Android, iOS, and Desktop targets build the same Compose Multiplatform UI
+from `:app:shared`: a themeable calendar with week and day views, an event
+editor and detail view, multiple server accounts, login/register, settings, and
+a reminders list. Shared non-UI logic (JSON API client for `/api/v1`, cookie
+sessions, server registry, calendar models) lives in `:core`.
+
+They are usable previews, not complete clients. The honest gaps: no month view
+(the month option in the core calendar model falls back to a week grid), no
+CalDAV, no push notifications, and no offline mode. Reminders are scheduled
+locally only — Android uses exact alarms and re-arms on boot, iOS uses
+`UNUserNotificationCenter`, and Desktop has no OS notification integration (the
+scheduler is a no-op). Android debug APKs come from
+`./gradlew :app:androidApp:assembleDebug`; unsigned iOS IPAs come from the
+`iOS (unsigned IPA)` GitHub workflow for SideStore/AltStore sideloading.
 
 The intended end state is a shared Compose Multiplatform UI across all three,
 themeable alongside the web UI, with shared non-UI logic in the `:core` module.
@@ -55,8 +66,8 @@ repository treats the protocol as a standalone deliverable rather than a server
 feature; see
 [GOALS.md](https://github.com/KolektivComputer/kalendee/blob/main/GOALS.md).
 
-In the meantime, the web UI is the only supported way to read and write
-calendars.
+In the meantime, the web UI and the first-party Compose clients are the only
+ways to read and write calendars.
 
 ## Related
 

@@ -1,0 +1,79 @@
+# Builds the iOS app without code signing and packages it as an unsigned IPA.
+#
+# The artifact is meant for sideloading with SideStore/AltStore, which re-sign
+# it on-device with a free Apple ID (7-day re-sign; 3 apps, 10 app IDs per
+# week). It cannot be installed directly. A paid Apple Developer team can later
+# set TEAM_ID in app/iosApp/Configuration/Config.xcconfig and switch this
+# workflow to archive + ExportOptions/TestFlight.
+name: iOS (unsigned IPA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feat/mobile-app]
+    paths:
+      - "app/**"
+      - "core/**"
+      - "gradle/**"
+      - "*.kts"
+      - "gradle.properties"
+      - ".github/workflows/ios.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    name: Build unsigned IPA
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      # The "Compile Kotlin Framework" phase runs
+      # :app:shared:embedAndSignAppleFrameworkForXcode, which shells out to
+      # ./gradlew, so JAVA_HOME (exported by setup-java) must be visible to
+      # xcodebuild. KGP 2.4.x only codesigns the framework when
+      # EXPANDED_CODE_SIGN_IDENTITY is set; CODE_SIGNING_ALLOWED=NO leaves it
+      # unset, so the static framework is embedded unsigned. If a future Xcode
+      # exports it as an empty string instead, KGP would run `codesign --sign ""`
+      # and fail; the fallback is to append EXPANDED_CODE_SIGN_IDENTITY=- to the
+      # xcodebuild invocation to force ad-hoc signing.
+      - name: Build unsigned app
+        run: |
+          export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 21)}"
+          xcodebuild -project app/iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          ditto "$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/kalendee.app" "$RUNNER_TEMP/ipa/Payload/kalendee.app"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry kalendee-unsigned.ipa Payload)
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: kalendee-unsigned-ipa
+          path: ${{ runner.temp }}/ipa/kalendee-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30

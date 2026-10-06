@@ -120,13 +120,19 @@ iOS app: open `app/iosApp` in Xcode and run from there.
 - Do not commit `local.properties`, `**/build/`, `.gradle/`, `.idea/`,
   `.kotlin/`, `xcuserdata`, or signing material.
 
-## Current scaffold (do not treat as product code)
+## Current state (clients)
 
-Replace template code in place as features land. Do not keep a parallel
-hello-world app. `:server` serves the JSON API under `/api/v1` and a Keel
-MPA at `/` (login, register, week view, not-found). If `KALENDEE_ADMIN_PASSWORD`
-is set, startup seeds user `admin`. Compose clients are still the KMP
-template (`App()`, `Greeting`, `Platform`).
+The Compose clients are past the KMP template. `:core` holds the shared client
+layer: Ktor JSON API client (`/api/v1`), cookie sessions, and a multi-server
+registry. `:app:shared` renders a themeable Compose calendar: week/day views,
+event editor and detail, accounts/auth/settings, and a reminders list. Android
+schedules local notifications with exact alarms and re-arms them on boot; iOS
+uses `UNUserNotificationCenter`; Desktop notification scheduling is a no-op.
+There is no CalDAV and no month view (it falls back to week), and no push
+notifications. `.github/workflows/ios.yml` builds an unsigned IPA
+(`kalendee-unsigned-ipa`) for SideStore/AltStore. `:server` serves the JSON API
+under `/api/v1` and the Keel MPA at `/` (login, register, week view, not-found).
+If `KALENDEE_ADMIN_PASSWORD` is set, startup seeds user `admin`.
 
 ## Goals (when implementing features)
 

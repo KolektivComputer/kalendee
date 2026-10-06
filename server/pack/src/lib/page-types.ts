@@ -209,18 +209,17 @@ export interface HomePage {
   teams: TeamSummary[]
 }
 
+export interface ProviderSummary {
+  id: string
+  displayName: string
+  enabled: boolean
+  connectUrl: string
+}
+
 export interface LoginPage {
   viewer: Viewer | null
   oauthRegistration: boolean
   providers: ProviderSummary[]
-}
-
-export interface PrivacyPage {
-  viewer: Viewer | null
-}
-
-export interface TermsPage {
-  viewer: Viewer | null
 }
 
 export interface NotFoundPage {
@@ -337,6 +336,10 @@ export interface OrganizationSettingsPage {
   manageableCalendars: CalendarOptionSummary[]
 }
 
+export interface PrivacyPage {
+  viewer: Viewer | null
+}
+
 export interface PublicProfilePage {
   username: string
   displayName: string
@@ -387,13 +390,6 @@ export interface RsvpPage {
   viewer: Viewer | null
 }
 
-export interface ProviderSummary {
-  id: string
-  displayName: string
-  enabled: boolean
-  connectUrl: string
-}
-
 export interface ConnectionSummary {
   id: string
   provider: string
@@ -414,6 +410,10 @@ export interface SettingsPage {
   customHolidays: CustomHolidaySummary[]
   providers: ProviderSummary[]
   connections: ConnectionSummary[]
+}
+
+export interface TermsPage {
+  viewer: Viewer | null
 }
 
 export interface VerifyEmailPage {
@@ -589,16 +589,6 @@ export interface ConnectProviderIn {
 
 export interface ConnectProviderOut {
   url: string
-}
-
-export interface SyncConnectionIn {
-  connectionId: string
-}
-
-export interface SyncConnectionOut {
-  ok: boolean
-  lastSyncAt: string | null
-  lastError: string | null
 }
 
 export interface CreateCalendarIn {
@@ -1140,6 +1130,16 @@ export interface ShareCalendarIn {
   permission: string
 }
 
+export interface SyncConnectionIn {
+  connectionId: string
+}
+
+export interface SyncConnectionOut {
+  ok: boolean
+  lastSyncAt: string | null
+  lastError: string | null
+}
+
 export interface SyncDiscordImportIn {
   externalCalendarId: string
 }
@@ -1254,11 +1254,13 @@ export interface KalendeePages {
   "kalendee.notifications": NotificationsPage
   "kalendee.org": OrganizationProfilePage
   "kalendee.orgSettings": OrganizationSettingsPage
+  "kalendee.privacy": PrivacyPage
   "kalendee.profile": PublicProfilePage
   "kalendee.publicCalendar": PublicCalendarPage
   "kalendee.register": RegisterPage
   "kalendee.rsvp": RsvpPage
   "kalendee.settings": SettingsPage
+  "kalendee.terms": TermsPage
   "kalendee.verifyEmail": VerifyEmailPage
 }
 
@@ -1295,7 +1297,6 @@ export interface KalendeeActions {
   "kalendee.deleteOrganization": { in: DeleteOrganizationIn; out: DeletedOut }
   "kalendee.deleteOrganizationTeam": { in: DeleteOrganizationTeamIn; out: DeletedOut }
   "kalendee.disconnectAccount": { in: DisconnectAccountIn; out: DeletedOut }
-  "kalendee.syncConnection": { in: SyncConnectionIn; out: SyncConnectionOut }
   "kalendee.discordGuilds": { in: DiscordGuildsIn; out: DiscordGuildsOut }
   "kalendee.discordSyncSetup": { in: DiscordSyncSetupIn; out: DiscordSyncSetupOut }
   "kalendee.eventAttendees": { in: EventAttendeesIn; out: EventAttendeesOut }
@@ -1351,6 +1352,7 @@ export interface KalendeeActions {
   "kalendee.setShowHolidays": { in: SetShowHolidaysIn; out: HolidayStateOut }
   "kalendee.setUserPublicAccess": { in: SetUserPublicAccessIn; out: Viewer }
   "kalendee.shareCalendar": { in: ShareCalendarIn; out: CalendarSharingOut }
+  "kalendee.syncConnection": { in: SyncConnectionIn; out: SyncConnectionOut }
   "kalendee.syncDiscordImport": { in: SyncDiscordImportIn; out: DiscordGuildSummary }
   "kalendee.transferCalendar": { in: TransferCalendarIn; out: CalendarSummary }
   "kalendee.unfollowCalendar": { in: UnfollowCalendarIn; out: FollowOut }

@@ -283,3 +283,41 @@ data class AdminGroupMembersResponse(
 data class AdminSetGroupMembersBody(
     val userIds: List<String>,
 )
+
+@Serializable
+data class OrganizationsResponse(
+    val organizations: List<OrganizationSummaryOut>,
+)
+
+@Serializable
+data class OrganizationSummaryOut(
+    val id: String,
+    val slug: String,
+    val displayName: String,
+    val description: String? = null,
+    val visibility: String = "private",
+    val avatarUrl: String? = null,
+    val role: String? = null,
+    val memberCount: Int = 0,
+)
+
+@Serializable
+data class FriendsResponse(
+    val friends: List<FriendSummaryOut>,
+    val incoming: List<FriendRequestSummaryOut>,
+)
+
+@Serializable
+data class FriendSummaryOut(
+    val userId: String,
+    val username: String,
+    val displayName: String,
+    val avatarUrl: String? = null,
+)
+
+@Serializable
+data class FriendRequestSummaryOut(
+    val id: String,
+    val user: FriendSummaryOut,
+    val createdAt: String,
+)

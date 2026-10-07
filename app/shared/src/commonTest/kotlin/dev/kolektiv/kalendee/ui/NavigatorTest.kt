@@ -35,7 +35,7 @@ class NavigatorTest {
     fun replaceRootClearsTheStack() {
         val navigator = Navigator()
         navigator.push(Route.Calendar)
-        navigator.push(Route.Reminders)
+        navigator.push(Route.Upcoming)
         navigator.replaceRoot(Route.Calendar)
 
         assertEquals(listOf(Route.Calendar), navigator.stack.value)
@@ -45,12 +45,31 @@ class NavigatorTest {
     @Test
     fun routesCarryTheirArguments() {
         val login = Route.Login("server-1")
+        val register = Route.Register("server-1")
+        val detail = Route.ServerDetail("server-1")
         val editor = Route.EventEditor(serverId = "server-1", calendarId = "cal-1", eventId = null)
-        val detail = Route.EventDetail(serverId = "server-1", eventId = "event-1")
+        val eventDetail = Route.EventDetail(serverId = "server-1", eventId = "event-1")
 
         assertEquals("server-1", login.serverId)
+        assertEquals("server-1", register.serverId)
+        assertEquals("server-1", detail.serverId)
         assertEquals(null, editor.eventId)
         assertEquals("cal-1", editor.calendarId)
-        assertEquals("event-1", detail.eventId)
+        assertEquals("event-1", eventDetail.eventId)
+    }
+
+    @Test
+    fun topLevelDestinationsAreDistinct() {
+        val routes: List<Route> = listOf(
+            Route.Servers,
+            Route.Calendar,
+            Route.Upcoming,
+            Route.Settings,
+            Route.Appearance,
+            Route.Behavior,
+            Route.AddServer,
+        )
+
+        assertEquals(routes.size, routes.toSet().size)
     }
 }

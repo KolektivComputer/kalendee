@@ -20,6 +20,7 @@ import dev.kolektiv.kalendee.api.publicRoutes
 import dev.kolektiv.kalendee.api.reminderRoutes
 import dev.kolektiv.kalendee.api.rssRoutes
 import dev.kolektiv.kalendee.api.shareRoutes
+import dev.kolektiv.kalendee.api.socialRoutes
 import dev.kolektiv.kalendee.auth.AuthService
 import dev.kolektiv.kalendee.auth.AuthSettings
 import dev.kolektiv.kalendee.auth.EmailVerificationService
@@ -29,9 +30,11 @@ import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.config.AppSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.MailService
 import dev.kolektiv.kalendee.notifications.NotificationService
+import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.oauth.ConnectionService
 import dev.kolektiv.kalendee.reminders.ReminderService
@@ -74,7 +77,9 @@ internal fun Application.configureApplication() {
     val authService by inject<AuthService>()
     val authSettings by inject<AuthSettings>()
     val groups by inject<GroupService>()
+    val organizations by inject<OrganizationService>()
     val organizationTeams by inject<OrganizationTeamService>()
+    val friendships by inject<FriendshipService>()
     val adminUsers by inject<AdminUserService>()
     val adminCalendars by inject<AdminCalendarService>()
     val verification by inject<EmailVerificationService>()
@@ -130,6 +135,7 @@ internal fun Application.configureApplication() {
             availabilityRoutes(availability)
             publicRoutes(store, shareActions, authService)
             shareRoutes(shareActions)
+            socialRoutes(organizations, friendships)
             oauthRoutes(oauthConnections, authSettings)
         }
     }

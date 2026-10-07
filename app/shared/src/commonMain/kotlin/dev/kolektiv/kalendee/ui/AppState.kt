@@ -11,10 +11,12 @@ import dev.kolektiv.kalendee.calendar.UpdateEvent
 import dev.kolektiv.kalendee.calendar.WeekWindow
 import dev.kolektiv.kalendee.calendar.colorFor
 import dev.kolektiv.kalendee.client.AuthResult
+import dev.kolektiv.kalendee.client.FriendsResponse
 import dev.kolektiv.kalendee.client.KalendeeApi
 import dev.kolektiv.kalendee.client.KalendeeApiException
 import dev.kolektiv.kalendee.client.KeyValueStore
 import dev.kolektiv.kalendee.client.NotificationOut
+import dev.kolektiv.kalendee.client.OrganizationSummaryOut
 import dev.kolektiv.kalendee.client.ServerAccount
 import dev.kolektiv.kalendee.client.ServerProfile
 import dev.kolektiv.kalendee.client.ServerRegistry
@@ -108,6 +110,14 @@ data class AppUiState(
     val accent: String = Accent.Default,
     val upcoming: List<AggregatedReminder> = emptyList(),
     val notifications: List<AggregatedNotification> = emptyList(),
+    /** Organizations per server id, from the last successful [AppState.refreshSocial]. */
+    val organizationsByServer: Map<String, List<OrganizationSummaryOut>> = emptyMap(),
+    /** Friends and incoming requests per server id. */
+    val friendsByServer: Map<String, FriendsResponse> = emptyMap(),
+    /** True while [AppState.refreshSocial] is fetching; kept separate from [loading]. */
+    val socialLoading: Boolean = false,
+    /** Per-server social fetch failures, keyed by server id. */
+    val socialErrors: Map<String, String> = emptyMap(),
 )
 
 /** Monday 00:00 through next Monday 00:00 in [zone], the default calendar range. */
@@ -127,6 +137,7 @@ fun serverNameFromUrl(baseUrl: String): String {
 
 private const val ThemeModeKey = "kalendee.prefs.themeMode"
 private const val DefaultViewKey = "kalendee.prefs.defaultView"
+private const val AccentKey = "kalendee.prefs.accent"
 
 private fun defaultDispatcher(): CoroutineDispatcher =
     runCatching { Dispatchers.Main.immediate }.getOrElse { Dispatchers.Default }
@@ -155,6 +166,7 @@ class AppState(
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
     private val mutex = Mutex()
+    private val socialMutex = Mutex()
     private val clients = mutableMapOf<String, KalendeeApi>()
     private val users = mutableMapOf<String, User>()
     private var loaded = false
@@ -254,6 +266,7 @@ class AppState(
             _state.update { it.copy(accent = accentFromUsers()) }
         }
         refreshServer(serverId, _state.value.currentRange)
+        runCatching { refreshSocial() }
     }
 
     /**
@@ -288,6 +301,7 @@ class AppState(
                     _state.update { it.copy(accent = accentFromUsers()) }
                 }
                 refreshServer(serverId, _state.value.currentRange)
+                runCatching { refreshSocial() }
             } else {
                 _state.update { it.copy(notice = "Account created. Sign in to continue.") }
             }
@@ -320,6 +334,9 @@ class AppState(
                 current.copy(
                     events = current.events.filterNot { it.serverId == serverId },
                     upcoming = current.upcoming.filterNot { it.serverId == serverId },
+                    organizationsByServer = current.organizationsByServer - serverId,
+                    friendsByServer = current.friendsByServer - serverId,
+                    socialErrors = current.socialErrors - serverId,
                     accent = accentFromUsers(),
                 )
             }
@@ -337,7 +354,29 @@ class AppState(
                     events = current.events.filterNot { it.serverId == serverId },
                     upcoming = current.upcoming.filterNot { it.serverId == serverId },
                     notifications = current.notifications.filterNot { it.serverId == serverId },
+                    organizationsByServer = current.organizationsByServer - serverId,
+                    friendsByServer = current.friendsByServer - serverId,
+                    socialErrors = current.socialErrors - serverId,
                     accent = accentFromUsers(),
+                )
+            }
+        }
+    }
+
+    /** Renames a configured server locally; only the device profile is touched. */
+    suspend fun renameServer(serverId: String, name: String) {
+        val trimmed = name.trim()
+        require(trimmed.isNotEmpty()) { "Server name must not be blank" }
+        mutex.withLock {
+            val account = registry.account(serverId) ?: return@withLock
+            val updated = account.copy(profile = account.profile.copy(name = trimmed))
+            registry.upsert(updated)
+            updateServer(serverId) { it.copy(account = updated) }
+            _state.update { current ->
+                current.copy(
+                    events = current.events.map { event ->
+                        if (event.serverId == serverId) event.copy(serverName = trimmed) else event
+                    },
                 )
             }
         }
@@ -481,11 +520,64 @@ class AppState(
 
     // endregion
 
+    // region social
+
+    /**
+     * Fetches organizations and friends for every enabled, signed-in server.
+     *
+     * Failures are recorded per server in [AppUiState.socialErrors] and never
+     * thrown. Concurrent calls are coalesced: a second caller returns while the
+     * first fetch is still running, so the sidebar cannot stack spinners.
+     */
+    suspend fun refreshSocial() {
+        if (!socialMutex.tryLock()) return
+        try {
+            val accounts = registry.accounts().filter { it.profile.enabled && it.token != null }
+            _state.update { it.copy(socialLoading = true) }
+            val organizations = mutableMapOf<String, List<OrganizationSummaryOut>>()
+            val friends = mutableMapOf<String, FriendsResponse>()
+            val errors = mutableMapOf<String, String>()
+            for (account in accounts) {
+                val serverId = account.profile.id
+                val api = clients[serverId] ?: ensureClient(account)
+                runCatching { api.organizations() }
+                    .onSuccess { organizations[serverId] = it }
+                    .onFailure { errors[serverId] = it.message ?: "Failed to load organizations" }
+                runCatching { api.friends() }
+                    .onSuccess { friends[serverId] = it }
+                    .onFailure { errors[serverId] = it.message ?: "Failed to load friends" }
+            }
+            val activeIds = accounts.map { it.profile.id }.toSet()
+            mutex.withLock {
+                _state.update { current ->
+                    current.copy(
+                        organizationsByServer =
+                            current.organizationsByServer.filterKeys { it in activeIds } + organizations,
+                        friendsByServer = current.friendsByServer.filterKeys { it in activeIds } + friends,
+                        socialErrors = errors,
+                    )
+                }
+            }
+        } finally {
+            _state.update { it.copy(socialLoading = false) }
+        }
+    }
+
+    // endregion
+
     // region preferences
 
     fun setThemeMode(mode: ThemeMode) {
         store.putString(ThemeModeKey, mode.name)
         _state.update { it.copy(themeMode = mode) }
+    }
+
+    /** Persists a local accent override; only ids in [Accent.ids] are accepted. */
+    fun setAccent(accent: String) {
+        val value = accent.trim().lowercase()
+        if (value !in Accent.ids) return
+        store.putString(AccentKey, value)
+        _state.update { it.copy(accent = value) }
     }
 
     fun setDefaultView(view: CalendarView) {
@@ -526,6 +618,8 @@ class AppState(
     }
 
     private fun accentFromUsers(): String {
+        // A local Appearance choice wins over the signed-in user's server accent.
+        store.getString(AccentKey)?.trim()?.lowercase()?.takeIf { it in Accent.ids }?.let { return it }
         for (server in _state.value.servers) {
             val user = users[server.account.profile.id] ?: continue
             return user.accent

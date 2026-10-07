@@ -18,14 +18,18 @@ import dev.kolektiv.kalendee.ui.components.calendar.assignColumns
 import dev.kolektiv.kalendee.ui.components.calendar.daysOf
 import dev.kolektiv.kalendee.ui.components.calendar.minutesOfDay
 import dev.kolektiv.kalendee.ui.components.calendar.minutesToInstant
+import dev.kolektiv.kalendee.ui.components.calendar.monthCells
+import dev.kolektiv.kalendee.ui.components.calendar.monthChipLabel
 import dev.kolektiv.kalendee.ui.components.calendar.placeDayEvents
 import dev.kolektiv.kalendee.ui.components.calendar.placementForDay
 import dev.kolektiv.kalendee.ui.components.calendar.roundDownToSlot
+import dev.kolektiv.kalendee.ui.components.calendar.shiftAnchor
 import dev.kolektiv.kalendee.ui.components.calendar.shiftDate
 import dev.kolektiv.kalendee.ui.screens.calendar.filterVisibleEvents
 import dev.kolektiv.kalendee.ui.screens.calendar.firstWritableCalendar
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -274,6 +278,112 @@ class CalendarLayoutTest {
         assertEquals(LocalDate(2027, 1, 31), shiftDate(LocalDate(2026, 12, 31), months = 1))
         assertEquals(LocalDate(2026, 10, 1), shiftDate(LocalDate(2026, 9, 30), days = 1))
         assertEquals(LocalDate(2025, 10, 6), shiftDate(Day, years = -1))
+    }
+
+    @Test
+    fun shiftAnchorMovesByViewPeriod() {
+        assertEquals(Day, shiftAnchor(CalendarView.Day, Day, 0))
+        assertEquals(LocalDate(2026, 10, 7), shiftAnchor(CalendarView.Day, Day, 1))
+        assertEquals(LocalDate(2026, 9, 29), shiftAnchor(CalendarView.Day, Day, -7))
+        assertEquals(LocalDate(2026, 10, 13), shiftAnchor(CalendarView.Week, Day, 1))
+        assertEquals(LocalDate(2026, 9, 29), shiftAnchor(CalendarView.Week, Day, -1))
+        assertEquals(LocalDate(2026, 11, 6), shiftAnchor(CalendarView.Month, Day, 1))
+        assertEquals(LocalDate(2026, 9, 6), shiftAnchor(CalendarView.Month, Day, -1))
+        assertEquals(LocalDate(2026, 2, 28), shiftAnchor(CalendarView.Month, LocalDate(2026, 1, 31), 1))
+    }
+
+    @Test
+    fun monthWindowCoversWholeWeeks() {
+        val window = ViewWindow(
+            view = CalendarView.Month,
+            date = LocalDate(2026, 10, 7),
+            timeZone = UTC,
+        )
+
+        val days = daysOf(window)
+
+        assertEquals(35, days.size)
+        assertEquals(LocalDate(2026, 9, 28), days.first())
+        assertEquals(LocalDate(2026, 11, 1), days.last())
+    }
+
+    @Test
+    fun monthCellsFlagInMonthAndToday() {
+        val window = ViewWindow(
+            view = CalendarView.Month,
+            date = LocalDate(2026, 10, 7),
+            timeZone = UTC,
+        )
+
+        val cells = monthCells(window, emptyList(), UTC, today = Day)
+
+        assertEquals(35, cells.size)
+        assertTrue(cells.first { it.date == Day }.isToday)
+        assertTrue(cells.first { it.date == LocalDate(2026, 10, 15) }.inMonth)
+        assertFalse(cells.first { it.date == LocalDate(2026, 9, 30) }.inMonth)
+        assertFalse(cells.first { it.date == LocalDate(2026, 11, 1) }.inMonth)
+    }
+
+    @Test
+    fun monthCellsCapChipsAndCountOverflow() {
+        val window = ViewWindow(
+            view = CalendarView.Month,
+            date = LocalDate(2026, 10, 7),
+            timeZone = UTC,
+        )
+        val events = listOf(
+            item("a", 9 * 60, 10 * 60),
+            item("b", 10 * 60, 11 * 60),
+            item("c", 11 * 60, 12 * 60),
+        )
+
+        val cell = monthCells(window, events, UTC).first { it.date == Day }
+
+        assertEquals(listOf("a", "b"), cell.events.map { it.eventId })
+        assertEquals(1, cell.overflow)
+    }
+
+    @Test
+    fun monthCellsSortAllDayFirstAndDoNotRepeatTimedEvents() {
+        val allDay = CalendarEventItem(
+            serverId = "s1",
+            eventId = "offsite",
+            title = "Offsite",
+            color = "primary",
+            start = instantAt(Day, 0),
+            end = instantAt(Day.plus(2, DateTimeUnit.DAY), 0),
+            allDay = true,
+        )
+        val timed = item("standup", 9 * 60, 10 * 60)
+        val window = ViewWindow(
+            view = CalendarView.Month,
+            date = LocalDate(2026, 10, 7),
+            timeZone = UTC,
+        )
+
+        val cells = monthCells(window, listOf(timed, allDay), UTC)
+        val firstDay = cells.first { it.date == Day }
+        val secondDay = cells.first { it.date == Day.plus(1, DateTimeUnit.DAY) }
+
+        assertEquals(listOf("offsite", "standup"), firstDay.events.map { it.eventId })
+        assertEquals(listOf("offsite"), secondDay.events.map { it.eventId })
+    }
+
+    @Test
+    fun monthChipLabelPrefixesTimedEvents() {
+        val timed = item("standup", 9 * 60, 10 * 60)
+        val allDay = CalendarEventItem(
+            serverId = "s1",
+            eventId = "offsite",
+            title = "Offsite",
+            color = "primary",
+            start = instantAt(Day, 0),
+            end = instantAt(Day.plus(1, DateTimeUnit.DAY), 0),
+            allDay = true,
+        )
+
+        assertEquals("09:00 standup", monthChipLabel(timed, UTC))
+        assertEquals("Offsite", monthChipLabel(allDay, UTC))
     }
 
     @Test

@@ -12,7 +12,7 @@ are usable previews. This page is explicit about what you can use right now.
 | Client | Status | How to use it |
 | --- | --- | --- |
 | **Web UI** | Complete | Open the server URL in any modern browser. |
-| **Android** (Compose) | Preview | Build and install the debug APK; shared calendar UI with multi-server accounts and local reminders. |
+| **Android** (Compose) | Preview | Build and install the debug APK; shared day/week/month calendar with drawer navigation, multi-server accounts, and local reminders. |
 | **iOS** (Compose + Swift entry) | Preview | Sideload the unsigned CI IPA with SideStore/AltStore; same shared UI, local notifications only. |
 | **Desktop** (Compose, JVM) | Preview | `./gradlew :app:desktopApp:run`; same shared UI, no OS notifications. |
 | **Third-party CalDAV clients** | Not supported | No CalDAV endpoint exists yet. |
@@ -34,15 +34,19 @@ sharing, public links, organizations, scheduling, invites, and notifications.
 ## The Compose clients
 
 The Android, iOS, and Desktop targets build the same Compose Multiplatform UI
-from `:app:shared`: a themeable calendar with week and day views, an event
-editor and detail view, multiple server accounts, login/register, settings, and
-a reminders list. Shared non-UI logic (JSON API client for `/api/v1`, cookie
+from `:app:shared`. It is built on a foundation-only daisyUI-style design
+system (`ui/design`, oklch brand tokens) with vendored Lucide icons
+(`ui/icons`) — no Material components or Material theme. The UI is a themeable
+calendar with swipeable day, week, and month pages (the month grid shows `+N`
+overflow), an event editor and detail view, multiple server accounts,
+login/register, settings, and an Upcoming list. A responsive shell shows a
+drawer with calendars, organizations, and friends; organizations and friends
+are read-only. Shared non-UI logic (JSON API client for `/api/v1`, cookie
 sessions, server registry, calendar models) lives in `:core`.
 
-They are usable previews, not complete clients. The honest gaps: no month view
-(the month option in the core calendar model falls back to a week grid), no
-CalDAV, no push notifications, and no offline mode. Reminders are scheduled
-locally only — Android uses exact alarms and re-arms on boot, iOS uses
+They are usable previews, not complete clients. The honest gaps: no CalDAV, no
+push notifications, and no offline mode. Reminders are scheduled locally only —
+Android uses exact alarms and re-arms on boot, iOS uses
 `UNUserNotificationCenter`, and Desktop has no OS notification integration (the
 scheduler is a no-op). Android debug APKs come from
 `./gradlew :app:androidApp:assembleDebug`; unsigned iOS IPAs come from the

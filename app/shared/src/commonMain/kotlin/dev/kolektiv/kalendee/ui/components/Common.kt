@@ -13,16 +13,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.kolektiv.kalendee.client.KalendeeApiException
+import dev.kolektiv.kalendee.ui.design.DText
+import dev.kolektiv.kalendee.ui.design.DType
+import dev.kolektiv.kalendee.ui.design.LocalKalendeeColors
+import dev.kolektiv.kalendee.ui.design.LocalKalendeeDimens
+import dev.kolektiv.kalendee.ui.design.components.DAlert
+import dev.kolektiv.kalendee.ui.design.components.DAlertColor
+import dev.kolektiv.kalendee.ui.design.components.DIconButton
+import dev.kolektiv.kalendee.ui.design.semibold
+import dev.kolektiv.kalendee.ui.icons.Lucide
 
 /** Phone-first scrollable column capped at 560dp and centered on wide screens. */
 @Composable
@@ -54,27 +59,41 @@ fun ScreenTitle(
     onBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+    val colors = LocalKalendeeColors.current
+    val dimens = LocalKalendeeDimens.current
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = dimens.space3)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start,
         ) {
             if (onBack != null) {
-                TextButton(onClick = onBack) { Text("Back") }
+                DIconButton(
+                    icon = Lucide.ArrowLeft,
+                    contentDescription = "Back",
+                    onClick = onBack,
+                    size = 36.dp,
+                    iconSize = 20.dp,
+                    modifier = Modifier.padding(end = dimens.space2),
+                )
             }
-            Text(
+            DText(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = DType.xl2.semibold(),
                 modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             actions()
         }
         if (!subtitle.isNullOrBlank()) {
-            Text(
+            DText(
                 text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = DType.sm,
+                color = colors.mutedContent,
+                modifier = Modifier.padding(top = dimens.space1),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -82,21 +101,23 @@ fun ScreenTitle(
 
 @Composable
 fun SectionTitle(title: String) {
-    Text(
+    val dimens = LocalKalendeeDimens.current
+    DText(
         text = title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+        style = DType.lg.semibold(),
+        modifier = Modifier.padding(top = dimens.space4, bottom = dimens.space2),
     )
 }
 
 @Composable
 fun InlineError(message: String?, modifier: Modifier = Modifier) {
     if (message.isNullOrBlank()) return
-    Text(
+    val colors = LocalKalendeeColors.current
+    DText(
         text = message,
-        color = MaterialTheme.colorScheme.error,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = modifier.padding(top = 8.dp),
+        style = DType.sm,
+        color = colors.error,
+        modifier = modifier.padding(top = LocalKalendeeDimens.current.space2),
     )
 }
 
@@ -107,22 +128,28 @@ fun Notice(
     modifier: Modifier = Modifier,
 ) {
     if (text.isNullOrBlank()) return
-    Card(
+    val colors = LocalKalendeeColors.current
+    DAlert(
+        color = DAlertColor.Info,
         modifier = modifier.fillMaxWidth().padding(bottom = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        icon = Lucide.AlertCircle,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DText(
                 text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = DType.sm,
+                color = colors.baseContent,
                 modifier = Modifier.weight(1f),
             )
             if (onDismiss != null) {
-                TextButton(onClick = onDismiss) { Text("Dismiss") }
+                DIconButton(
+                    icon = Lucide.X,
+                    contentDescription = "Dismiss",
+                    onClick = onDismiss,
+                    tint = colors.baseContent,
+                    size = 40.dp,
+                    iconSize = 16.dp,
+                )
             }
         }
     }

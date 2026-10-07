@@ -222,6 +222,16 @@ class KalendeeApi(
             authorize()
         }.decode()
 
+    suspend fun organizations(): List<OrganizationSummaryOut> =
+        client.get("$baseUrl/api/v1/organizations") {
+            authorize()
+        }.decode<OrganizationsResponse>().organizations
+
+    suspend fun friends(): FriendsResponse =
+        client.get("$baseUrl/api/v1/friends") {
+            authorize()
+        }.decode()
+
     private fun HttpRequestBuilder.authorize() {
         authToken()?.let { header(HttpHeaders.Cookie, it) }
     }

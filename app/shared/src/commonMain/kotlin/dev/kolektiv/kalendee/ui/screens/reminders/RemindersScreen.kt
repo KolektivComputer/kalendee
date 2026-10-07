@@ -2,9 +2,11 @@ package dev.kolektiv.kalendee.ui.screens.reminders
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,17 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,8 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.kolektiv.kalendee.notify.platformNotificationScheduler
@@ -49,8 +38,22 @@ import dev.kolektiv.kalendee.ui.components.InlineError
 import dev.kolektiv.kalendee.ui.components.PageColumn
 import dev.kolektiv.kalendee.ui.components.ScreenTitle
 import dev.kolektiv.kalendee.ui.components.messageOf
+import dev.kolektiv.kalendee.ui.design.DText
+import dev.kolektiv.kalendee.ui.design.DType
+import dev.kolektiv.kalendee.ui.design.LocalKalendeeColors
+import dev.kolektiv.kalendee.ui.design.components.DButton
+import dev.kolektiv.kalendee.ui.design.components.DButtonVariant
+import dev.kolektiv.kalendee.ui.design.components.DCard
+import dev.kolektiv.kalendee.ui.design.components.DIcon
+import dev.kolektiv.kalendee.ui.design.components.DListItem
+import dev.kolektiv.kalendee.ui.design.components.DListSection
+import dev.kolektiv.kalendee.ui.design.components.DSpinner
+import dev.kolektiv.kalendee.ui.design.components.DSwitch
+import dev.kolektiv.kalendee.ui.design.components.DTabs
+import dev.kolektiv.kalendee.ui.design.semibold
+import dev.kolektiv.kalendee.ui.design.rememberCalendarColorSpec
+import dev.kolektiv.kalendee.ui.icons.Lucide
 import dev.kolektiv.kalendee.ui.nav.Route
-import dev.kolektiv.kalendee.ui.theme.accentSpec
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.launch
@@ -58,8 +61,11 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 /**
- * Reminders and in-app notifications. Reminders fire as on-device notifications;
- * the in-app list mirrors the server notification feed (`/api/v1/notifications`).
+ * Upcoming reminders and in-app notifications.
+ *
+ * Reminders fire as on-device notifications; the notification list mirrors the
+ * server feed (`/api/v1/notifications`). Notification hrefs are never opened
+ * directly — only resolvable event ids navigate.
  */
 @Composable
 fun RemindersScreen(state: AppState) {
@@ -69,45 +75,56 @@ fun RemindersScreen(state: AppState) {
 
     PageColumn {
         ScreenTitle(
-            title = "Reminders",
+            title = "Upcoming",
             subtitle = when {
                 tab == 0 && ui.upcoming.isNotEmpty() -> "${ui.upcoming.size} upcoming"
-                tab == 1 && ui.notifications.isNotEmpty() -> if (unread > 0) "$unread unread" else "All read"
+                tab == 1 && ui.notifications.isNotEmpty() ->
+                    if (unread > 0) "$unread unread" else "All read"
+
                 else -> null
             },
         )
-        TabRow(selectedTabIndex = tab) {
-            Tab(
-                selected = tab == 0,
-                onClick = { tab = 0 },
-                text = { Text("Reminders") },
-            )
-            Tab(
-                selected = tab == 1,
-                onClick = { tab = 1 },
-                text = { Text(if (unread > 0) "Notifications ($unread)" else "Notifications") },
-            )
-        }
+        DTabs(
+            items = listOf(
+                "Upcoming",
+                if (unread > 0) "Notifications ($unread)" else "Notifications",
+            ),
+            selectedIndex = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(12.dp))
-        if (tab == 0) {
-            RemindersTab(state, ui)
-        } else {
-            NotificationsTab(state, ui)
+        when (tab) {
+            0 -> UpcomingTab(state, ui)
+            else -> NotificationsTab(state, ui)
         }
     }
 }
 
 @Composable
-private fun RemindersTab(state: AppState, ui: AppUiState) {
+private fun UpcomingTab(state: AppState, ui: AppUiState) {
     val scope = rememberCoroutineScope()
     var refreshing by remember { mutableStateOf(false) }
+    var rescheduling by remember { mutableStateOf(false) }
     var refreshError by remember { mutableStateOf<String?>(null) }
     var permission by remember { mutableStateOf<Boolean?>(null) }
     var requesting by remember { mutableStateOf(false) }
     var hideInactive by remember { mutableStateOf(false) }
+    val colors = LocalKalendeeColors.current
 
     val zone = remember { TimeZone.currentSystemDefault() }
     val today = Clock.System.now().toLocalDateTime(zone).date
+
+    fun refresh(force: Boolean) {
+        if (refreshing || rescheduling) return
+        if (force) rescheduling = true else refreshing = true
+        refreshError = null
+        scope.launch {
+            runCatching { state.refreshReminders(forceReschedule = force) }
+                .onFailure { refreshError = messageOf(it) }
+            if (force) rescheduling = false else refreshing = false
+        }
+    }
 
     PermissionCard(
         permission = permission,
@@ -123,45 +140,44 @@ private fun RemindersTab(state: AppState, ui: AppUiState) {
     )
 
     Spacer(Modifier.height(16.dp))
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            onClick = {
-                if (refreshing) return@OutlinedButton
-                refreshing = true
-                refreshError = null
-                state.scope.launch {
-                    runCatching { state.refreshReminders(forceReschedule = true) }
-                        .onFailure { refreshError = messageOf(it) }
-                    refreshing = false
-                }
-            },
-            enabled = !refreshing,
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DButton(
+            onClick = { refresh(force = false) },
+            loading = refreshing,
+            variant = DButtonVariant.Secondary,
         ) {
-            Text("Refresh")
+            DText("Refresh")
         }
-        if (refreshing) {
-            Spacer(Modifier.width(12.dp))
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        DButton(
+            onClick = { refresh(force = true) },
+            loading = rescheduling,
+            variant = DButtonVariant.Ghost,
+        ) {
+            DText("Reschedule")
         }
     }
-    Spacer(Modifier.height(4.dp))
-    Text(
+    Spacer(Modifier.height(8.dp))
+    DText(
         text = "${scheduledReminderCount(ui.upcoming)} of $ReminderLimit notification(s) scheduled",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = DType.xs,
+        color = colors.mutedContent,
     )
     InlineError(refreshError)
 
     Row(
-        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
+        DText(
             text = "Hide signed-out servers",
-            style = MaterialTheme.typography.bodyMedium,
+            style = DType.sm,
             modifier = Modifier.weight(1f),
         )
-        Switch(checked = hideInactive, onCheckedChange = { hideInactive = it })
+        DSwitch(checked = hideInactive, onCheckedChange = { hideInactive = it })
     }
 
     val visible = if (hideInactive) {
@@ -171,25 +187,31 @@ private fun RemindersTab(state: AppState, ui: AppUiState) {
     }
     val days = groupRemindersByDay(visible, zone, today)
     if (days.isEmpty()) {
-        Spacer(Modifier.height(4.dp))
-        ReminderEmptyCard(state)
+        Spacer(Modifier.height(12.dp))
+        EmptyCard(
+            title = "No upcoming reminders",
+            body = "Reminders come from the reminder settings on your calendar events. Add a " +
+                "reminder to an event on your server and it will show up here.",
+        ) {
+            DButton(
+                onClick = { state.navigator.replaceRoot(Route.Settings) },
+                variant = DButtonVariant.Secondary,
+                ) {
+                DText("Open Settings")
+            }
+        }
     } else {
         days.forEach { day ->
-            Text(
-                text = day.label,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
-            )
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    day.reminders.forEachIndexed { index, reminder ->
-                        if (index > 0) HorizontalDivider()
+            DListSection(label = day.label) {
+                DCard(contentPadding = PaddingValues(0.dp)) {
+                    day.reminders.forEach { reminder ->
                         ReminderRow(
                             reminder = reminder,
                             zone = zone,
                             onOpen = {
-                                state.navigator.push(Route.EventDetail(reminder.serverId, reminder.eventId))
+                                state.navigator.push(
+                                    Route.EventDetail(reminder.serverId, reminder.eventId),
+                                )
                             },
                         )
                     }
@@ -201,117 +223,79 @@ private fun RemindersTab(state: AppState, ui: AppUiState) {
 
 @Composable
 private fun PermissionCard(permission: Boolean?, requesting: Boolean, onRequest: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Reminders as notifications", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Upcoming reminders are delivered as on-device notifications so they can " +
-                    "fire while the app is closed. Allow notifications to keep them coming.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val colors = LocalKalendeeColors.current
+    DCard(modifier = Modifier.fillMaxWidth()) {
+        DText(text = "Reminders as notifications", style = DType.base.semibold())
+        Spacer(Modifier.height(4.dp))
+        DText(
+            text = "Upcoming reminders are delivered as on-device notifications so they can fire " +
+                "while the app is closed. Allow notifications to keep them coming.",
+            style = DType.sm,
+            color = colors.mutedContent,
+        )
+        Spacer(Modifier.height(12.dp))
+        DButton(
+            onClick = onRequest,
+            loading = requesting,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            DText("Enable notifications")
+        }
+        permission?.let { granted ->
+            Spacer(Modifier.height(8.dp))
+            DText(
+                text = if (granted) {
+                    "Notifications are enabled on this device."
+                } else {
+                    "Notifications are not available on this device. You can still see every " +
+                        "reminder below."
+                },
+                style = DType.xs,
+                color = if (granted) colors.success else colors.mutedContent,
             )
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = onRequest,
-                enabled = !requesting,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (requesting) "Checking…" else "Enable notifications")
-            }
-            permission?.let { granted ->
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = if (granted) {
-                        "Notifications are enabled on this device."
-                    } else {
-                        "Notifications are not available on this device. You can still see every " +
-                            "reminder below."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (granted) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
         }
     }
 }
 
 @Composable
 private fun ReminderRow(reminder: AggregatedReminder, zone: TimeZone, onOpen: () -> Unit) {
+    val colors = LocalKalendeeColors.current
+    val spec = rememberCalendarColorSpec(reminder.calendarColor, reminder.calendarId)
     val canOpen = reminder.eventId.isNotBlank()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (canOpen) Modifier.clickable(onClick = onOpen) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = reminderTime(reminder.at, zone),
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.width(52.dp),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = reminder.title.ifBlank { "Untitled event" },
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
+    DListItem(
+        title = reminder.title.ifBlank { "Untitled event" },
+        subtitle = "${reminder.serverName} • ${reminder.calendarName}",
+        leading = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CalendarColorDot(reminder.calendarColor)
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "${reminder.serverName} • ${reminder.calendarName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(spec.fill),
+                )
+                Spacer(Modifier.width(8.dp))
+                DText(
+                    text = reminderTime(reminder.at, zone),
+                    style = DType.sm.semibold(),
+                    modifier = Modifier.width(44.dp),
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun CalendarColorDot(raw: String) {
-    val spec = accentSpec(raw)
-    val onDarkBackground = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    Box(
-        modifier = Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(if (onDarkBackground) spec.dark else spec.light),
+        },
+        trailing = if (canOpen) {
+            {
+                DIcon(icon = Lucide.ChevronRight, tint = colors.mutedContent, size = 16.dp)
+            }
+        } else {
+            null
+        },
+        onClick = if (canOpen) onOpen else null,
     )
 }
 
 @Composable
-private fun ReminderEmptyCard(state: AppState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("No upcoming reminders", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Reminders come from the reminder settings on your calendar events. Add a " +
-                    "reminder to an event on your server and it will show up here.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(12.dp))
-            TextButton(onClick = { state.navigator.replaceRoot(Route.Settings) }) {
-                Text("Open Settings")
-            }
-        }
-    }
-}
-
-@Composable
 private fun NotificationsTab(state: AppState, ui: AppUiState) {
+    val scope = rememberCoroutineScope()
+    val colors = LocalKalendeeColors.current
     var refreshing by remember { mutableStateOf(false) }
     var loadedOnce by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -320,7 +304,7 @@ private fun NotificationsTab(state: AppState, ui: AppUiState) {
         if (refreshing) return
         refreshing = true
         error = null
-        state.scope.launch {
+        scope.launch {
             runCatching { state.refreshNotifications() }
                 .onFailure { error = messageOf(it) }
             refreshing = false
@@ -335,20 +319,24 @@ private fun NotificationsTab(state: AppState, ui: AppUiState) {
     }
 
     val unread = unreadNotificationCount(ui.notifications)
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(onClick = { refresh() }, enabled = !refreshing) {
-            Text("Refresh")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        DButton(
+            onClick = { refresh() },
+            loading = refreshing,
+            variant = DButtonVariant.Secondary,
+        ) {
+            DText("Refresh")
         }
-        if (refreshing) {
-            Spacer(Modifier.width(12.dp))
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        }
-        Spacer(Modifier.weight(1f))
-        TextButton(
+        DButton(
             onClick = { state.scope.launch { runCatching { state.markAllNotificationsRead() } } },
             enabled = !refreshing && unread > 0,
+            variant = DButtonVariant.Ghost,
         ) {
-            Text("Mark all read")
+            DText("Mark all read")
         }
     }
     InlineError(error)
@@ -356,35 +344,27 @@ private fun NotificationsTab(state: AppState, ui: AppUiState) {
     val items = sortNotificationsNewestFirst(ui.notifications)
     when {
         items.isEmpty() && refreshing -> {
-            Spacer(Modifier.height(16.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                 horizontalArrangement = Arrangement.Center,
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                DSpinner(size = 24.dp)
             }
         }
 
         items.isEmpty() -> {
-            Spacer(Modifier.height(4.dp))
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("No notifications yet", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Invites, RSVPs, and other activity from your servers will show up here.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            Spacer(Modifier.height(12.dp))
+            EmptyCard(
+                title = "No notifications yet",
+                body = "Invites, RSVPs, and other activity from your servers will show up here.",
+            )
         }
 
         else -> {
             val now = Clock.System.now()
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(12.dp))
             items.forEach { item ->
-                NotificationRow(
+                NotificationCard(
                     item = item,
                     now = now,
                     onClick = {
@@ -404,51 +384,82 @@ private fun NotificationsTab(state: AppState, ui: AppUiState) {
 }
 
 @Composable
-private fun NotificationRow(item: AggregatedNotification, now: Instant, onClick: () -> Unit) {
+private fun NotificationCard(
+    item: AggregatedNotification,
+    now: Instant,
+    onClick: () -> Unit,
+) {
+    val colors = LocalKalendeeColors.current
     val notification = item.notification
     val unread = !notification.read
-    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (unread) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(
+    DCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            if (unread) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 6.dp, end = 8.dp)
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(colors.primary),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                DText(
                     text = notification.title.ifBlank { "Notification" },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
+                    style = if (unread) DType.base.semibold() else DType.base,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
-            }
-            notification.body?.takeIf { it.isNotBlank() }?.let { body ->
+                notification.body?.takeIf { it.isNotBlank() }?.let { body ->
+                    Spacer(Modifier.height(2.dp))
+                    DText(
+                        text = body,
+                        style = DType.sm,
+                        color = colors.mutedContent,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                DText(
+                    text = "${item.serverName} • ${notificationTimestamp(notification.createdAt, now)}",
+                    style = DType.xs,
+                    color = colors.mutedContent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "${item.serverName} • ${notificationTimestamp(notification.createdAt, now)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyCard(
+    title: String,
+    body: String,
+    action: (@Composable () -> Unit)? = null,
+) {
+    val colors = LocalKalendeeColors.current
+    DCard(modifier = Modifier.fillMaxWidth()) {
+        DText(text = title, style = DType.base.semibold())
+        Spacer(Modifier.height(4.dp))
+        DText(
+            text = body,
+            style = DType.sm,
+            color = colors.mutedContent,
+        )
+        if (action != null) {
+            Spacer(Modifier.height(12.dp))
+            action()
         }
     }
 }

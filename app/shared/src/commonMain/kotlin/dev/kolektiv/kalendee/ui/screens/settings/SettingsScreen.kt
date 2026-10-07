@@ -1,169 +1,97 @@
 package dev.kolektiv.kalendee.ui.screens.settings
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.kolektiv.kalendee.calendar.CalendarView
-import dev.kolektiv.kalendee.notify.platformNotificationScheduler
+import dev.kolektiv.kalendee.getPlatform
 import dev.kolektiv.kalendee.ui.AppState
 import dev.kolektiv.kalendee.ui.ThemeMode
 import dev.kolektiv.kalendee.ui.components.Notice
 import dev.kolektiv.kalendee.ui.components.PageColumn
 import dev.kolektiv.kalendee.ui.components.ScreenTitle
-import dev.kolektiv.kalendee.ui.components.SectionTitle
+import dev.kolektiv.kalendee.ui.design.DText
+import dev.kolektiv.kalendee.ui.design.DType
+import dev.kolektiv.kalendee.ui.design.LocalKalendeeColors
+import dev.kolektiv.kalendee.ui.design.components.DIcon
+import dev.kolektiv.kalendee.ui.design.components.DListSection
+import dev.kolektiv.kalendee.ui.design.components.DListItem
+import dev.kolektiv.kalendee.ui.icons.Lucide
 import dev.kolektiv.kalendee.ui.nav.Route
-import kotlinx.coroutines.launch
 
-private const val AppVersion = "0.1.0"
+internal const val AppVersion = "0.1.0"
 
+/** Settings hub; each row opens a focused sub-page instead of one mega page. */
 @Composable
 fun SettingsScreen(state: AppState) {
     val ui by state.state.collectAsState()
-    val scope = rememberCoroutineScope()
-    var permission by remember { mutableStateOf<Boolean?>(null) }
-    var notificationsMessage by remember { mutableStateOf<String?>(null) }
-    var requesting by remember { mutableStateOf(false) }
-    var rescheduling by remember { mutableStateOf(false) }
+    val stack by state.navigator.stack.collectAsState()
+    val colors = LocalKalendeeColors.current
 
     PageColumn {
-        ScreenTitle(title = "Settings")
+        ScreenTitle(
+            title = "Settings",
+            onBack = if (stack.size > 1) ({ state.navigator.pop() }) else null,
+        )
         Notice(text = ui.notice, onDismiss = state::clearNotice)
 
-        SectionTitle("Appearance")
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                ThemeMode.entries.forEach { mode ->
-                    SelectableRow(
-                        label = when (mode) {
-                            ThemeMode.System -> "System"
-                            ThemeMode.Light -> "Light"
-                            ThemeMode.Dark -> "Dark"
-                        },
-                        selected = ui.themeMode == mode,
-                        onClick = { state.setThemeMode(mode) },
-                    )
-                }
-            }
+        DListSection(label = "Account") {
+            DListItem(
+                title = "Servers",
+                subtitle = when {
+                    ui.servers.isEmpty() -> "No servers connected"
+                    ui.servers.size == 1 -> ui.servers.single().account.profile.name
+                    else -> "${ui.servers.size} configured"
+                },
+                leading = { DIcon(icon = Lucide.Building2, size = 18.dp) },
+                trailing = { DIcon(icon = Lucide.ChevronRight, tint = colors.mutedContent, size = 18.dp) },
+                onClick = { state.navigator.push(Route.Servers) },
+            )
         }
 
-        SectionTitle("Default view")
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                listOf(CalendarView.Week, CalendarView.Day).forEach { view ->
-                    SelectableRow(
-                        label = view.name,
-                        selected = ui.defaultView == view,
-                        onClick = { state.setDefaultView(view) },
-                    )
-                }
-            }
+        DListSection(label = "Preferences") {
+            DListItem(
+                title = "Appearance",
+                subtitle = "${ui.accent.replaceFirstChar { it.uppercaseChar() }} • ${themeLabel(ui.themeMode)}",
+                leading = { DIcon(icon = Lucide.Palette, size = 18.dp) },
+                trailing = { DIcon(icon = Lucide.ChevronRight, tint = colors.mutedContent, size = 18.dp) },
+                onClick = { state.navigator.push(Route.Appearance) },
+            )
+            DListItem(
+                title = "Behavior",
+                subtitle = "${ui.defaultView.name} view • local reminders",
+                leading = { DIcon(icon = Lucide.SlidersHorizontal, size = 18.dp) },
+                trailing = { DIcon(icon = Lucide.ChevronRight, tint = colors.mutedContent, size = 18.dp) },
+                onClick = { state.navigator.push(Route.Behavior) },
+            )
         }
 
-        SectionTitle("Notifications")
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                val status = when (permission) {
-                    true -> "Permission granted"
-                    false -> "Permission not granted"
-                    null -> "Permission not requested yet"
-                }
-                Text(status, style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        requesting = true
-                        scope.launch {
-                            permission = runCatching {
-                                platformNotificationScheduler().requestPermission()
-                            }.getOrDefault(false)
-                            requesting = false
-                        }
-                    },
-                    enabled = !requesting,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (requesting) "Requesting…" else "Request permission")
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = {
-                        rescheduling = true
-                        notificationsMessage = null
-                        scope.launch {
-                            runCatching { state.refreshReminders(forceReschedule = true) }
-                            notificationsMessage =
-                                "Scheduled ${state.state.value.upcoming.size} reminder(s)."
-                            rescheduling = false
-                        }
-                    },
-                    enabled = !rescheduling,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (rescheduling) "Rescheduling…" else "Reschedule reminders")
-                }
-                notificationsMessage?.let { message ->
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+        DListSection(label = "About") {
+            DListItem(
+                title = "Kalendee",
+                subtitle = "Version $AppVersion",
+                leading = { DIcon(icon = Lucide.Calendar, size = 18.dp) },
+            )
+            DListItem(
+                title = "Platform",
+                subtitle = getPlatform().name,
+                leading = { DIcon(icon = Lucide.Monitor, size = 18.dp) },
+            )
         }
 
-        SectionTitle("Servers")
-        Button(
-            onClick = { state.navigator.push(Route.Servers) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Manage servers")
-        }
-
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = "Kalendee $AppVersion",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
+        DText(
             text = "Self-hosted calendar client",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = DType.xs,
+            color = colors.mutedContent,
+            modifier = Modifier.padding(top = 24.dp, start = 4.dp),
         )
     }
 }
 
-@Composable
-private fun SelectableRow(label: String, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-    }
+internal fun themeLabel(mode: ThemeMode): String = when (mode) {
+    ThemeMode.System -> "System"
+    ThemeMode.Light -> "Light"
+    ThemeMode.Dark -> "Dark"
 }

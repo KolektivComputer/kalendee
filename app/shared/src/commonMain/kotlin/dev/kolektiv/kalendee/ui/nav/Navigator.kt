@@ -4,7 +4,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Every screen the app can show. Wave 3 fills in the event routes. */
+/**
+ * Every screen the app can show.
+ *
+ * [EventEditor]/[EventDetail] signatures are frozen: the calendar package depends
+ * on them. `Reminders` was renamed to `Upcoming`; the two are not aliased so the
+ * route list stays exhaustive and explicit.
+ */
 sealed interface Route {
     data object Servers : Route
 
@@ -14,13 +20,21 @@ sealed interface Route {
 
     data object Calendar : Route
 
-    data object Reminders : Route
+    data object Upcoming : Route
 
     data object Settings : Route
 
     data class EventEditor(val serverId: String, val calendarId: String, val eventId: String? = null) : Route
 
     data class EventDetail(val serverId: String, val eventId: String) : Route
+
+    data class ServerDetail(val serverId: String) : Route
+
+    data object Appearance : Route
+
+    data object Behavior : Route
+
+    data object AddServer : Route
 }
 
 /**

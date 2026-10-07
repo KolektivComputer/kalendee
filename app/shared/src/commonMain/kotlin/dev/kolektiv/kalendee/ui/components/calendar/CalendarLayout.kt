@@ -9,6 +9,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.atTime
+import kotlinx.datetime.daysUntil
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
@@ -119,10 +120,29 @@ fun minutesToInstant(day: LocalDate, minutes: Int, zone: TimeZone): Instant {
 fun roundDownToSlot(minutes: Int, slotMinutes: Int = DefaultSlotMinutes): Int =
     (minutes.coerceIn(0, MinutesPerDay - slotMinutes) / slotMinutes) * slotMinutes
 
-/** Days covered by [window]: one for Day view, seven for Week view. */
-fun daysOf(window: ViewWindow): List<LocalDate> = when (window.view) {
-    CalendarView.Day -> listOf(window.gridStart)
-    else -> List(7) { window.gridStart.plus(it, DateTimeUnit.DAY) }
+/**
+ * Days covered by [window]: one for Day view, seven for Week view and every cell of the
+ * month grid for Month view (whole weeks between [ViewWindow.gridStart] and
+ * [ViewWindow.gridEnd], typically 4–6 rows).
+ */
+fun daysOf(window: ViewWindow): List<LocalDate> {
+    val count = when (window.view) {
+        CalendarView.Day -> 1
+        CalendarView.Week -> 7
+        CalendarView.Month -> window.gridStart.daysUntil(window.gridEnd)
+    }
+    return List(count) { window.gridStart.plus(it, DateTimeUnit.DAY) }
+}
+
+/**
+ * Anchor date [steps] periods away from [anchor] for [view]: one day, one week or one
+ * month at a time, matching [ViewWindow.previous]/[ViewWindow.next] semantics. Month
+ * steps clamp the day of month (Jan 31 + 1 month is Feb 28/29).
+ */
+fun shiftAnchor(view: CalendarView, anchor: LocalDate, steps: Int): LocalDate = when (view) {
+    CalendarView.Day -> anchor.plus(steps, DateTimeUnit.DAY)
+    CalendarView.Week -> anchor.plus(steps * 7, DateTimeUnit.DAY)
+    CalendarView.Month -> shiftDate(anchor, months = steps)
 }
 
 /**
@@ -153,6 +173,8 @@ data class CalendarEventItem(
     val end: Instant,
     val allDay: Boolean,
     val status: EventStatus = EventStatus.CONFIRMED,
+    /** Calendar id, used to resolve a fallback color when [color] is blank. */
+    val calendarId: String = "",
 )
 
 /** [event] with its column and vertical placement inside [day]. */

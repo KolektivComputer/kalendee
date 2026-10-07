@@ -1,103 +1,115 @@
 package dev.kolektiv.kalendee.ui.components.calendar
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.kolektiv.kalendee.calendar.CalendarView
 import dev.kolektiv.kalendee.ui.ServerUi
-import dev.kolektiv.kalendee.ui.components.InlineError
-import dev.kolektiv.kalendee.ui.theme.accentSpec
+import dev.kolektiv.kalendee.ui.design.DText
+import dev.kolektiv.kalendee.ui.design.DType
+import dev.kolektiv.kalendee.ui.design.LocalKalendeeColors
+import dev.kolektiv.kalendee.ui.design.LocalKalendeeDimens
+import dev.kolektiv.kalendee.ui.design.medium
+import dev.kolektiv.kalendee.ui.design.rememberCalendarColorSpec
+import dev.kolektiv.kalendee.ui.design.semibold
+import dev.kolektiv.kalendee.ui.design.components.DAlert
+import dev.kolektiv.kalendee.ui.design.components.DAlertColor
+import dev.kolektiv.kalendee.ui.design.components.DButton
+import dev.kolektiv.kalendee.ui.design.components.DButtonSize
+import dev.kolektiv.kalendee.ui.design.components.DButtonVariant
+import dev.kolektiv.kalendee.ui.design.components.DCheckbox
+import dev.kolektiv.kalendee.ui.design.components.DIconButton
+import dev.kolektiv.kalendee.ui.design.components.DSpinner
+import dev.kolektiv.kalendee.ui.design.components.DTabs
+import dev.kolektiv.kalendee.ui.icons.Lucide
 
 /**
- * Period header: range label from the core view window, prev/next/Today controls, a
- * Week/Day toggle and the calendar filter entry point.
+ * Period header: the core view label, a Today action, refresh/filter icon buttons and
+ * the Day/Week/Month switcher. There are deliberately no prev/next buttons — changing
+ * periods is a swipe on the pager behind this toolbar.
  */
 @Composable
 fun CalendarToolbar(
     label: String,
     view: CalendarView,
     filtersOpen: Boolean,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
+    loading: Boolean,
     onToday: () -> Unit,
-    onViewSelected: (CalendarView) -> Unit,
+    onSelectView: (CalendarView) -> Unit,
     onToggleFilters: () -> Unit,
+    onRefresh: () -> Unit,
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onPrevious) { Text("Prev") }
-                Text(
+    val colors = LocalKalendeeColors.current
+    val dimens = LocalKalendeeDimens.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.base200)
+            .padding(horizontal = dimens.space3, vertical = dimens.space2),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DButton(
+                onClick = onToday,
+                variant = DButtonVariant.Ghost,
+                size = DButtonSize.Sm,
+            ) {
+                DText(text = "Today", style = DType.sm.medium())
+            }
+            Row(
+                modifier = Modifier.weight(1f).padding(horizontal = dimens.space2),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                DText(
                     text = label,
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
+                    style = DType.lg.semibold(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onNext) { Text("Next") }
+                if (loading) {
+                    Spacer(modifier = Modifier.width(dimens.space2))
+                    DSpinner(size = 14.dp)
+                }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onToday) { Text("Today") }
-                Spacer(modifier = Modifier.weight(1f))
-                ViewToggleButton(
-                    text = "Week",
-                    selected = view == CalendarView.Week,
-                    onClick = { onViewSelected(CalendarView.Week) },
-                )
-                ViewToggleButton(
-                    text = "Day",
-                    selected = view == CalendarView.Day,
-                    onClick = { onViewSelected(CalendarView.Day) },
-                )
-                ViewToggleButton(
-                    text = "Calendars",
-                    selected = filtersOpen,
-                    onClick = onToggleFilters,
-                )
-            }
+            DIconButton(
+                icon = Lucide.RefreshCw,
+                contentDescription = "Refresh",
+                onClick = onRefresh,
+                tint = colors.mutedContent,
+                iconSize = 18.dp,
+            )
+            DIconButton(
+                icon = Lucide.SlidersHorizontal,
+                contentDescription = "Calendars",
+                onClick = onToggleFilters,
+                tint = if (filtersOpen) colors.primary else colors.mutedContent,
+                iconSize = 18.dp,
+            )
         }
+        DTabs(
+            items = ViewLabels,
+            selectedIndex = view.ordinal,
+            onSelect = { index -> onSelectView(CalendarView.entries[index]) },
+            modifier = Modifier.fillMaxWidth().padding(top = dimens.space2),
+        )
     }
 }
 
-@Composable
-private fun ViewToggleButton(text: String, selected: Boolean, onClick: () -> Unit) {
-    TextButton(
-        onClick = onClick,
-        colors = ButtonDefaults.textButtonColors(
-            contentColor = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-        ),
-    ) {
-        Text(text)
-    }
-}
+private val ViewLabels = listOf("Day", "Week", "Month")
 
 /** Checkbox list of calendars grouped by server, wired to per-calendar visibility. */
 @Composable
@@ -105,84 +117,113 @@ fun CalendarFilterPanel(
     servers: List<ServerUi>,
     onToggleVisibility: (serverId: String, calendarId: String, visible: Boolean) -> Unit,
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            val signedIn = servers.filter { it.signedIn }
-            if (signedIn.isEmpty()) {
-                Text(
-                    text = "No signed-in servers yet.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val colors = LocalKalendeeColors.current
+    val dimens = LocalKalendeeDimens.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.base200)
+            .padding(horizontal = dimens.space4, vertical = dimens.space2),
+        verticalArrangement = Arrangement.spacedBy(dimens.space1),
+    ) {
+        val signedIn = servers.filter { it.signedIn }
+        if (signedIn.isEmpty()) {
+            DText(text = "No signed-in servers yet.", style = DType.sm, color = colors.mutedContent)
+            return@Column
+        }
+        signedIn.forEach { server ->
+            DText(
+                text = server.account.profile.name.uppercase(),
+                style = DType.sectionLabel,
+                color = colors.mutedContent,
+                modifier = Modifier.padding(top = dimens.space2),
+            )
+            if (server.calendars.isEmpty()) {
+                DText(
+                    text = "No calendars loaded yet.",
+                    style = DType.sm,
+                    color = colors.mutedContent,
                 )
-                return@Column
-            }
-            signedIn.forEach { server ->
-                Text(
-                    text = server.account.profile.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
-                )
-                if (server.calendars.isEmpty()) {
-                    Text(
-                        text = "No calendars loaded yet.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            } else {
+                server.calendars.forEach { calendar ->
+                    CalendarToggleRow(
+                        color = calendar.calendar.color,
+                        calendarId = calendar.calendar.id.value,
+                        name = calendar.calendar.displayName,
+                        visible = calendar.visible,
+                        onToggle = { visible ->
+                            onToggleVisibility(
+                                server.account.profile.id,
+                                calendar.calendar.id.value,
+                                visible,
+                            )
+                        },
                     )
-                } else {
-                    server.calendars.forEach { calendar ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onToggleVisibility(
-                                        server.account.profile.id,
-                                        calendar.calendar.id.value,
-                                        !calendar.visible,
-                                    )
-                                }
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = calendar.visible,
-                                onCheckedChange = { checked ->
-                                    onToggleVisibility(
-                                        server.account.profile.id,
-                                        calendar.calendar.id.value,
-                                        checked,
-                                    )
-                                },
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(accentSpec(calendar.calendar.color).light),
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = calendar.calendar.displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
                 }
             }
         }
     }
 }
 
-/** Non-blocking error lines for servers that failed their last refresh. */
 @Composable
-fun ServerIssues(servers: List<ServerUi>) {
+private fun CalendarToggleRow(
+    color: String,
+    calendarId: String,
+    name: String,
+    visible: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    val colors = LocalKalendeeColors.current
+    val dimens = LocalKalendeeDimens.current
+    val spec = rememberCalendarColorSpec(color, calendarId)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(dimens.fieldShape)
+            .calendarClickable { onToggle(!visible) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DCheckbox(checked = visible, onCheckedChange = onToggle)
+        Spacer(modifier = Modifier.width(dimens.space3))
+        Spacer(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(spec.fill),
+        )
+        Spacer(modifier = Modifier.width(dimens.space2))
+        DText(
+            text = name,
+            style = DType.sm,
+            color = colors.baseContent,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** Non-blocking error surface for servers that failed their last refresh. */
+@Composable
+fun ServerIssues(servers: List<ServerUi>, modifier: Modifier = Modifier) {
+    val dimens = LocalKalendeeDimens.current
     val issues = servers.filter { it.signedIn && !it.error.isNullOrBlank() }
     if (issues.isEmpty()) return
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = dimens.space4, vertical = dimens.space1),
+        verticalArrangement = Arrangement.spacedBy(dimens.space2),
+    ) {
         issues.forEach { server ->
-            InlineError("${server.account.profile.name}: ${server.error}")
+            DAlert(
+                color = DAlertColor.Error,
+                icon = Lucide.AlertCircle,
+                title = server.account.profile.name,
+            ) {
+                DText(text = server.error.orEmpty(), style = DType.sm)
+            }
         }
     }
 }

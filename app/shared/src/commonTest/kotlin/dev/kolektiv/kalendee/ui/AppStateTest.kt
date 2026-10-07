@@ -37,7 +37,7 @@ private val jsonHeaders: Headers =
 
 private val DISCOVERY_JSON = """{"service":"kalendee","api":"/api/v1"}"""
 
-private fun userJson(username: String = "alice"): String = """
+private fun userJson(username: String = "alice", accent: String = "primary"): String = """
     {
       "id": "$USER_ID",
       "username": "$username",
@@ -46,10 +46,52 @@ private fun userJson(username: String = "alice"): String = """
       "emailVerified": false,
       "avatarVersion": null,
       "timeZone": "UTC",
-      "accent": "primary",
+      "accent": "$accent",
       "admin": false,
       "publicAccess": "inherit",
       "createdAt": "2026-01-01T00:00:00Z"
+    }
+""".trimIndent()
+
+private val ORGANIZATIONS_JSON = """
+    {
+      "organizations": [
+        {
+          "id": "org-1",
+          "slug": "acme",
+          "displayName": "Acme Inc",
+          "description": null,
+          "visibility": "private",
+          "avatarUrl": null,
+          "role": "member",
+          "memberCount": 4
+        }
+      ]
+    }
+""".trimIndent()
+
+private val FRIENDS_JSON = """
+    {
+      "friends": [
+        {
+          "userId": "user-2",
+          "username": "bob",
+          "displayName": "Bob",
+          "avatarUrl": null
+        }
+      ],
+      "incoming": [
+        {
+          "id": "req-1",
+          "user": {
+            "userId": "user-3",
+            "username": "carol",
+            "displayName": "Carol",
+            "avatarUrl": null
+          },
+          "createdAt": "2026-10-01T00:00:00Z"
+        }
+      ]
     }
 """.trimIndent()
 
@@ -342,5 +384,74 @@ class AppStateTest {
         assertEquals("cal.example.com", serverNameFromUrl("https://cal.example.com/base"))
         assertEquals("cal.example.com", serverNameFromUrl("https://cal.example.com"))
         assertEquals("not a url", serverNameFromUrl("not a url"))
+    }
+
+    @Test
+    fun refreshSocialAggregatesPerServerAndToleratesFailures() = runTest {
+        val store = TestStore()
+        val registry = ServerRegistry(store)
+        registry.upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        registry.upsert(signedInAccount("b", "Beta", "https://b.example"))
+
+        val good = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/organizations" -> respond(ORGANIZATIONS_JSON, HttpStatusCode.OK, jsonHeaders)
+                "/api/v1/friends" -> respond(FRIENDS_JSON, HttpStatusCode.OK, jsonHeaders)
+                else -> respond("{}", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val bad = MockEngine { throw IllegalStateException("connection refused") }
+        val state = testState(store) { account ->
+            if (account.profile.id == "a") good else bad
+        }
+
+        state.loadPersisted()
+        state.refreshSocial()
+
+        val ui = state.state.value
+        assertFalse(ui.socialLoading)
+        assertEquals("Acme Inc", ui.organizationsByServer.getValue("a").single().displayName)
+        assertEquals("bob", ui.friendsByServer.getValue("a").friends.single().username)
+        assertEquals("carol", ui.friendsByServer.getValue("a").incoming.single().user.username)
+        assertNull(ui.organizationsByServer["b"])
+        assertNotNull(ui.socialErrors["b"])
+    }
+
+    @Test
+    fun localAccentOverrideWinsOverServerAccent() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/auth/me" -> respond(userJson(accent = "secondary"), HttpStatusCode.OK, jsonHeaders)
+                "/api/v1/calendars" -> respond("[]", HttpStatusCode.OK, jsonHeaders)
+                "/api/v1/events" -> respond("[]", HttpStatusCode.OK, jsonHeaders)
+                else -> respond("{}", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val state = testState(store) { engine }
+
+        state.setAccent("success")
+        state.setAccent("not-a-color")
+        assertEquals("success", store.values["kalendee.prefs.accent"])
+        assertEquals("success", state.state.value.accent)
+
+        state.loadPersisted()
+        state.refreshAll()
+        assertEquals("success", state.state.value.accent)
+    }
+
+    @Test
+    fun renameServerPersistsAndUpdatesTheUi() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val state = testState(store) { neverEngine }
+
+        state.loadPersisted()
+        state.renameServer("a", "  Renamed  ")
+
+        assertEquals("Renamed", state.state.value.servers.single().account.profile.name)
+        assertEquals("Renamed", ServerRegistry(store).account("a")?.profile?.name)
+        assertFailsWith<IllegalArgumentException> { state.renameServer("a", "   ") }
     }
 }

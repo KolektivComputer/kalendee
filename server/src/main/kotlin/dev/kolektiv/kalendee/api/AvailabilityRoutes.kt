@@ -42,7 +42,7 @@ fun Route.availabilityRoutes(service: AvailabilityService) {
             call.respond(
                 service.slots(
                     calendarId = call.calendarId(),
-                    userId = call.user().id,
+                    userId = call.currentUser()?.id,
                     fromDate = call.dateParam("from"),
                     toDate = call.dateParam("to"),
                 ).toOut(),

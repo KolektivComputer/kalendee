@@ -5,6 +5,8 @@ import dev.kolektiv.kalendee.admin.AdminCalendarService
 import dev.kolektiv.kalendee.admin.AdminUserService
 import dev.kolektiv.kalendee.admin.AdminUserUpdate
 import dev.kolektiv.kalendee.auth.AuthService
+import dev.kolektiv.kalendee.auth.EmailVerificationPolicy
+import dev.kolektiv.kalendee.auth.PublicAccessMode
 import dev.kolektiv.kalendee.auth.User
 import dev.kolektiv.kalendee.auth.UserId
 import dev.kolektiv.kalendee.calendar.CalendarException
@@ -29,6 +31,49 @@ fun Route.adminRoutes(
     adminCalendars: AdminCalendarService,
 ) {
     route("/admin") {
+        get("/settings") {
+            call.requireAdminUser()
+            call.respond(call.adminSettings(auth))
+        }
+        patch("/settings") {
+            call.requireAdminUser()
+            val body = call.receive<UpdateAdminSettingsBody>()
+            val policy = body.emailVerification?.let { raw ->
+                try {
+                    EmailVerificationPolicy.parse(raw)
+                } catch (_: IllegalStateException) {
+                    call.respond(
+                        HttpStatusCode.UnprocessableEntity,
+                        ErrorBody(error = "invalid", message = "policy must be optional, soft, or required"),
+                    )
+                    return@patch
+                }
+            }
+            val mode = body.publicAccess?.let { raw ->
+                val parsed = try {
+                    PublicAccessMode.parse(raw)
+                } catch (cause: CalendarException.Invalid) {
+                    call.respond(
+                        HttpStatusCode.UnprocessableEntity,
+                        ErrorBody(error = "invalid", message = cause.message ?: "invalid mode"),
+                    )
+                    return@patch
+                }
+                if (parsed == PublicAccessMode.INHERIT) {
+                    call.respond(
+                        HttpStatusCode.UnprocessableEntity,
+                        ErrorBody(error = "invalid", message = "public access must be public or signed_in"),
+                    )
+                    return@patch
+                }
+                parsed
+            }
+            body.registrationOpen?.let { auth.setRegistrationOpen(it) }
+            body.oauthRegistrationOpen?.let { auth.setOAuthRegistrationOpen(it) }
+            policy?.let { auth.setEmailVerificationPolicy(it) }
+            mode?.let { auth.setPublicAccess(it) }
+            call.respond(call.adminSettings(auth))
+        }
         get("/users") {
             call.requireAdminUser()
             call.respond(auth.listUsers().map { it.toAdminOut(groups) })
@@ -120,6 +165,18 @@ private fun ApplicationCall.requireAdminUser(): User {
     val user = user()
     if (!user.admin) throw CalendarException.Forbidden("admin only")
     return user
+}
+
+private suspend fun ApplicationCall.adminSettings(auth: AuthService): AdminSettingsOut = AdminSettingsOut(
+    registrationOpen = auth.isRegistrationOpen(),
+    oauthRegistrationOpen = auth.isOAuthRegistrationOpen(),
+    emailVerification = auth.emailVerificationPolicy().wire,
+    publicAccess = instancePublicAccessWire(auth.publicAccess()),
+)
+
+private fun instancePublicAccessWire(raw: String): String {
+    val mode = PublicAccessMode.fromWire(raw) ?: PublicAccessMode.PUBLIC
+    return if (mode == PublicAccessMode.INHERIT) PublicAccessMode.PUBLIC.wire else mode.wire
 }
 
 private fun ApplicationCall.adminUserId(): UserId =

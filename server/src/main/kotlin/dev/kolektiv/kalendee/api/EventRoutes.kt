@@ -1,6 +1,7 @@
 package dev.kolektiv.kalendee.api
 
 import dev.kolektiv.kalendee.calendar.CalendarException
+import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.CreateEvent
 import dev.kolektiv.kalendee.calendar.InstantRange
@@ -54,6 +55,20 @@ fun Route.eventRoutes(store: CalendarStore) {
         ) ?: throw CalendarException.NotFound("event not found")
         call.respondEvent(updated)
     }
+    post("/events/{id}/move") {
+        val body = call.receive<MoveEventBody>()
+        if (body.scope != "following") {
+            throw CalendarException.Invalid("scope must be following")
+        }
+        val events = store.moveEvent(
+            call.eventId(),
+            call.user().id,
+            CalendarId.parse(body.calendarId),
+            occurrenceStart = body.from?.let(::parseFromInstant),
+            expectedEtag = body.etag,
+        ) ?: throw CalendarException.NotFound("event not found")
+        call.respond(MoveEventResponse(events))
+    }
     delete("/events/{id}") {
         if (!store.deleteEvent(call.eventId(), call.user().id, call.ifMatchOrNull())) {
             throw CalendarException.NotFound("event not found")
@@ -78,4 +93,10 @@ private fun parseInstant(value: String): Instant = try {
     Instant.parse(value)
 } catch (_: IllegalArgumentException) {
     throw CalendarException.Invalid("invalid instant: $value")
+}
+
+private fun parseFromInstant(value: String): Instant = try {
+    parseInstant(value)
+} catch (_: CalendarException.Invalid) {
+    throw CalendarException.Invalid("invalid from: $value")
 }

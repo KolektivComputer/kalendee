@@ -8,6 +8,7 @@ import dev.kolektiv.kalendee.client.ServerAccount
 import dev.kolektiv.kalendee.client.ServerProfile
 import dev.kolektiv.kalendee.client.ServerRegistry
 import dev.kolektiv.kalendee.ui.nav.Route
+import dev.kolektiv.kalendee.ui.screens.friends.friendRelationshipLabel
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -90,6 +91,99 @@ private val FRIENDS_JSON = """
             "avatarUrl": null
           },
           "createdAt": "2026-10-01T00:00:00Z"
+        }
+      ]
+    }
+""".trimIndent()
+
+private val FRIENDS_AFTER_ACCEPT_JSON = """
+    {
+      "friends": [
+        {
+          "userId": "user-2",
+          "username": "bob",
+          "displayName": "Bob",
+          "avatarUrl": null
+        },
+        {
+          "userId": "user-3",
+          "username": "carol",
+          "displayName": "Carol",
+          "avatarUrl": null
+        }
+      ],
+      "incoming": []
+    }
+""".trimIndent()
+
+private val FRIENDS_BOB_ONLY_JSON = """
+    {
+      "friends": [
+        {
+          "userId": "user-2",
+          "username": "bob",
+          "displayName": "Bob",
+          "avatarUrl": null
+        }
+      ],
+      "incoming": []
+    }
+""".trimIndent()
+
+private val FRIENDS_CAROL_ONLY_JSON = """
+    {
+      "friends": [
+        {
+          "userId": "user-3",
+          "username": "carol",
+          "displayName": "Carol",
+          "avatarUrl": null
+        }
+      ],
+      "incoming": []
+    }
+""".trimIndent()
+
+private val FRIEND_REQUEST_ACCEPTED_JSON = """
+    {
+      "status": "accepted",
+      "friend": {
+        "userId": "user-3",
+        "username": "carol",
+        "displayName": "Carol",
+        "avatarUrl": null
+      }
+    }
+""".trimIndent()
+
+private val FRIEND_REQUEST_PENDING_JSON = """
+    {
+      "status": "pending",
+      "friend": {
+        "userId": "user-4",
+        "username": "dave",
+        "displayName": "Dave",
+        "avatarUrl": null
+      }
+    }
+""".trimIndent()
+
+private val SEARCH_RESULTS_JSON = """
+    {
+      "results": [
+        {
+          "userId": "user-4",
+          "username": "dave",
+          "displayName": "Dave",
+          "avatarUrl": null,
+          "relationship": "none"
+        },
+        {
+          "userId": "user-3",
+          "username": "carol",
+          "displayName": "Carol",
+          "avatarUrl": null,
+          "relationship": "pending_in"
         }
       ]
     }
@@ -415,6 +509,175 @@ class AppStateTest {
         assertEquals("carol", ui.friendsByServer.getValue("a").incoming.single().user.username)
         assertNull(ui.organizationsByServer["b"])
         assertNotNull(ui.socialErrors["b"])
+    }
+
+    @Test
+    fun acceptFriendRequestReplacesFriendsForServer() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val engine = MockEngine { request ->
+            assertEquals("/api/v1/friends/requests/req-1/accept", request.url.encodedPath)
+            assertEquals("POST", request.method.value)
+            respond(FRIENDS_AFTER_ACCEPT_JSON, HttpStatusCode.OK, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+        state.loadPersisted()
+
+        state.acceptFriendRequest("a", "req-1")
+
+        val friends = state.state.value.friendsByServer.getValue("a")
+        assertEquals(2, friends.friends.size)
+        assertTrue(friends.incoming.isEmpty())
+        assertTrue(state.state.value.socialErrors.isEmpty())
+    }
+
+    @Test
+    fun declineFriendRequestReplacesFriendsForServer() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val engine = MockEngine { request ->
+            assertEquals("/api/v1/friends/requests/req-1/decline", request.url.encodedPath)
+            assertEquals("POST", request.method.value)
+            respond(FRIENDS_BOB_ONLY_JSON, HttpStatusCode.OK, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+        state.loadPersisted()
+
+        state.declineFriendRequest("a", "req-1")
+
+        val friends = state.state.value.friendsByServer.getValue("a")
+        assertEquals("bob", friends.friends.single().username)
+        assertTrue(friends.incoming.isEmpty())
+    }
+
+    @Test
+    fun removeFriendReplacesFriendsForServer() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val engine = MockEngine { request ->
+            assertEquals("/api/v1/friends/user-2", request.url.encodedPath)
+            assertEquals("DELETE", request.method.value)
+            respond(FRIENDS_CAROL_ONLY_JSON, HttpStatusCode.OK, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+        state.loadPersisted()
+
+        state.removeFriend("a", "user-2")
+
+        val friends = state.state.value.friendsByServer.getValue("a")
+        assertEquals("carol", friends.friends.single().username)
+    }
+
+    @Test
+    fun friendMutationFailureIsRecordedPerServerAndRethrown() = runTest {
+        val store = TestStore()
+        val registry = ServerRegistry(store)
+        registry.upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        registry.upsert(signedInAccount("b", "Beta", "https://b.example"))
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/organizations" -> respond("""{"organizations":[]}""", HttpStatusCode.OK, jsonHeaders)
+                "/api/v1/friends" -> respond(FRIENDS_JSON, HttpStatusCode.OK, jsonHeaders)
+                "/api/v1/friends/requests/req-1/accept" -> throw IllegalStateException("connection refused")
+                else -> respond("{}", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val state = testState(store) { engine }
+        state.loadPersisted()
+        state.refreshSocial()
+
+        assertFailsWith<IllegalStateException> { state.acceptFriendRequest("a", "req-1") }
+
+        val ui = state.state.value
+        assertEquals("carol", ui.friendsByServer.getValue("a").incoming.single().user.username)
+        assertEquals("connection refused", ui.socialErrors["a"])
+        assertNull(ui.socialErrors["b"])
+    }
+
+    @Test
+    fun sendFriendRequestAutoAcceptRefreshesFriends() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val paths = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            paths += request.url.encodedPath
+            when (request.url.encodedPath) {
+                "/api/v1/friends/requests" -> respond(
+                    FRIEND_REQUEST_ACCEPTED_JSON,
+                    HttpStatusCode.Created,
+                    jsonHeaders,
+                )
+
+                "/api/v1/friends" -> respond(FRIENDS_AFTER_ACCEPT_JSON, HttpStatusCode.OK, jsonHeaders)
+                else -> respond("{}", HttpStatusCode.NotFound, jsonHeaders)
+            }
+        }
+        val state = testState(store) { engine }
+        state.loadPersisted()
+
+        val out = state.sendFriendRequest("a", "carol")
+
+        assertEquals("accepted", out.status)
+        assertEquals("carol", out.friend?.username)
+        assertEquals(2, state.state.value.friendsByServer.getValue("a").friends.size)
+        assertEquals(listOf("/api/v1/friends/requests", "/api/v1/friends"), paths)
+    }
+
+    @Test
+    fun sendFriendRequestPendingLeavesFriendsMapUntouched() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val engine = MockEngine { request ->
+            assertEquals("/api/v1/friends/requests", request.url.encodedPath)
+            respond(FRIEND_REQUEST_PENDING_JSON, HttpStatusCode.Created, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+        state.loadPersisted()
+
+        val out = state.sendFriendRequest("a", "dave")
+
+        assertEquals("pending", out.status)
+        assertNull(state.state.value.friendsByServer["a"])
+    }
+
+    @Test
+    fun searchUsersPassesTrimmedQueryAndReturnsResults() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        var seenQuery: String? = null
+        val engine = MockEngine { request ->
+            assertEquals("/api/v1/users/search", request.url.encodedPath)
+            seenQuery = request.url.parameters["q"]
+            respond(SEARCH_RESULTS_JSON, HttpStatusCode.OK, jsonHeaders)
+        }
+        val state = testState(store) { engine }
+        state.loadPersisted()
+
+        val results = state.searchUsers("a", "  car  ")
+
+        assertEquals("car", seenQuery)
+        assertEquals(2, results.size)
+        assertEquals("dave", results.first().username)
+        assertEquals("pending_in", results.last().relationship)
+    }
+
+    @Test
+    fun blankSearchReturnsEmptyWithoutARequest() = runTest {
+        val store = TestStore()
+        ServerRegistry(store).upsert(signedInAccount("a", "Alpha", "https://a.example"))
+        val state = testState(store) { neverEngine }
+        state.loadPersisted()
+
+        assertTrue(state.searchUsers("a", "   ").isEmpty())
+    }
+
+    @Test
+    fun friendRelationshipLabelsMapServerValues() {
+        assertEquals("Requested", friendRelationshipLabel("pending_out"))
+        assertEquals("Respond in requests", friendRelationshipLabel("pending_in"))
+        assertEquals("Friends", friendRelationshipLabel("friends"))
+        assertNull(friendRelationshipLabel("none"))
+        assertNull(friendRelationshipLabel("something-else"))
     }
 
     @Test

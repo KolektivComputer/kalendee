@@ -11,6 +11,7 @@ import dev.kolektiv.kalendee.calendar.UpdateEvent
 import dev.kolektiv.kalendee.calendar.WeekWindow
 import dev.kolektiv.kalendee.calendar.colorFor
 import dev.kolektiv.kalendee.client.AuthResult
+import dev.kolektiv.kalendee.client.FriendRequestOut
 import dev.kolektiv.kalendee.client.FriendsResponse
 import dev.kolektiv.kalendee.client.KalendeeApi
 import dev.kolektiv.kalendee.client.KalendeeApiException
@@ -21,6 +22,7 @@ import dev.kolektiv.kalendee.client.ServerAccount
 import dev.kolektiv.kalendee.client.ServerProfile
 import dev.kolektiv.kalendee.client.ServerRegistry
 import dev.kolektiv.kalendee.client.TaggedEvent
+import dev.kolektiv.kalendee.client.UserSearchResultOut
 import dev.kolektiv.kalendee.client.normalizeBaseUrl
 import dev.kolektiv.kalendee.client.randomId
 import dev.kolektiv.kalendee.notify.platformNotificationScheduler
@@ -138,6 +140,9 @@ fun serverNameFromUrl(baseUrl: String): String {
 private const val ThemeModeKey = "kalendee.prefs.themeMode"
 private const val DefaultViewKey = "kalendee.prefs.defaultView"
 private const val AccentKey = "kalendee.prefs.accent"
+
+/** [FriendRequestOut.status] when the server accepted because the other side had already asked. */
+const val FriendRequestAcceptedStatus = "accepted"
 
 private fun defaultDispatcher(): CoroutineDispatcher =
     runCatching { Dispatchers.Main.immediate }.getOrElse { Dispatchers.Default }
@@ -561,6 +566,90 @@ class AppState(
         } finally {
             _state.update { it.copy(socialLoading = false) }
         }
+    }
+
+    /**
+     * Accepts an incoming request and replaces the cached friends for [serverId]
+     * with the server's response. Failures are recorded per server in
+     * [AppUiState.socialErrors] and rethrown so callers can show an inline error.
+     */
+    suspend fun acceptFriendRequest(serverId: String, requestId: String) {
+        mutateFriends(serverId) { it.acceptFriendRequest(requestId) }
+    }
+
+    /** Declines an incoming request; mirrors [acceptFriendRequest] error handling. */
+    suspend fun declineFriendRequest(serverId: String, requestId: String) {
+        mutateFriends(serverId) { it.declineFriendRequest(requestId) }
+    }
+
+    /** Removes an accepted friend; mirrors [acceptFriendRequest] error handling. */
+    suspend fun removeFriend(serverId: String, userId: String) {
+        mutateFriends(serverId) { it.removeFriend(userId) }
+    }
+
+    /**
+     * Sends a friend request on [serverId]. When the server auto-accepts it (the
+     * target had already requested us) the friends map is refreshed from the
+     * server before returning. Failures are recorded per server and rethrown.
+     */
+    suspend fun sendFriendRequest(serverId: String, usernameOrEmail: String): FriendRequestOut {
+        val api = clientFor(serverId)
+        try {
+            val result = api.sendFriendRequest(usernameOrEmail)
+            val friends = if (result.status == FriendRequestAcceptedStatus) {
+                runCatching { api.friends() }.getOrNull()
+            } else {
+                null
+            }
+            applyFriendState(serverId, friends)
+            return result
+        } catch (e: Exception) {
+            recordSocialError(serverId, e)
+            throw e
+        }
+    }
+
+    /**
+     * Searches users on [serverId]; blank queries short-circuit without a request.
+     * Failures are thrown for the caller to render; cached social state is untouched.
+     */
+    suspend fun searchUsers(serverId: String, query: String): List<UserSearchResultOut> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        return clientFor(serverId).searchUsers(trimmed)
+    }
+
+    /** Runs a friends mutation, storing the returned list and clearing the server's error. */
+    private suspend fun mutateFriends(
+        serverId: String,
+        block: suspend (KalendeeApi) -> FriendsResponse,
+    ) {
+        val api = clientFor(serverId)
+        try {
+            applyFriendState(serverId, block(api))
+        } catch (e: Exception) {
+            recordSocialError(serverId, e)
+            throw e
+        }
+    }
+
+    /** Replaces [AppUiState.friendsByServer] for [serverId] when [friends] is non-null. */
+    private fun applyFriendState(serverId: String, friends: FriendsResponse?) {
+        _state.update { current ->
+            current.copy(
+                friendsByServer = if (friends != null) {
+                    current.friendsByServer + (serverId to friends)
+                } else {
+                    current.friendsByServer
+                },
+                socialErrors = current.socialErrors - serverId,
+            )
+        }
+    }
+
+    private fun recordSocialError(serverId: String, error: Throwable) {
+        val message = error.message?.takeIf { it.isNotBlank() } ?: "Friend action failed"
+        _state.update { it.copy(socialErrors = it.socialErrors + (serverId to message)) }
     }
 
     // endregion

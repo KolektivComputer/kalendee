@@ -5,6 +5,7 @@ import dev.kolektiv.kalendee.auth.AuthSettings
 import dev.kolektiv.kalendee.auth.EmailVerificationService
 import dev.kolektiv.kalendee.auth.LoginAlertService
 import dev.kolektiv.kalendee.auth.LoginUser
+import dev.kolektiv.kalendee.auth.PublicAccessMode
 import dev.kolektiv.kalendee.auth.RegisterUser
 import dev.kolektiv.kalendee.auth.UpdateUser
 import dev.kolektiv.kalendee.calendar.CalendarException
@@ -20,6 +21,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 
 fun Route.authPublicRoutes(
     authService: AuthService,
@@ -67,6 +69,21 @@ fun Route.authSessionRoutes(authService: AuthService, settings: AuthSettings) {
     }
     patch("/auth/me") {
         val updated = authService.updateUser(call.user().id, call.receive<UpdateUser>())
+            ?: throw CalendarException.NotFound("user not found")
+        call.respond(updated)
+    }
+    put("/auth/me/public-access") {
+        val body = call.receive<PublicAccessBody>()
+        val mode = try {
+            PublicAccessMode.parse(body.mode)
+        } catch (cause: CalendarException.Invalid) {
+            call.respond(
+                HttpStatusCode.UnprocessableEntity,
+                ErrorBody(error = "invalid", message = cause.message ?: "invalid mode"),
+            )
+            return@put
+        }
+        val updated = authService.setUserPublicAccess(call.user().id, mode)
             ?: throw CalendarException.NotFound("user not found")
         call.respond(updated)
     }

@@ -40,8 +40,9 @@ system (`ui/design`, oklch brand tokens) with vendored Lucide icons
 calendar with swipeable day, week, and month pages (the month grid shows `+N`
 overflow), an event editor and detail view, multiple server accounts,
 login/register, settings, and an Upcoming list. A responsive shell shows a
-drawer with calendars, organizations, and friends; organizations and friends
-are read-only. Shared non-UI logic (JSON API client for `/api/v1`, cookie
+drawer with calendars, organizations, and friends; organizations are read-only,
+while friendships can be searched, requested, accepted/declined, and removed.
+Shared non-UI logic (JSON API client for `/api/v1`, cookie
 sessions, server registry, calendar models) lives in `:core`.
 
 They are usable previews, not complete clients. The honest gaps: no CalDAV, no

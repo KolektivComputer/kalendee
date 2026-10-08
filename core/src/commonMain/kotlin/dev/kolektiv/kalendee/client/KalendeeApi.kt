@@ -232,6 +232,227 @@ class KalendeeApi(
             authorize()
         }.decode()
 
+    suspend fun sendFriendRequest(usernameOrEmail: String): FriendRequestOut =
+        client.post("$baseUrl/api/v1/friends/requests") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(SendFriendRequestBody(username = usernameOrEmail))
+        }.decode()
+
+    suspend fun acceptFriendRequest(requestId: String): FriendsResponse =
+        client.post("$baseUrl/api/v1/friends/requests/$requestId/accept") {
+            authorize()
+        }.decode()
+
+    suspend fun declineFriendRequest(requestId: String): FriendsResponse =
+        client.post("$baseUrl/api/v1/friends/requests/$requestId/decline") {
+            authorize()
+        }.decode()
+
+    suspend fun removeFriend(userId: String): FriendsResponse =
+        client.delete("$baseUrl/api/v1/friends/$userId") {
+            authorize()
+        }.decode()
+
+    suspend fun searchUsers(query: String, limit: Int = 10): List<UserSearchResultOut> =
+        client.get("$baseUrl/api/v1/users/search") {
+            authorize()
+            parameter("q", query)
+            parameter("limit", limit.toString())
+        }.decode<UserSearchResponse>().results
+
+    suspend fun createOrganization(command: CreateOrganizationBody): OrganizationSummaryOut =
+        client.post("$baseUrl/api/v1/organizations") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(command)
+        }.decode()
+
+    suspend fun updateOrganization(id: String, command: UpdateOrganizationBody): OrganizationSummaryOut =
+        client.patch("$baseUrl/api/v1/organizations/$id") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(command)
+        }.decode()
+
+    suspend fun deleteOrganization(id: String) {
+        client.delete("$baseUrl/api/v1/organizations/$id") {
+            authorize()
+        }.ensureSuccess()
+    }
+
+    suspend fun organizationMembers(id: String): OrganizationMembersResponse =
+        client.get("$baseUrl/api/v1/organizations/$id/members") {
+            authorize()
+        }.decode()
+
+    suspend fun organizationInvitations(id: String): OrganizationInvitationsResponse =
+        client.get("$baseUrl/api/v1/organizations/$id/invitations") {
+            authorize()
+        }.decode()
+
+    suspend fun inviteToOrganization(id: String, identifier: String, role: String = "member"): OrganizationInvitationOut =
+        client.post("$baseUrl/api/v1/organizations/$id/invitations") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(InviteToOrganizationBody(identifier = identifier, role = role))
+        }.decode()
+
+    suspend fun revokeOrganizationInvitation(id: String, invitationId: String): OrganizationInvitationOut =
+        client.delete("$baseUrl/api/v1/organizations/$id/invitations/$invitationId") {
+            authorize()
+        }.decode()
+
+    suspend fun setOrganizationMemberRole(id: String, userId: String, role: String): OrganizationMemberOut =
+        client.patch("$baseUrl/api/v1/organizations/$id/members/$userId") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(TeamRoleBody(role = role))
+        }.decode()
+
+    suspend fun removeOrganizationMember(id: String, userId: String) {
+        client.delete("$baseUrl/api/v1/organizations/$id/members/$userId") {
+            authorize()
+        }.ensureSuccess()
+    }
+
+    suspend fun acceptOrganizationInvitation(invitationId: String? = null, token: String? = null): InvitationAcceptedResponse =
+        client.post("$baseUrl/api/v1/organizations/invitations/accept") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(AcceptInvitationBody(invitationId = invitationId, token = token))
+        }.decode()
+
+    suspend fun declineOrganizationInvitation(invitationId: String) {
+        client.post("$baseUrl/api/v1/organizations/invitations/decline") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(DeclineInvitationBody(invitationId = invitationId))
+        }.ensureSuccess()
+    }
+
+    suspend fun organizationTeams(id: String): OrganizationTeamsResponse =
+        client.get("$baseUrl/api/v1/organizations/$id/teams") {
+            authorize()
+        }.decode()
+
+    suspend fun createOrganizationTeam(id: String, command: CreateOrganizationTeamBody): OrganizationTeamOut =
+        client.post("$baseUrl/api/v1/organizations/$id/teams") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(command)
+        }.decode()
+
+    suspend fun updateOrganizationTeam(teamId: String, command: UpdateOrganizationTeamBody): OrganizationTeamOut =
+        client.patch("$baseUrl/api/v1/teams/$teamId") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(command)
+        }.decode()
+
+    suspend fun deleteOrganizationTeam(teamId: String) {
+        client.delete("$baseUrl/api/v1/teams/$teamId") {
+            authorize()
+        }.ensureSuccess()
+    }
+
+    suspend fun addOrganizationTeamMember(teamId: String, userId: String): OrganizationTeamMemberOut =
+        client.post("$baseUrl/api/v1/teams/$teamId/members") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(TeamMemberBody(userId = userId))
+        }.decode()
+
+    suspend fun removeOrganizationTeamMember(teamId: String, userId: String) {
+        client.delete("$baseUrl/api/v1/teams/$teamId/members/$userId") {
+            authorize()
+        }.ensureSuccess()
+    }
+
+    suspend fun setOrganizationTeamMemberRole(teamId: String, userId: String, role: String): OrganizationTeamMemberOut =
+        client.patch("$baseUrl/api/v1/teams/$teamId/members/$userId") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(TeamRoleBody(role = role))
+        }.decode()
+
+    suspend fun grantCalendarToTeam(teamId: String, calendarId: String, permission: String): OrganizationTeamGrantOut =
+        client.put("$baseUrl/api/v1/teams/$teamId/calendars/$calendarId") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(TeamGrantBody(permission = permission))
+        }.decode()
+
+    suspend fun revokeCalendarFromTeam(teamId: String, calendarId: String) {
+        client.delete("$baseUrl/api/v1/teams/$teamId/calendars/$calendarId") {
+            authorize()
+        }.ensureSuccess()
+    }
+
+    suspend fun transferCalendar(calendarId: String, organizationId: String?, teamId: String?): Calendar =
+        client.put("$baseUrl/api/v1/calendars/$calendarId/transfer") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(TransferCalendarBody(organizationId = organizationId, teamId = teamId))
+        }.decode()
+
+    suspend fun moveEvent(
+        eventId: String,
+        calendarId: String,
+        from: String? = null,
+        scope: String = "following",
+        etag: String? = null,
+    ): List<Event> =
+        client.post("$baseUrl/api/v1/events/$eventId/move") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(MoveEventBody(calendarId = calendarId, scope = scope, from = from, etag = etag))
+        }.decode<MoveEventResponse>().events
+
+    suspend fun setMyPublicAccess(mode: String): User =
+        client.put("$baseUrl/api/v1/auth/me/public-access") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(PublicAccessBody(mode = mode))
+        }.decode()
+
+    suspend fun oauthProviders(): List<OAuthProviderOut> =
+        client.get("$baseUrl/api/v1/oauth/providers")
+            .decode<OAuthProvidersResponse>().providers
+
+    suspend fun connectionProviders(): List<OAuthProviderOut> =
+        client.get("$baseUrl/api/v1/connections/providers") {
+            authorize()
+        }.decode<OAuthProvidersResponse>().providers
+
+    suspend fun connections(): List<ConnectionOut> =
+        client.get("$baseUrl/api/v1/connections") {
+            authorize()
+        }.decode<ConnectionsResponse>().connections
+
+    suspend fun disconnectConnection(id: String) {
+        client.delete("$baseUrl/api/v1/connections/$id") {
+            authorize()
+        }.ensureSuccess()
+    }
+
+    suspend fun syncConnection(id: String): SyncConnectionOut =
+        client.post("$baseUrl/api/v1/connections/$id/sync") {
+            authorize()
+        }.decode()
+
+    suspend fun adminSettings(): AdminSettingsOut =
+        client.get("$baseUrl/api/v1/admin/settings") {
+            authorize()
+        }.decode()
+
+    suspend fun updateAdminSettings(body: AdminSettingsBody): AdminSettingsOut =
+        client.patch("$baseUrl/api/v1/admin/settings") {
+            authorize()
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.decode()
+
     private fun HttpRequestBuilder.authorize() {
         authToken()?.let { header(HttpHeaders.Cookie, it) }
     }

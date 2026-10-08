@@ -3,6 +3,8 @@ package dev.kolektiv.kalendee.api
 import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.CreateCalendar
+import dev.kolektiv.kalendee.calendar.OrganizationId
+import dev.kolektiv.kalendee.calendar.OrganizationTeamId
 import dev.kolektiv.kalendee.calendar.UpdateCalendar
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -45,6 +47,22 @@ fun Route.calendarRoutes(store: CalendarStore) {
                 call.calendarId(),
                 call.user().id,
                 call.receive<HiddenBody>().hidden,
+            ) ?: throw CalendarException.NotFound("calendar not found")
+            call.respond(updated)
+        }
+        put("/{id}/transfer") {
+            val body = call.receive<TransferCalendarBody>()
+            val updated = store.transferCalendar(
+                call.calendarId(),
+                call.user().id,
+                body.organizationId
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let(OrganizationId::parse),
+                body.teamId
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let(OrganizationTeamId::parse),
             ) ?: throw CalendarException.NotFound("calendar not found")
             call.respond(updated)
         }

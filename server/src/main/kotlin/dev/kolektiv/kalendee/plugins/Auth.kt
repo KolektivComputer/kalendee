@@ -7,11 +7,13 @@ import dev.kolektiv.kalendee.auth.User
 import dev.kolektiv.kalendee.auth.sessionToken
 import dev.kolektiv.kalendee.calendar.CalendarException
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.call
 import io.ktor.server.plugins.origin
+import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
 import io.ktor.util.AttributeKey
 
@@ -31,16 +33,24 @@ fun Application.configureSessionAuth(authService: AuthService, settings: AuthSet
         val user = token?.let { authService.userFor(it) }
         if (user != null) {
             call.attributes.put(CurrentUserKey, user)
-        } else if (requiresAuth(path)) {
+        } else if (requiresAuth(call.request.httpMethod, path)) {
             throw CalendarException.Unauthorized("unauthorized")
         }
     }
 }
 
-private fun requiresAuth(path: String): Boolean {
+private val CalendarSlotsPath = Regex("""^/api/v1/calendars/[^/]+/slots$""")
+
+private fun requiresAuth(method: HttpMethod, path: String): Boolean {
     if (path != "/api/v1" && !path.startsWith("/api/v1/")) return false
+    // Anonymous viewers may read availability slots on PUBLIC calendars; the
+    // service still enforces public-link and access-mode checks. Every other
+    // method or calendar route keeps the session requirement.
+    if (method == HttpMethod.Get && CalendarSlotsPath.matches(path)) return false
     if (path.startsWith("/api/v1/users/") && path.endsWith("/avatar")) return false
     if (path.startsWith("/api/v1/public/")) return false
+    if (path == "/api/v1/oauth/providers") return false
+    if (path.startsWith("/api/v1/oauth/") && path.endsWith("/register")) return false
     if (path.startsWith("/api/v1/oauth/") && path.endsWith("/callback")) return false
     return when (path) {
         "/api/v1", "/api/v1/", "/api/v1/health",

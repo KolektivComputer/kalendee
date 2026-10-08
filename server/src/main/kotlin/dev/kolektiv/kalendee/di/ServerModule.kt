@@ -19,6 +19,7 @@ import dev.kolektiv.kalendee.external.store.ExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.ExternalEventStore
 import dev.kolektiv.kalendee.external.store.PostgresExternalEventRouteStore
 import dev.kolektiv.kalendee.external.store.PostgresExternalEventStore
+import dev.kolektiv.kalendee.friends.FriendshipNotifier
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.CloudflareMailer
@@ -148,6 +149,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     single { AdminCalendarService(database = get(), clock = get()) }
     single { NotificationService(database = get(), clock = get()) }
     single { FriendshipService(database = get(), clock = get()) }
+    single { FriendshipNotifier(auth = get(), notifications = get(), mail = get()) }
     single { OrganizationTeamService(database = get(), clock = get()) }
     single {
         OrganizationService(
@@ -283,7 +285,7 @@ fun serverModule(environment: ApplicationEnvironment, developmentMode: Boolean) 
     }
     single { AvailabilityActions(service = get(), auth = get(), settings = get()) }
     single { NotificationActions(notifications = get(), auth = get(), settings = get()) }
-    single { FriendshipActions(friendships = get(), auth = get(), settings = get(), notifications = get(), mail = get()) }
+    single { FriendshipActions(friendships = get(), auth = get(), settings = get(), notifier = get()) }
     single { ReminderActions(reminders = get(), auth = get(), settings = get()) }
     single {
         ShareActions(

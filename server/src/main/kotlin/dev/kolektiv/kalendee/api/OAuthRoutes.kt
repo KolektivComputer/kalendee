@@ -18,6 +18,21 @@ data class OAuthStartResponse(
 )
 
 fun Route.oauthRoutes(connections: ConnectionService, settings: AuthSettings) {
+    get("/oauth/providers") {
+        call.respond(OAuthProvidersResponse(providerOuts(connections)))
+    }
+
+    get("/oauth/{provider}/register") {
+        val providerId = call.parameters["provider"].orEmpty()
+        val returnTo = call.request.queryParameters["return_to"]
+        val url = connections.registerUrl(providerId, returnTo)
+        if (call.request.queryParameters["format"] == "json") {
+            call.respond(OAuthStartResponse(url))
+        } else {
+            call.respondRedirect(url)
+        }
+    }
+
     get("/oauth/{provider}/start") {
         val user = call.currentUser() ?: throw CalendarException.Unauthorized("unauthorized")
         val providerId = call.parameters["provider"].orEmpty()

@@ -129,17 +129,22 @@ foundation-only daisyUI-style design system (`ui/design`, oklch brand tokens)
 with vendored Lucide ImageVector icons (`ui/icons`); Material is gone from the
 app (sources and direct dependencies; only Android Studio preview tooling still
 resolves it transitively). Navigation is a responsive shell with a drawer
-(calendars, organizations, and friends — orgs/friends are read-only, via
-`GET /api/v1/organizations` and `/friends`), settings sub-pages, and an Upcoming
-list. The calendar swipes between day, week, and month pages (month grid with
-`+N` overflow), with event editor/detail, accounts/auth, and settings.
+(calendars, organizations, and friends — orgs are read-only, while friendships
+can be searched, requested, accepted/declined, and removed), settings sub-pages,
+and an Upcoming list. The calendar swipes between day, week, and month pages
+(month grid with `+N` overflow), with event editor/detail, accounts/auth, and
+settings.
 Android schedules local notifications with exact alarms and re-arms them on
 boot; iOS uses `UNUserNotificationCenter`; Desktop notification scheduling is a
 no-op. There is no CalDAV, no push notifications, and no offline mode.
 `.github/workflows/ios.yml` builds an unsigned IPA (`kalendee-unsigned-ipa`)
 for SideStore/AltStore. `:server` serves the JSON API under `/api/v1` and the
-Keel MPA at `/` (login, register, week view, not-found). If
-`KALENDEE_ADMIN_PASSWORD` is set, startup seeds user `admin`.
+Keel MPA at `/` (login, register, week view, not-found). The JSON API covers the
+web feature surface: friends and user search; organizations and teams; calendar
+transfer and event move/split; connections and public OAuth registration;
+Discord import; admin settings; and public reads (RSVP lookup, profiles,
+directory, anonymous slots). If `KALENDEE_ADMIN_PASSWORD` is set, startup seeds
+user `admin`.
 
 ## Goals (when implementing features)
 

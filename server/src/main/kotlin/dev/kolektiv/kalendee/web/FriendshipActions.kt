@@ -2,24 +2,21 @@ package dev.kolektiv.kalendee.web
 
 import dev.kolektiv.kalendee.auth.AuthService
 import dev.kolektiv.kalendee.auth.AuthSettings
-import dev.kolektiv.kalendee.auth.User
 import dev.kolektiv.kalendee.auth.UserId
 import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.friends.FriendRequestSummary as DomainFriendRequest
 import dev.kolektiv.kalendee.friends.FriendSummary as DomainFriend
 import dev.kolektiv.kalendee.friends.FriendshipAccepted
+import dev.kolektiv.kalendee.friends.FriendshipNotifier
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.friends.UserSearchResult as DomainUserSearchResult
-import dev.kolektiv.kalendee.mail.MailService
-import dev.kolektiv.kalendee.notifications.NotificationService
 import dev.kolektiv.keel.KeelAction
 
 class FriendshipActions(
     private val friendships: FriendshipService,
     private val auth: AuthService,
     private val settings: AuthSettings,
-    private val notifications: NotificationService,
-    private val mail: MailService,
+    private val notifier: FriendshipNotifier,
 ) {
     @KeelAction("kalendee.friends")
     suspend fun friends(input: FriendsIn): FriendsOut {
@@ -33,9 +30,9 @@ class FriendshipActions(
             val user = requireSessionUser(auth, settings)
             val result = friendships.sendRequest(user.id, input.username)
             if (result.status == FriendshipAccepted) {
-                notifyAccepted(user, result.friend)
+                notifier.notifyAccepted(user, result.friend)
             } else {
-                notifyRequested(user, result.friend)
+                notifier.notifyRequested(user, result.friend)
             }
             FriendRequestOut(status = result.status, friend = result.friend.toFriendSummary())
         }
@@ -46,7 +43,7 @@ class FriendshipActions(
             val user = requireSessionUser(auth, settings)
             val request = friendships.accept(user.id, input.id)
                 ?: throw CalendarException.NotFound("request not found")
-            notifyAccepted(user, request.user)
+            notifier.notifyAccepted(user, request.user)
             friendsOut(user.id)
         }
 
@@ -77,32 +74,6 @@ class FriendshipActions(
         friends = friendships.friends(userId).map { it.toFriendSummary() },
         incoming = friendships.incomingRequests(userId).map { it.toFriendRequestSummary() },
     )
-
-    private suspend fun notifyRequested(sender: User, target: DomainFriend) {
-        val targetId = UserId.parse(target.userId)
-        notifications.create(
-            userId = targetId,
-            kind = "friend.request",
-            title = "${sender.displayName} wants to be friends",
-            href = "/",
-        )
-        auth.userById(targetId)?.email?.let { email ->
-            mail.sendFriendRequest(to = email, requesterName = sender.displayName)
-        }
-    }
-
-    private suspend fun notifyAccepted(accepter: User, requester: DomainFriend) {
-        val requesterId = UserId.parse(requester.userId)
-        notifications.create(
-            userId = requesterId,
-            kind = "friend.accepted",
-            title = "${accepter.displayName} accepted your friend request",
-            href = "/",
-        )
-        auth.userById(requesterId)?.email?.let { email ->
-            mail.sendFriendAccepted(to = email, friendName = accepter.displayName)
-        }
-    }
 }
 
 internal fun DomainFriend.toFriendSummary(): FriendSummary = FriendSummary(

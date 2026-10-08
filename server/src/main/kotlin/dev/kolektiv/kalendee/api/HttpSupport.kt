@@ -6,6 +6,8 @@ import dev.kolektiv.kalendee.calendar.CalendarException
 import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.Event
 import dev.kolektiv.kalendee.calendar.EventId
+import dev.kolektiv.kalendee.calendar.OrganizationId
+import dev.kolektiv.kalendee.calendar.OrganizationTeamId
 import dev.kolektiv.kalendee.plugins.CurrentUserKey
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -24,6 +26,15 @@ internal fun ApplicationCall.eventId(): EventId =
 
 internal fun ApplicationCall.userId(): UserId =
     UserId.parse(parameters["userId"] ?: throw CalendarException.Invalid("missing user id"))
+
+internal fun ApplicationCall.organizationId(): OrganizationId =
+    OrganizationId.parse(parameters["id"] ?: throw CalendarException.Invalid("missing organization id"))
+
+internal fun ApplicationCall.organizationTeamId(): OrganizationTeamId =
+    OrganizationTeamId.parse(parameters["id"] ?: throw CalendarException.Invalid("missing team id"))
+
+internal fun ApplicationCall.teamCalendarId(): CalendarId =
+    CalendarId.parse(parameters["calendarId"] ?: throw CalendarException.Invalid("missing calendar id"))
 
 internal fun ApplicationCall.ifMatchOrNull(): String? = parseIfMatch(request.headers[HttpHeaders.IfMatch])
 

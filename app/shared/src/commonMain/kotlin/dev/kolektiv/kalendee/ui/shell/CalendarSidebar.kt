@@ -10,15 +10,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -26,11 +31,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.kolektiv.kalendee.client.FriendRequestSummaryOut
+import dev.kolektiv.kalendee.client.FriendSummaryOut
 import dev.kolektiv.kalendee.client.OrganizationSummaryOut
 import dev.kolektiv.kalendee.ui.AppState
 import dev.kolektiv.kalendee.ui.AppUiState
 import dev.kolektiv.kalendee.ui.CalendarUi
 import dev.kolektiv.kalendee.ui.ServerUi
+import dev.kolektiv.kalendee.ui.components.messageOf
 import dev.kolektiv.kalendee.ui.design.DText
 import dev.kolektiv.kalendee.ui.design.DType
 import dev.kolektiv.kalendee.ui.design.LocalKalendeeColors
@@ -40,16 +48,19 @@ import dev.kolektiv.kalendee.ui.design.components.DBadge
 import dev.kolektiv.kalendee.ui.design.components.DBadgeColor
 import dev.kolektiv.kalendee.ui.design.components.DBadgeSize
 import dev.kolektiv.kalendee.ui.design.components.DButton
+import dev.kolektiv.kalendee.ui.design.components.DButtonSize
 import dev.kolektiv.kalendee.ui.design.components.DButtonVariant
 import dev.kolektiv.kalendee.ui.design.components.DIcon
 import dev.kolektiv.kalendee.ui.design.components.DIconButton
 import dev.kolektiv.kalendee.ui.design.components.DListItem
+import dev.kolektiv.kalendee.ui.design.components.DModal
 import dev.kolektiv.kalendee.ui.design.components.DSpinner
 import dev.kolektiv.kalendee.ui.design.medium
 import dev.kolektiv.kalendee.ui.design.semibold
 import dev.kolektiv.kalendee.ui.design.rememberCalendarColorSpec
 import dev.kolektiv.kalendee.ui.icons.Lucide
 import dev.kolektiv.kalendee.ui.nav.Route
+import dev.kolektiv.kalendee.ui.screens.friends.FriendSearchSheet
 import kotlinx.coroutines.launch
 
 private const val SidebarVersion = "0.1.0"
@@ -73,7 +84,9 @@ fun CalendarSidebar(
     val colors = LocalKalendeeColors.current
     val dimens = LocalKalendeeDimens.current
     val servers = ui.servers.filter { it.account.profile.enabled }
+    val signedInServers = servers.filter { it.signedIn }
     val unread = ui.notifications.count { !it.notification.read }
+    var friendSearchVisible by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -135,6 +148,15 @@ fun CalendarSidebar(
             title = "Friends",
             trailing = {
                 DIconButton(
+                    icon = Lucide.UserPlus,
+                    contentDescription = "Add friend",
+                    onClick = { friendSearchVisible = true },
+                    enabled = signedInServers.isNotEmpty(),
+                    size = 40.dp,
+                    iconSize = 16.dp,
+                    tint = colors.mutedContent,
+                )
+                DIconButton(
                     icon = Lucide.RefreshCw,
                     contentDescription = "Refresh friends",
                     onClick = { state.scope.launch { state.refreshSocial() } },
@@ -144,7 +166,15 @@ fun CalendarSidebar(
                 )
             },
         )
-        FriendSections(servers = servers.filter { it.signedIn }, ui = ui)
+        FriendSections(state = state, servers = signedInServers, ui = ui)
+
+        if (friendSearchVisible) {
+            FriendSearchSheet(
+                state = state,
+                servers = signedInServers,
+                onDismiss = { friendSearchVisible = false },
+            )
+        }
 
         Spacer(Modifier.height(dimens.space2))
         DListItem(
@@ -284,7 +314,7 @@ private fun OrganizationRow(organization: OrganizationSummaryOut) {
 }
 
 @Composable
-private fun FriendSections(servers: List<ServerUi>, ui: AppUiState) {
+private fun FriendSections(state: AppState, servers: List<ServerUi>, ui: AppUiState) {
     val colors = LocalKalendeeColors.current
     if (servers.isEmpty()) {
         DText(
@@ -329,29 +359,193 @@ private fun FriendSections(servers: List<ServerUi>, ui: AppUiState) {
 
             else -> {
                 friends.incoming.forEach { request ->
-                    DListItem(
-                        title = request.user.displayName,
-                        subtitle = "@${request.user.username}",
-                        leading = { DAvatar(initials = request.user.displayName, size = 28.dp) },
-                        trailing = {
-                            DBadge(
-                                text = "Request",
-                                color = DBadgeColor.Warning,
-                                size = DBadgeSize.Xs,
-                            )
-                        },
+                    FriendRequestRow(
+                        state = state,
+                        serverId = serverId,
+                        request = request,
                     )
                 }
                 friends.friends.forEach { friend ->
-                    DListItem(
-                        title = friend.displayName,
-                        subtitle = "@${friend.username}",
-                        leading = { DAvatar(initials = friend.displayName, size = 28.dp) },
+                    FriendRow(
+                        state = state,
+                        serverId = serverId,
+                        friend = friend,
                     )
                 }
             }
         }
     }
+}
+
+/** Incoming request row with inline Accept/Decline and a per-row busy/error state. */
+@Composable
+private fun FriendRequestRow(
+    state: AppState,
+    serverId: String,
+    request: FriendRequestSummaryOut,
+) {
+    val colors = LocalKalendeeColors.current
+    val dimens = LocalKalendeeDimens.current
+    val scope = rememberCoroutineScope()
+    var busy by remember(request.id) { mutableStateOf(false) }
+    var error by remember(request.id) { mutableStateOf<String?>(null) }
+
+    fun respond(accept: Boolean) {
+        scope.launch {
+            busy = true
+            error = null
+            try {
+                if (accept) {
+                    state.acceptFriendRequest(serverId, request.id)
+                } else {
+                    state.declineFriendRequest(serverId, request.id)
+                }
+            } catch (e: Exception) {
+                error = messageOf(e)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    Column {
+        DListItem(
+            title = request.user.displayName,
+            subtitle = "@${request.user.username}",
+            leading = { DAvatar(initials = request.user.displayName, size = 28.dp) },
+            trailing = {
+                DBadge(
+                    text = "Request",
+                    color = DBadgeColor.Warning,
+                    size = DBadgeSize.Xs,
+                )
+                Spacer(Modifier.width(dimens.space1))
+                DButton(
+                    onClick = { respond(accept = true) },
+                    variant = DButtonVariant.Primary,
+                    size = DButtonSize.Sm,
+                    loading = busy,
+                    enabled = !busy,
+                    modifier = Modifier.heightIn(min = 40.dp),
+                ) {
+                    DText("Accept")
+                }
+                Spacer(Modifier.width(dimens.space1))
+                DButton(
+                    onClick = { respond(accept = false) },
+                    variant = DButtonVariant.Ghost,
+                    size = DButtonSize.Sm,
+                    enabled = !busy,
+                    modifier = Modifier.heightIn(min = 40.dp),
+                ) {
+                    DText("Decline")
+                }
+            },
+        )
+        InlineRowError(error)
+    }
+}
+
+/** Friend row with a remove affordance backed by a confirmation modal. */
+@Composable
+private fun FriendRow(
+    state: AppState,
+    serverId: String,
+    friend: FriendSummaryOut,
+) {
+    val colors = LocalKalendeeColors.current
+    val dimens = LocalKalendeeDimens.current
+    val scope = rememberCoroutineScope()
+    var confirmRemove by remember(friend.userId) { mutableStateOf(false) }
+    var busy by remember(friend.userId) { mutableStateOf(false) }
+    var error by remember(friend.userId) { mutableStateOf<String?>(null) }
+
+    Column {
+        DListItem(
+            title = friend.displayName,
+            subtitle = "@${friend.username}",
+            leading = { DAvatar(initials = friend.displayName, size = 28.dp) },
+            trailing = {
+                if (busy) {
+                    DSpinner(size = 16.dp, strokeWidth = 2.dp)
+                } else {
+                    DIconButton(
+                        icon = Lucide.X,
+                        contentDescription = "Remove ${friend.displayName}",
+                        onClick = { confirmRemove = true },
+                        size = 40.dp,
+                        iconSize = 16.dp,
+                        tint = colors.mutedContent,
+                    )
+                }
+            },
+        )
+        InlineRowError(error)
+    }
+
+    if (confirmRemove) {
+        DModal(onDismissRequest = { if (!busy) confirmRemove = false }) {
+            DText(text = "Remove friend", style = DType.lg.semibold())
+            Spacer(Modifier.height(dimens.space2))
+            DText(
+                text = "Remove ${friend.displayName} (@${friend.username}) from your friends?",
+                style = DType.sm,
+                color = colors.mutedContent,
+            )
+            Spacer(Modifier.height(dimens.space4))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DButton(
+                    onClick = { confirmRemove = false },
+                    variant = DButtonVariant.Ghost,
+                    enabled = !busy,
+                ) {
+                    DText("Cancel")
+                }
+                Spacer(Modifier.width(dimens.space2))
+                DButton(
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            error = null
+                            try {
+                                state.removeFriend(serverId, friend.userId)
+                                confirmRemove = false
+                            } catch (e: Exception) {
+                                error = messageOf(e)
+                                confirmRemove = false
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                    variant = DButtonVariant.Error,
+                    loading = busy,
+                    enabled = !busy,
+                ) {
+                    DText("Remove")
+                }
+            }
+        }
+    }
+}
+
+/** Small inline error under a sidebar row; renders nothing when [message] is null. */
+@Composable
+private fun InlineRowError(message: String?) {
+    if (message.isNullOrBlank()) return
+    val colors = LocalKalendeeColors.current
+    DText(
+        text = message,
+        style = DType.xs,
+        color = colors.error,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable

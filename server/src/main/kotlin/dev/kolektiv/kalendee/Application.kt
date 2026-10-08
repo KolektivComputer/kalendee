@@ -9,18 +9,23 @@ import dev.kolektiv.kalendee.api.authPublicRoutes
 import dev.kolektiv.kalendee.api.authSessionRoutes
 import dev.kolektiv.kalendee.api.avatarRoutes
 import dev.kolektiv.kalendee.api.calendarRoutes
+import dev.kolektiv.kalendee.api.connectionRoutes
+import dev.kolektiv.kalendee.api.discordRoutes
 import dev.kolektiv.kalendee.api.eventInviteRoutes
 import dev.kolektiv.kalendee.api.eventRoutes
 import dev.kolektiv.kalendee.api.faviconRoutes
+import dev.kolektiv.kalendee.api.friendRoutes
 import dev.kolektiv.kalendee.api.healthRoutes
 import dev.kolektiv.kalendee.api.holidayRoutes
 import dev.kolektiv.kalendee.api.notificationRoutes
 import dev.kolektiv.kalendee.api.oauthRoutes
+import dev.kolektiv.kalendee.api.organizationRoutes
+import dev.kolektiv.kalendee.api.organizationTeamRoutes
+import dev.kolektiv.kalendee.api.profileRoutes
 import dev.kolektiv.kalendee.api.publicRoutes
 import dev.kolektiv.kalendee.api.reminderRoutes
 import dev.kolektiv.kalendee.api.rssRoutes
 import dev.kolektiv.kalendee.api.shareRoutes
-import dev.kolektiv.kalendee.api.socialRoutes
 import dev.kolektiv.kalendee.auth.AuthService
 import dev.kolektiv.kalendee.auth.AuthSettings
 import dev.kolektiv.kalendee.auth.EmailVerificationService
@@ -30,6 +35,7 @@ import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.config.AppSettings
 import dev.kolektiv.kalendee.demo.DemoSeeder
 import dev.kolektiv.kalendee.events.EventInviteService
+import dev.kolektiv.kalendee.friends.FriendshipNotifier
 import dev.kolektiv.kalendee.friends.FriendshipService
 import dev.kolektiv.kalendee.groups.GroupService
 import dev.kolektiv.kalendee.mail.MailService
@@ -37,7 +43,10 @@ import dev.kolektiv.kalendee.notifications.NotificationService
 import dev.kolektiv.kalendee.organizations.OrganizationService
 import dev.kolektiv.kalendee.organizations.OrganizationTeamService
 import dev.kolektiv.kalendee.oauth.ConnectionService
+import dev.kolektiv.kalendee.oauth.discord.DiscordImportService
+import dev.kolektiv.kalendee.oauth.google.GoogleSyncService
 import dev.kolektiv.kalendee.reminders.ReminderService
+import dev.kolektiv.kalendee.web.OrganizationActions
 import dev.kolektiv.kalendee.web.ShareActions
 import dev.kolektiv.kalendee.plugins.configureKeel
 import dev.kolektiv.kalendee.plugins.configureKoin
@@ -80,6 +89,7 @@ internal fun Application.configureApplication() {
     val organizations by inject<OrganizationService>()
     val organizationTeams by inject<OrganizationTeamService>()
     val friendships by inject<FriendshipService>()
+    val friendshipNotifier by inject<FriendshipNotifier>()
     val adminUsers by inject<AdminUserService>()
     val adminCalendars by inject<AdminCalendarService>()
     val verification by inject<EmailVerificationService>()
@@ -91,7 +101,10 @@ internal fun Application.configureApplication() {
     val objectStorage by inject<ObjectStorage>()
     val storageSettings by inject<StorageSettings>()
     val shareActions by inject<ShareActions>()
+    val organizationActions by inject<OrganizationActions>()
     val oauthConnections by inject<ConnectionService>()
+    val discordImports by inject<DiscordImportService>()
+    val googleSync by inject<GoogleSyncService>()
     val mail by inject<MailService>()
     val clock by inject<Clock>()
     val demoSeeder by inject<DemoSeeder>()
@@ -134,9 +147,14 @@ internal fun Application.configureApplication() {
             holidayRoutes(store)
             availabilityRoutes(availability)
             publicRoutes(store, shareActions, authService)
+            profileRoutes(organizationActions)
             shareRoutes(shareActions)
-            socialRoutes(organizations, friendships)
+            friendRoutes(friendships, friendshipNotifier)
+            organizationRoutes(organizations, authService)
+            organizationTeamRoutes(organizations, organizationTeams, store)
             oauthRoutes(oauthConnections, authSettings)
+            connectionRoutes(oauthConnections, googleSync)
+            discordRoutes(discordImports)
         }
     }
 }

@@ -24,7 +24,7 @@ class EventActions(
     @KeelAction("kalendee.createEvent")
     suspend fun create(input: CreateEventIn): EventSummary = mapDomainErrors("title") {
         val user = requireSessionUser(auth, settings)
-        store.createEvent(
+        val summary = store.createEvent(
             CalendarId.parse(input.calendarId),
             user.id,
             CreateEvent(
@@ -39,12 +39,15 @@ class EventActions(
                 recurrence = input.recurrence?.toDomain(),
             ),
         ).toSummary()
+        publishEventChanged(summary.calendarId)
+        publishRemindersChanged(user.id.value)
+        summary
     }
 
     @KeelAction("kalendee.updateEvent")
     suspend fun update(input: UpdateEventIn): EventSummary = mapDomainErrors("title") {
         val user = requireSessionUser(auth, settings)
-        eventUpdates.update(
+        val summary = eventUpdates.update(
             EventId.parse(input.id),
             user.id,
             UpdateEvent(
@@ -63,6 +66,9 @@ class EventActions(
             ),
             expectedEtag = input.etag,
         ).toSummary()
+        publishEventChanged(summary.calendarId)
+        publishRemindersChanged(user.id.value)
+        summary
     }
 
     @KeelAction("kalendee.moveEvent")
@@ -71,22 +77,32 @@ class EventActions(
         if (input.scope != "following") {
             throw CalendarException.Invalid("scope must be following")
         }
+        val eventId = EventId.parse(input.id)
+        val sourceCalendarId = store.getEvent(eventId, user.id)?.calendarId?.value
         val events = store.moveEvent(
-            EventId.parse(input.id),
+            eventId,
             user.id,
             CalendarId.parse(input.calendarId),
             occurrenceStart = input.from?.let(::parseFromInstant),
             expectedEtag = input.etag,
         ) ?: throw CalendarException.NotFound("event not found")
+        publishEventChanged(input.calendarId)
+        if (sourceCalendarId != null && sourceCalendarId != input.calendarId) {
+            publishEventChanged(sourceCalendarId)
+        }
         MoveEventOut(events.map { it.toSummary() })
     }
 
     @KeelAction("kalendee.deleteEvent")
     suspend fun delete(input: DeleteEventIn): DeletedOut = mapDomainErrors("id") {
         val user = requireSessionUser(auth, settings)
-        if (!store.deleteEvent(EventId.parse(input.id), user.id, input.etag)) {
+        val eventId = EventId.parse(input.id)
+        val calendarId = store.getEvent(eventId, user.id)?.calendarId?.value
+        if (!store.deleteEvent(eventId, user.id, input.etag)) {
             throw CalendarException.NotFound("event not found")
         }
+        publishEventChanged(calendarId)
+        publishRemindersChanged(user.id.value)
         DeletedOut()
     }
 }

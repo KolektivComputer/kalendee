@@ -517,6 +517,20 @@
             "out": "VerifyEmailOut"
         }
     },
+    "events": {
+        "kalendee.eventChanged": {
+            "direction": "out",
+            "type": "EventChangedEvent"
+        },
+        "kalendee.notification": {
+            "direction": "out",
+            "type": "NotificationEvent"
+        },
+        "kalendee.remindersChanged": {
+            "direction": "out",
+            "type": "RemindersChangedEvent"
+        }
+    },
     "types": {
         "Viewer": {
             "kind": "object",
@@ -2139,6 +2153,22 @@
                 "ok": "boolean",
                 "email": "string | null"
             }
+        },
+        "EventChangedEvent": {
+            "kind": "object",
+            "fields": {
+                "calendarId": "string | null"
+            }
+        },
+        "NotificationEvent": {
+            "kind": "object",
+            "fields": {
+                "unreadCount": "number"
+            }
+        },
+        "RemindersChangedEvent": {
+            "kind": "object",
+            "fields": {}
         }
     }
 }

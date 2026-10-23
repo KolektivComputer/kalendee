@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Link, router, useAction } from "@kolektiv/keel-svelte"
-  import { onMount } from "svelte"
+  import { Link, router, useAction, useKeelEvent } from "@kolektiv/keel-svelte"
+  import { onDestroy, onMount } from "svelte"
   import ChevronLeft from "@lucide/svelte/icons/chevron-left"
   import ChevronRight from "@lucide/svelte/icons/chevron-right"
   import Menu from "@lucide/svelte/icons/menu"
@@ -18,6 +18,7 @@
     FollowOut,
     HolidayStateOut,
     HomePage,
+    KalendeeEvents,
     MoveEventIn,
     MoveEventOut,
     SetCalendarHiddenIn,
@@ -143,6 +144,27 @@
     dismissedSyncAlerts = readDismissedSyncAlerts()
     syncAlertsReady = true
     sidebarWidth = readSidebarWidth()
+  })
+
+  // When the server signals an event changed on this page's calendar, refetch
+  // the visible window in place (preserving component state and scroll) so the
+  // grid reflects create/edit/delete/move without a full browser reload.
+  let eventRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+  function scheduleEventRefresh() {
+    if (eventRefreshTimer) clearTimeout(eventRefreshTimer)
+    eventRefreshTimer = setTimeout(() => {
+      eventRefreshTimer = null
+      void router.reload({ preserveScroll: true, preserveState: true })
+    }, 150)
+  }
+
+  onDestroy(() => {
+    if (eventRefreshTimer) clearTimeout(eventRefreshTimer)
+  })
+
+  useKeelEvent<KalendeeEvents["kalendee.eventChanged"]>("kalendee.eventChanged", () => {
+    scheduleEventRefresh()
   })
 
   function startSidebarResize(event: PointerEvent) {

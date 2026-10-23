@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Link, page, useAction } from "@kolektiv/keel-svelte"
+  import { Link, page, realtime, useAction, useKeelEvent } from "@kolektiv/keel-svelte"
   import Bell from "@lucide/svelte/icons/bell"
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert"
   import X from "@lucide/svelte/icons/x"
   import type { Snippet } from "svelte"
   import ReminderWatcher from "../lib/components/ReminderWatcher.svelte"
   import { applyAccent } from "../lib/theme"
-  import type { LogoutIn, LogoutOut, Viewer } from "../lib/page-types"
+  import type { KalendeeEvents, LogoutIn, LogoutOut, Viewer } from "../lib/page-types"
   import "../styles.css"
 
   let { children }: { children: Snippet } = $props()
@@ -17,8 +17,12 @@
   const adminMode = $derived(ctx.page === "kalendee.admin")
   const appMode = $derived(Boolean(viewer) && ctx.page === "kalendee.home")
   const fill = $derived(appMode || settingsMode || adminMode)
-  const unreadNotifications = $derived(Number(ctx.shared?.unreadNotifications ?? 0))
   const verificationPolicy = $derived(ctx.shared?.emailVerificationPolicy as string | undefined)
+
+  // Live unread count from realtime; falls back to the server-rendered shared
+  // value until the first `kalendee.notification` event arrives.
+  let liveUnread = $state<number | null>(null)
+  const unreadNotifications = $derived(liveUnread ?? Number(ctx.shared?.unreadNotifications ?? 0))
 
   let dismissedVerificationFor = $state("")
   const showVerificationBanner = $derived.by(() => {
@@ -46,6 +50,19 @@
 
   $effect(() => {
     applyAccent(viewer?.accent)
+  })
+
+  // Subscribe to the per-user channel so notification/reminder events reach
+  // this tab. Released (and the live count reset) when the viewer changes.
+  $effect(() => {
+    const id = viewer?.id
+    liveUnread = null
+    if (!id) return
+    return realtime.subscribe(`user:${id}`)
+  })
+
+  useKeelEvent<KalendeeEvents["kalendee.notification"]>("kalendee.notification", (event) => {
+    liveUnread = event.unreadCount
   })
 
   // The installed keel-pack does not compile +head.svelte, so the favicon is

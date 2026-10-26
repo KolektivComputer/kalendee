@@ -6,6 +6,6 @@ allowBuilds:
   sharp: true
   workerd: true
 minimumReleaseAgeExclude:
-  - '@kolektiv/themes@0.0.1-SNAPSHOT.2'
-  - '@kolektiv/common-docs-chrome@0.0.1-SNAPSHOT.3'
-  - '@kolektiv/brand-core@0.1.0'
+  - '@kolektiv/themes@0.0.1'
+  - '@kolektiv/common-docs-chrome@0.0.1'
+  - '@kolektiv/brand-core@0.1.3'

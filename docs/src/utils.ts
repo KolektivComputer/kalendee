@@ -25,6 +25,14 @@ function normalizeHref(href: string): string {
   return trimmed === "" ? "/" : trimmed;
 }
 
+// A content file named `index.md` maps to its directory (`product/index.md` ->
+// `product`), so the nav href `/docs/product/index` and the entry slug
+// `/docs/product` are the same page. Canonicalise both sides of the lookup.
+function canonicalHref(href: string): string {
+  const normalized = normalizeHref(href);
+  return normalized.replace(/\/index$/, "") || "/";
+}
+
 // Order entries by their position in the docs-chrome nav, so the /docs/ index
 // mirrors the sidebar. Pages outside the nav sort last, alphabetically.
 const NAV_ORDER = new Map<string, number>();
@@ -33,13 +41,29 @@ const NAV_ORDER = new Map<string, number>();
   for (const section of docs.nav) {
     for (const item of section.items) {
       if (item.external) continue;
-      NAV_ORDER.set(normalizeHref(item.href), index++);
+      NAV_ORDER.set(canonicalHref(item.href), index++);
     }
   }
 }
 
 export function navOrder(slug: string): number {
-  return NAV_ORDER.get(normalizeHref(navHref(slug))) ?? Number.POSITIVE_INFINITY;
+  return NAV_ORDER.get(canonicalHref(navHref(slug))) ?? Number.POSITIVE_INFINITY;
+}
+
+// Section (nav group) label for each href, so the /docs/ index can group
+// entries under their nav heading. Pages outside the nav fall back to "Other".
+const NAV_SECTION = new Map<string, string>();
+{
+  for (const section of docs.nav) {
+    for (const item of section.items) {
+      if (item.external) continue;
+      NAV_SECTION.set(canonicalHref(item.href), section.label);
+    }
+  }
+}
+
+export function navSectionLabel(slug: string): string {
+  return NAV_SECTION.get(canonicalHref(navHref(slug))) ?? "Other";
 }
 
 /** Sidebar / index order: listed nav first, then remaining pages A-Z. */

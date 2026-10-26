@@ -1,14 +1,24 @@
 ---
-import { getCollection } from "astro:content";
+import { getCollection, type CollectionEntry } from "astro:content";
 
 import CardGrid from "@kolektiv/common-docs-chrome/astro/CardGrid.astro";
 import DocsCard from "@kolektiv/common-docs-chrome/astro/DocsCard.astro";
 
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import { docs } from "../../docs-chrome";
-import { docsPath, slugFromId, sortDocs } from "../../utils";
+import { docsPath, navSectionLabel, slugFromId, sortDocs } from "../../utils";
 
 const entries = sortDocs(await getCollection("docs"));
+
+// Group entries by their nav section, preserving nav order (sorted entries are
+// already ordered nav-first, so first-seen group order matches the sidebar).
+const groups = new Map<string, CollectionEntry<"docs">[]>();
+for (const entry of entries) {
+  const label = navSectionLabel(slugFromId(entry.id));
+  const group = groups.get(label) ?? [];
+  group.push(entry);
+  groups.set(label, group);
+}
 ---
 
 <DocsLayout
@@ -27,16 +37,21 @@ const entries = sortDocs(await getCollection("docs"));
         No guides published yet.
       </p>
     ) : (
-      <CardGrid class="mt-6">
-        {entries.map((entry) => (
-          <DocsCard
-            config={docs}
-            title={entry.data.title}
-            description={entry.data.description}
-            href={docsPath(slugFromId(entry.id))}
-          />
-        ))}
-      </CardGrid>
+      [...groups.entries()].map(([label, group]) => (
+        <section class="mt-8">
+          <h2>{label}</h2>
+          <CardGrid class="mt-4">
+            {group.map((entry) => (
+              <DocsCard
+                config={docs}
+                title={entry.data.title}
+                description={entry.data.description}
+                href={docsPath(slugFromId(entry.id))}
+              />
+            ))}
+          </CardGrid>
+        </section>
+      ))
     )
   }
 </DocsLayout>

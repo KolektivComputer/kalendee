@@ -184,7 +184,7 @@ The web UI uses [keel](https://github.com/lizainslie/keel). The default pack liv
 - Build once: `./gradlew :server:buildPack` (runs `pnpm install --frozen-lockfile` and `pnpm build`); `:server:run` depends on it.
 - Watch mode: `pnpm --dir server/pack dev` (`vite build --watch`) with the server pointing at the exploded output via `KALENDEE_KEEL_PACK=/path/to/server/pack/dist`. `docker-compose.dev.yml` has a commented-out `pack` service for the same job.
 - Types: `./gradlew :server:generateKeelTypes` regenerates `server/pack/src/lib/page-types.ts` and `page-types.json` from the `@KeelType`/`@KeelAction` declarations in `server/src/main/kotlin/dev/kolektiv/kalendee/web`; `pnpm --dir server/pack typecheck` checks the pack.
-- The host owns URLs, page ids, and payload types (`dev.kolektiv.kalendee.web`). Packs implement ids such as `kalendee.home`, never paths, and must not fetch `/api/v1` for page data. See [AGENTS.md](./AGENTS.md) for the full rule.
+- The host owns URLs, page ids, and payload types (`computer.kolektiv.kalendee.web`). Packs implement ids such as `kalendee.home`, never paths, and must not fetch `/api/v1` for page data. See [AGENTS.md](./AGENTS.md) for the full rule.
 
 ## Object storage (S3/R2)
 

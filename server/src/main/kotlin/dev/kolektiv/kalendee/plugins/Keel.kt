@@ -5,6 +5,7 @@ import dev.kolektiv.kalendee.auth.AuthService
 import dev.kolektiv.kalendee.auth.PublicAccessMode
 import dev.kolektiv.kalendee.auth.UserId
 import dev.kolektiv.kalendee.calendar.CalendarException
+import dev.kolektiv.kalendee.calendar.CalendarId
 import dev.kolektiv.kalendee.calendar.CalendarPermission
 import dev.kolektiv.kalendee.calendar.CalendarStore
 import dev.kolektiv.kalendee.calendar.EventId
@@ -50,6 +51,11 @@ import dev.kolektiv.kalendee.web.RsvpPage
 import dev.kolektiv.kalendee.web.SettingsPage
 import dev.kolektiv.kalendee.web.ShareActions
 import dev.kolektiv.kalendee.web.VerifyEmailPage
+import dev.kolektiv.kalendee.web.EventChangedEvent
+import dev.kolektiv.kalendee.web.HOME_CHANNEL
+import dev.kolektiv.kalendee.web.NotificationEvent
+import dev.kolektiv.kalendee.web.RealtimeBus
+import dev.kolektiv.kalendee.web.RemindersChangedEvent
 import dev.kolektiv.kalendee.web.emptyHolidayState
 import dev.kolektiv.kalendee.web.holidayCatalog
 import dev.kolektiv.kalendee.web.toEventSummary
@@ -61,11 +67,16 @@ import dev.kolektiv.kalendee.web.toTeamSummary
 import dev.kolektiv.kalendee.web.toViewer
 import dev.kolektiv.kalendee.calendar.occurrences
 import dev.kolektiv.keel.bundle.FrontendBundle
+import dev.kolektiv.keel.event.EventDirection
 import dev.kolektiv.keel.ktor.PageMissingException
 import dev.kolektiv.keel.ktor.PageRedirectException
 import dev.kolektiv.keel.ktor.SharedProvider
 import dev.kolektiv.keel.ktor.keel
+import dev.kolektiv.keel.ktor.realtime.keelRealtime
 import io.ktor.server.application.Application
+import io.ktor.server.application.install
+import io.ktor.server.sse.SSE
+import io.ktor.server.websocket.WebSockets
 import kotlin.time.Clock
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toLocalDateTime
@@ -81,6 +92,8 @@ private val availableTimeZones: List<String> =
     java.time.ZoneId.getAvailableZoneIds().sorted()
 
 fun Application.configureKeel() {
+    install(WebSockets)
+    install(SSE)
     val bundle by inject<FrontendBundle>()
     val authActions by inject<AuthActions>()
     val calendarActions by inject<CalendarActions>()
@@ -147,6 +160,28 @@ fun Application.configureKeel() {
                 } ?: put("unreadNotifications", 0)
                 putJsonArray("timeZones") {
                     availableTimeZones.forEach { add(it) }
+                }
+            }
+        }
+        realtime {
+            event<NotificationEvent>("kalendee.notification", EventDirection.OUT)
+            event<EventChangedEvent>("kalendee.eventChanged", EventDirection.OUT)
+            event<RemindersChangedEvent>("kalendee.remindersChanged", EventDirection.OUT)
+            authorize = { call, channel ->
+                val user = call.currentUser()
+                when {
+                    channel == HOME_CHANNEL -> user != null
+                    channel.startsWith("user:") -> {
+                        val userId = channel.removePrefix("user:")
+                        user != null && user.id.value == userId
+                    }
+                    channel.startsWith("calendar:") -> {
+                        val calendarId = channel.removePrefix("calendar:")
+                        user != null && runCatching {
+                            store.getCalendar(CalendarId.parse(calendarId), user.id) != null
+                        }.getOrDefault(false)
+                    }
+                    else -> false
                 }
             }
         }
@@ -506,4 +541,5 @@ fun Application.configureKeel() {
             organizationTeamActions,
         )
     }
+    RealtimeBus.realtime = keelRealtime
 }

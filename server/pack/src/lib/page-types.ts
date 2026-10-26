@@ -1248,6 +1248,17 @@ export interface VerifyEmailOut {
   email: string | null
 }
 
+export interface EventChangedEvent {
+  calendarId: string | null
+}
+
+export interface NotificationEvent {
+  unreadCount: number
+}
+
+export interface RemindersChangedEvent {
+}
+
 export interface KalendeePages {
   "kalendee.admin": AdminPage
   "kalendee.directory": PublicDirectoryPage
@@ -1373,3 +1384,11 @@ export interface KalendeeActions {
 }
 
 export type KalendeeActionId = keyof KalendeeActions
+
+export interface KalendeeEvents {
+  "kalendee.eventChanged": EventChangedEvent
+  "kalendee.notification": NotificationEvent
+  "kalendee.remindersChanged": RemindersChangedEvent
+}
+
+export type KalendeeEventId = keyof KalendeeEvents

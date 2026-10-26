@@ -25,7 +25,9 @@ class ReminderActions(
     suspend fun updateReminderSettings(input: UpdateReminderSettingsIn): ReminderSettingsOut =
         mapDomainErrors("offsets") {
             val user = requireSessionUser(auth, settings)
-            reminders.updateSettings(user.id, input.defaultOffsetsSeconds, input.notifyAtStart).toOut()
+            val out = reminders.updateSettings(user.id, input.defaultOffsetsSeconds, input.notifyAtStart).toOut()
+            publishRemindersChanged(user.id.value)
+            out
         }
 
     @KeelAction("kalendee.eventReminders")
@@ -39,12 +41,14 @@ class ReminderActions(
     suspend fun setEventReminders(input: SetEventRemindersIn): EventRemindersOut =
         mapDomainErrors("offsets") {
             val user = requireSessionUser(auth, settings)
-            reminders.setEventReminders(
+            val out = reminders.setEventReminders(
                 user.id,
                 EventId.parse(input.eventId),
                 input.offsetsSeconds,
                 input.useDefaults,
             ).toOut()
+            publishRemindersChanged(user.id.value)
+            out
         }
 
     @KeelAction("kalendee.upcomingReminders")

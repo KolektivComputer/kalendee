@@ -1,6 +1,6 @@
 allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
-  - '@kolektiv/keel-pack@0.1.2'
-  - '@kolektiv/keel-svelte@0.1.2'
-  - '@kolektiv/keel@0.1.2'
+  - '@kolektiv/keel-pack@0.2.1'
+  - '@kolektiv/keel-svelte@0.2.1'
+  - '@kolektiv/keel@0.2.1'

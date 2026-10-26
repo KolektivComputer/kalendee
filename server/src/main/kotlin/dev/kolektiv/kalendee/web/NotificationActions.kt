@@ -15,7 +15,9 @@ class NotificationActions(
         mapDomainErrors("id") {
             val user = requireSessionUser(auth, settings)
             notifications.markRead(user.id, input.id)
-            NotificationStateOut(unreadCount = notifications.unreadCount(user.id))
+            val unreadCount = notifications.unreadCount(user.id)
+            publishNotificationCount(user.id.value, unreadCount)
+            NotificationStateOut(unreadCount = unreadCount)
         }
 
     @KeelAction("kalendee.markAllNotificationsRead")
@@ -23,6 +25,8 @@ class NotificationActions(
         mapDomainErrors("id") {
             val user = requireSessionUser(auth, settings)
             notifications.markAllRead(user.id)
-            NotificationStateOut(unreadCount = notifications.unreadCount(user.id))
+            val unreadCount = notifications.unreadCount(user.id)
+            publishNotificationCount(user.id.value, unreadCount)
+            NotificationStateOut(unreadCount = unreadCount)
         }
 }

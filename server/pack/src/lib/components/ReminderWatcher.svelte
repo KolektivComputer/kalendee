@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { router, useAction } from "@kolektiv/keel-svelte"
+  import { router, useAction, useKeelEvent } from "@kolektiv/keel-svelte"
   import { untrack } from "svelte"
-  import type { ReminderInstanceOut, UpcomingRemindersIn } from "../page-types"
+  import type { KalendeeEvents, ReminderInstanceOut, UpcomingRemindersIn } from "../page-types"
   import {
     BROWSER_NOTIFICATIONS_KEY,
     FIRED_REMINDERS_KEY,
@@ -91,41 +91,45 @@
     } catch {}
   }
 
-  $effect(() => {
-    let disposed = false
-
-    async function poll() {
-      if (disposed || !enabled()) return
-      let instances: ReminderInstanceOut[]
-      try {
-        instances = await untrack(() => upcoming.mutateAsync({ hours: 48 }))
-      } catch {
-        return
-      }
-      if (disposed) return
-
-      const now = Date.now()
-      const fired = readFired()
-      const due: ReminderInstanceOut[] = []
-      for (const instance of instances) {
-        const remindAt = Date.parse(instance.remindAt)
-        if (!Number.isFinite(remindAt)) continue
-        if (remindAt - now > DUE_WINDOW_MS) continue
-        const key = dedupeKey(instance)
-        if (fired[key]) continue
-        fired[key] = now
-        due.push(instance)
-      }
-      const pruned = pruneFired(fired, now)
-      if (due.length > 0 || pruned) writeFired(fired)
-      for (const instance of due) fire(instance, dedupeKey(instance))
+  async function poll() {
+    if (disposed || !enabled()) return
+    let instances: ReminderInstanceOut[]
+    try {
+      instances = await untrack(() => upcoming.mutateAsync({ hours: 48 }))
+    } catch {
+      return
     }
+    if (disposed) return
 
+    const now = Date.now()
+    const fired = readFired()
+    const due: ReminderInstanceOut[] = []
+    for (const instance of instances) {
+      const remindAt = Date.parse(instance.remindAt)
+      if (!Number.isFinite(remindAt)) continue
+      if (remindAt - now > DUE_WINDOW_MS) continue
+      const key = dedupeKey(instance)
+      if (fired[key]) continue
+      fired[key] = now
+      due.push(instance)
+    }
+    const pruned = pruneFired(fired, now)
+    if (due.length > 0 || pruned) writeFired(fired)
+    for (const instance of due) fire(instance, dedupeKey(instance))
+  }
+
+  let disposed = false
+
+  $effect(() => {
     void poll()
     const timer = setInterval(() => void poll(), POLL_MS)
     return () => {
       disposed = true
       clearInterval(timer)
     }
+  })
+
+  useKeelEvent<KalendeeEvents["kalendee.remindersChanged"]>("kalendee.remindersChanged", () => {
+    void poll()
   })
 </script>

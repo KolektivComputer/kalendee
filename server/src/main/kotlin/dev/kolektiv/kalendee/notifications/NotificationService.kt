@@ -3,6 +3,7 @@ package dev.kolektiv.kalendee.notifications
 import dev.kolektiv.kalendee.auth.UserId
 import dev.kolektiv.kalendee.auth.toUuid
 import dev.kolektiv.kalendee.db.NotificationsTable
+import dev.kolektiv.kalendee.web.publishNotificationCount
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -40,28 +41,32 @@ class NotificationService(
         title: String,
         body: String? = null,
         href: String? = null,
-    ): Notification = dbQuery {
-        val now = clock.now()
-        val id = Uuid.random()
-        NotificationsTable.insert {
-            it[NotificationsTable.id] = id
-            it[NotificationsTable.userId] = userId.toUuid()
-            it[NotificationsTable.kind] = kind
-            it[NotificationsTable.title] = title
-            it[NotificationsTable.body] = body
-            it[NotificationsTable.href] = href
-            it[readAt] = null
-            it[createdAt] = now
+    ): Notification {
+        val notification = dbQuery {
+            val now = clock.now()
+            val id = Uuid.random()
+            NotificationsTable.insert {
+                it[NotificationsTable.id] = id
+                it[NotificationsTable.userId] = userId.toUuid()
+                it[NotificationsTable.kind] = kind
+                it[NotificationsTable.title] = title
+                it[NotificationsTable.body] = body
+                it[NotificationsTable.href] = href
+                it[readAt] = null
+                it[createdAt] = now
+            }
+            Notification(
+                id = id,
+                kind = kind,
+                title = title,
+                body = body,
+                href = href,
+                readAt = null,
+                createdAt = now,
+            )
         }
-        Notification(
-            id = id,
-            kind = kind,
-            title = title,
-            body = body,
-            href = href,
-            readAt = null,
-            createdAt = now,
-        )
+        publishNotificationCount(userId.value, unreadCount(userId))
+        return notification
     }
 
     suspend fun list(userId: UserId, limit: Int = 100): List<Notification> = dbQuery {

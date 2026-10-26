@@ -1,5 +1,6 @@
 ---
 import PackageDocsLayout from "@kolektiv/common-docs-chrome/astro/DocsLayout.astro";
+import type { TocHeading } from "@kolektiv/common-docs-chrome";
 
 import { docs } from "../docs-chrome";
 import { navHref, slugFromId } from "../utils";
@@ -10,9 +11,11 @@ interface Props {
   description?: string;
   /** Collection id of the current entry, used to highlight the sidebar. */
   id?: string;
+  /** Markdown h2/h3 headings rendered into the "On this page" ToC. */
+  headings?: TocHeading[];
 }
 
-const { title, description, id } = Astro.props;
+const { title, description, id, headings } = Astro.props;
 
 // Bridge the content-collection slug to the href listed in docs-chrome.ts so the
 // sidebar active state and navbar page label line up.
@@ -24,6 +27,7 @@ const currentPath = id ? navHref(slugFromId(id)) : Astro.url.pathname;
   title={title}
   description={description}
   currentPath={currentPath}
+  headings={headings}
 >
   <slot />
 </PackageDocsLayout>

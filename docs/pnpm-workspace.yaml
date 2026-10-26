@@ -7,5 +7,5 @@ allowBuilds:
   workerd: true
 minimumReleaseAgeExclude:
   - '@kolektiv/themes@0.0.1'
-  - '@kolektiv/common-docs-chrome@0.0.1'
+  - '@kolektiv/common-docs-chrome@0.1.0'
   - '@kolektiv/brand-core@0.1.3'

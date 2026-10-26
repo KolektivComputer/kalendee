@@ -45,7 +45,7 @@ and let it reference secrets via `${?VAR}`. Secrets belong in `environmentFile`
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `enable` | bool | `false` | Turn on the Kalendee service. |
-| `image` | str | `docker.yuri.capital/kolektiv/kalendee` | Container image to run. |
+| `image` | str | `docker.kolektiv.computer/kolektiv/kalendee` | Container image to run. |
 | `imageTag` | str | `latest` | Image tag. Pin a released version for reproducibility. |
 | `port` | port | `8080` | Host port published to container port 8080. |
 | `publicUrl` | null or str | `null` | Exported as `KALENDEE_PUBLIC_URL`. |

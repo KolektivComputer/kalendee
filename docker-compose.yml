@@ -20,7 +20,7 @@
 #   # edit both files, then:
 #   docker compose up -d
 #
-# By default this pulls the published image from docker.yuri.capital. To build
+# By default this pulls the published image from docker.kolektiv.computer. To build
 # this checkout instead, comment out `image:` and uncomment the `build:` block below.
 #
 # TLS terminates at a reverse proxy (Caddy, Traefik, nginx, ...). Keep
@@ -39,7 +39,7 @@ name: kalendee
 
 services:
   kalendee:
-    image: docker.yuri.capital/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
+    image: docker.kolektiv.computer/kolektiv/kalendee:${KALENDEE_IMAGE_TAG:-latest}
     # build:
     #   context: .
     #   # No `target:`: the Dockerfile's final stage is the production runtime

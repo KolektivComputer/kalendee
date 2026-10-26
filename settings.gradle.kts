@@ -25,7 +25,14 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven("https://repo.yuri.capital/repository/maven-releases/")
+        maven("https://repo.kolektiv.computer/repository/maven-releases/")
+        // Soft-fork kord-rest (0.18.1-kalendee.2) still lives on Yuri until
+        // computer.kolektiv.kord is published to kolektiv maven-releases.
+        maven("https://repo.yuri.capital/repository/maven-releases/") {
+            mavenContent {
+                includeGroupAndSubgroups("dev.kord")
+            }
+        }
     }
 }
 

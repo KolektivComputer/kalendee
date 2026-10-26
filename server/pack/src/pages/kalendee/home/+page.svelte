@@ -2,17 +2,19 @@
   import { Head, Link, page } from "@kolektiv/keel-svelte"
   import CalendarApp from "../../../lib/components/CalendarApp.svelte"
   import { viewerOrganizations } from "../../../lib/organizations"
+  import { sharedTimeZones } from "../../../lib/time-zones"
   import type { HomePage } from "../../../lib/page-types"
 
   const ctx = page<HomePage>()
   const organizations = $derived(viewerOrganizations(ctx.shared?.organizations))
+  const timeZones = $derived(sharedTimeZones(ctx.shared))
 </script>
 
 <Head />
 
 {#if ctx.data.viewer}
   <div class="h-full min-h-0">
-    <CalendarApp data={ctx.data} {organizations} />
+    <CalendarApp data={ctx.data} {organizations} {timeZones} />
   </div>
 {:else}
   <div class="hero min-h-full">

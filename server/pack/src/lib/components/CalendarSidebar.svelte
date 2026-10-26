@@ -52,6 +52,7 @@
     type TransferTarget,
   } from "../transfer"
   import AvailabilityDialog from "./AvailabilityDialog.svelte"
+  import TzDropdown from "./TzDropdown.svelte"
   import ShareDialog from "./ShareDialog.svelte"
   import TimeRequestsDialog from "./TimeRequestsDialog.svelte"
 
@@ -59,6 +60,7 @@
     calendars,
     selectedId = $bindable(""),
     timeZone,
+    timeZones = [],
     showHolidays,
     friends = [],
     friendRequests = [],
@@ -82,6 +84,7 @@
     calendars: CalendarSummary[]
     selectedId: string
     timeZone: string
+    timeZones?: string[]
     showHolidays: boolean
     friends?: FriendSummary[]
     friendRequests?: FriendRequestSummary[]
@@ -188,6 +191,24 @@
   let availabilityOpen = $state(false)
   let requestsOpen = $state(false)
   let menuCalendarId = $state("")
+
+  /** Close the menu and clear bits-ui scroll-lock styles. Do not remove
+   *  menu DOM nodes — bits PresenceManager still owns them and tearing them
+   *  out triggers Svelte effect_update_depth_exceeded. Exit frames are forced
+   *  inert via styles.css so presence can finish. */
+  function releaseContextMenuLock() {
+    menuCalendarId = ""
+    if (typeof document === "undefined") return
+    document.body.style.removeProperty("overflow")
+    document.body.style.removeProperty("pointer-events")
+    document.body.style.removeProperty("padding-right")
+    document.documentElement.style.removeProperty("overflow")
+  }
+
+  function openAfterMenuClose(openDialog: () => void) {
+    releaseContextMenuLock()
+    openDialog()
+  }
   let displayName = $state("")
   let description = $state("")
   let calendarTimeZone = $state("UTC")
@@ -211,6 +232,8 @@
 
   const TRANSFER_HOLD_MS = 500
   const TRANSFER_SLOP_PX = 8
+  const TRANSFER_HINT_KEY = "kalendee.transferHintShown"
+  const TRANSFER_HINT_MS = 5000
 
   type TransferDrag = {
     pointerId: number
@@ -226,6 +249,8 @@
   let transferHover = $state("")
   let transferGhost = $state.raw({ x: 0, y: 0 })
   let transferRaf = 0
+  let transferHint = $state.raw<{ x: number; y: number } | null>(null)
+  let transferHintTimer: ReturnType<typeof setTimeout> | undefined
   let suppressCalendarClick = false
 
   onMount(() => {
@@ -234,6 +259,7 @@
       if (event.key === "Escape" && transferDrag) cancelTransfer()
     }
     const onScroll = () => {
+      hideTransferHint()
       if (transferDrag) cancelTransfer()
     }
     window.addEventListener("keydown", onKeyDown)
@@ -242,6 +268,7 @@
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("scroll", onScroll, { capture: true })
       cancelTransfer()
+      hideTransferHint()
     }
   })
 
@@ -377,13 +404,14 @@
   }
 
   function openEdit(calendar: CalendarSummary) {
-    menuCalendarId = ""
     editing = calendar
     displayName = calendar.displayName
     description = calendar.description ?? ""
     calendarTimeZone = calendar.timeZone
     color = calendar.color
-    editOpen = true
+    void openAfterMenuClose(() => {
+      editOpen = true
+    })
   }
 
   function closeEdit() {
@@ -392,9 +420,10 @@
   }
 
   function openDelete(calendar: CalendarSummary) {
-    menuCalendarId = ""
     editing = calendar
-    deleteOpen = true
+    void openAfterMenuClose(() => {
+      deleteOpen = true
+    })
   }
 
   function closeDelete() {
@@ -403,21 +432,24 @@
   }
 
   function openShare(calendar: CalendarSummary) {
-    menuCalendarId = ""
     sharing = calendar
-    shareOpen = true
+    void openAfterMenuClose(() => {
+      shareOpen = true
+    })
   }
 
   function openAvailability(calendar: CalendarSummary) {
-    menuCalendarId = ""
     availabilityCalendar = calendar
-    availabilityOpen = true
+    void openAfterMenuClose(() => {
+      availabilityOpen = true
+    })
   }
 
   function openRequests(calendar: CalendarSummary) {
-    menuCalendarId = ""
     requestsCalendar = calendar
-    requestsOpen = true
+    void openAfterMenuClose(() => {
+      requestsOpen = true
+    })
   }
 
   function closeFriends() {
@@ -429,10 +461,12 @@
   }
 
   function setPendingCount(calendarId: string, count: number) {
+    if (pendingCounts[calendarId] === count) return
     pendingCounts = { ...pendingCounts, [calendarId]: count }
   }
 
   function unfollow(calendar: CalendarSummary) {
+    menuCalendarId = ""
     void onUnfollow(calendar.id).catch(() => undefined)
   }
 
@@ -461,12 +495,52 @@
     return holder ? targetFromElementData(holder.dataset) : null
   }
 
+  function transferHintAlreadyShown(): boolean {
+    if (typeof sessionStorage === "undefined") return false
+    try {
+      return sessionStorage.getItem(TRANSFER_HINT_KEY) === "1"
+    } catch {
+      return false
+    }
+  }
+
+  function rememberTransferHint() {
+    if (typeof sessionStorage === "undefined") return
+    try {
+      sessionStorage.setItem(TRANSFER_HINT_KEY, "1")
+    } catch {
+      // Storage can be unavailable; the hint may reappear in that case.
+    }
+  }
+
+  function hideTransferHint() {
+    if (transferHintTimer !== undefined) {
+      clearTimeout(transferHintTimer)
+      transferHintTimer = undefined
+    }
+    transferHint = null
+  }
+
+  function showTransferHint(event: PointerEvent, calendar: CalendarSummary) {
+    if (transferDrag || transferHintAlreadyShown()) return
+    if (!hasTransferDestination(calendar, organizations, teams, readOnly)) return
+    rememberTransferHint()
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    transferHint = { x: rect.right + 8, y: rect.top + rect.height / 2 }
+    if (transferHintTimer !== undefined) clearTimeout(transferHintTimer)
+    transferHintTimer = setTimeout(() => {
+      transferHintTimer = undefined
+      transferHint = null
+    }, TRANSFER_HINT_MS)
+  }
+
   function startTransferPress(event: PointerEvent, calendar: CalendarSummary) {
+    hideTransferHint()
     suppressCalendarClick = false
     if (transferDrag || transferCalendar.isPending || event.button !== 0 || !event.isPrimary) return
     if (!hasTransferDestination(calendar, organizations, teams, readOnly)) return
     const origin = event.target
-    if (origin instanceof HTMLElement && origin.closest("button, a, input, select, textarea")) return
+    if (origin instanceof Element && origin.closest("button, a, input, select, textarea")) return
     const row = event.currentTarget as HTMLElement
     transferCalendar.reset()
     transferDrag = {
@@ -586,7 +660,7 @@
 {#snippet calendarItem(calendar: CalendarSummary)}
   {@const canManage = !readOnly && calendar.permission === "owner"}
   {@const canUnfollow = !readOnly && calendar.permission === "follow"}
-  <li>
+  <li class="w-full min-w-0 max-w-full">
           <ContextMenu.Root
             open={menuCalendarId === calendar.id}
             onOpenChange={(open) => {
@@ -597,7 +671,7 @@
               {#snippet child({ props })}
                 <div
                   {...props}
-                  class="relative flex items-center gap-2"
+                  class="relative !flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden"
                   class:menu-active={calendar.id === selectedId}
                   class:opacity-45={calendar.hidden}
                   class:opacity-40={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
@@ -605,6 +679,8 @@
                   class:touch-none={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
                   class:cursor-grabbing={transferDrag?.phase === "dragging" && transferDrag.calendar.id === calendar.id}
                   onclick={() => selectCalendar(calendar)}
+                  onpointerenter={(event) => showTransferHint(event, calendar)}
+                  onpointerleave={hideTransferHint}
                   onpointerdown={(event) => {
                     props.onpointerdown?.(event)
                     startTransferPress(event, calendar)
@@ -631,8 +707,8 @@
                   }}
                 >
                   <span class="h-2.5 w-2.5 shrink-0 rounded-full" style={`background:${cssColor(calendar.color)}`}></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block truncate">{calendar.displayName}</span>
+                  <span class="min-w-0 flex-1 overflow-hidden">
+                    <span class="block truncate" title={calendar.displayName}>{calendar.displayName}</span>
                     {#if calendar.permission !== "owner"}
                       {@const sharedLabel =
                         calendar.permission === "follow"
@@ -645,11 +721,11 @@
                             ? "Read-only"
                             : "Following"}
                       <span
-                        class="mt-0.5 flex items-center gap-1 text-[0.68rem] opacity-60"
+                        class="mt-0.5 flex min-w-0 items-center gap-1 text-[0.68rem] opacity-60"
                         title={`${sharedLabel} · ${stateLabel}`}
                       >
                         {@render personAvatar(calendar.ownerName, calendar.ownerAvatarUrl, "h-4 w-4 text-[0.55rem]")}
-                        <span class="truncate">{sharedLabel}</span>
+                        <span class="min-w-0 truncate">{sharedLabel}</span>
                         <span class="shrink-0" aria-hidden="true">·</span>
                         <span class="flex shrink-0 items-center gap-0.5">
                           {#if calendar.permission === "write"}
@@ -796,7 +872,7 @@
         </li>
 {/snippet}
 
-<div class="flex flex-col gap-3 p-3" class:select-none={transferDrag !== null}>
+<div class="flex min-w-0 max-w-full flex-col gap-3 p-3" class:select-none={transferDrag !== null}>
   <div class="flex items-center justify-between gap-2">
     <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Calendars</h2>
     {#if !readOnly}
@@ -824,7 +900,7 @@
       >
         <button
           type="button"
-          class="flex w-full items-center gap-1 text-left"
+          class="flex min-w-0 w-full max-w-full items-center gap-1 text-left"
           aria-expanded={!isCollapsed("personal")}
           onclick={() => toggleCollapsed("personal")}
         >
@@ -836,7 +912,7 @@
           <h3 class="truncate text-xs font-medium text-base-content/60">Personal</h3>
         </button>
         {#if !isCollapsed("personal")}
-          <ul class="menu w-full p-0">
+          <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
             {#each personalCalendars as calendar (calendar.id)}
               {@render calendarItem(calendar)}
             {/each}
@@ -857,7 +933,7 @@
         <div class="flex items-center justify-between gap-2">
           <button
             type="button"
-            class="flex min-w-0 items-center gap-1 text-left"
+            class="flex min-w-0 w-full max-w-full items-center gap-1 text-left"
             aria-expanded={!isCollapsed(orgKey)}
             onclick={() => toggleCollapsed(orgKey)}
           >
@@ -874,7 +950,7 @@
         </div>
         {#if !isCollapsed(orgKey)}
           {#if !group.groupedByTeam}
-            <ul class="menu w-full p-0">
+            <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
               {#each group.calendars as calendar (calendar.id)}
                 {@render calendarItem(calendar)}
               {/each}
@@ -893,7 +969,7 @@
               >
                 <button
                   type="button"
-                  class="flex min-w-0 items-center gap-1 text-left"
+                  class="flex min-w-0 w-full max-w-full items-center gap-1 text-left"
                   aria-expanded={!isCollapsed(teamKey)}
                   onclick={() => toggleCollapsed(teamKey)}
                 >
@@ -905,7 +981,7 @@
                   <h4 class="truncate text-[0.7rem] text-base-content/50" title={team.name}>{team.name}</h4>
                 </button>
                 {#if !isCollapsed(teamKey)}
-                  <ul class="menu w-full p-0">
+                  <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
                     {#each team.calendars as calendar (calendar.id)}
                       {@render calendarItem(calendar)}
                     {/each}
@@ -916,7 +992,7 @@
             {#if group.other.length > 0}
               <div class="flex flex-col gap-1 pl-2">
                 <h4 class="px-1 py-1 text-[0.7rem] text-base-content/50">Other calendars</h4>
-                <ul class="menu w-full p-0">
+                <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
                   {#each group.other as calendar (calendar.id)}
                     {@render calendarItem(calendar)}
                   {/each}
@@ -942,7 +1018,7 @@
   {#if organizationsWithoutCalendars.length > 0}
     <div class="flex flex-col gap-1 border-t border-base-300 pt-3">
       <h2 class="text-xs font-semibold tracking-wide text-base-content/50 uppercase">Organizations</h2>
-      <ul class="menu w-full p-0">
+      <ul class="menu w-full min-w-0 max-w-full flex-nowrap p-0 [&_li]:w-full [&_li]:min-w-0 [&_li]:max-w-full">
         {#each organizationsWithoutCalendars as organization (organization.id)}
           {@const orgDrop = organizationTarget(organization.id)}
           <li
@@ -1078,6 +1154,17 @@
   </div>
 {/if}
 
+{#if transferHint}
+  <div
+    class="pointer-events-none fixed z-50 rounded-field border border-base-300 bg-base-200 px-2 py-1 text-xs whitespace-nowrap text-base-content/70 shadow-sm"
+    style={`left:${transferHint.x}px; top:${transferHint.y}px; transform: translateY(-50%)`}
+    role="tooltip"
+    use:portal
+  >
+    Click & hold to move
+  </div>
+{/if}
+
 <dialog class="modal" bind:this={createDialog} onclose={closeCreate}>
   <div class="modal-box">
     <h3 class="text-lg font-bold">New calendar</h3>
@@ -1130,7 +1217,7 @@
       </fieldset>
       <fieldset class="fieldset">
         <legend class="fieldset-legend">Time zone</legend>
-        <input id="cal-tz" class="input w-full" bind:value={calendarTimeZone} required />
+        <TzDropdown id="cal-tz" class="w-full" zones={timeZones} bind:value={calendarTimeZone} required />
         {#if fieldError(createError, "timeZone")}
           <p class="label text-error">{fieldError(createError, "timeZone")}</p>
         {/if}
@@ -1197,7 +1284,7 @@
       </fieldset>
       <fieldset class="fieldset">
         <legend class="fieldset-legend">Time zone</legend>
-        <input id="edit-cal-tz" class="input w-full" bind:value={calendarTimeZone} required />
+        <TzDropdown id="edit-cal-tz" class="w-full" zones={timeZones} bind:value={calendarTimeZone} required />
       </fieldset>
       <div class="modal-action">
         <button type="button" class="btn btn-ghost" onclick={closeEdit}>Cancel</button>
@@ -1215,7 +1302,7 @@
     <h3 class="text-lg font-bold">Delete {editing?.displayName}?</h3>
     <p class="py-4 text-base-content/70">Events on this calendar will be deleted. This cannot be undone.</p>
     <div class="modal-action">
-      <button type="button" class="btn btn-ghost" onclick={closeDelete}>Cancel</button>
+      <form method="dialog"><button class="btn btn-ghost">Cancel</button></form>
       <button
         type="button"
         class="btn btn-error"

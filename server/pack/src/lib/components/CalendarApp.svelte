@@ -31,6 +31,14 @@
   import { actionMessage } from "../errors"
   import type { ViewerOrganization } from "../organizations"
   import type { ReminderSelection } from "../reminders"
+  import {
+    SIDEBAR_WIDTH_DEFAULT,
+    SIDEBAR_WIDTH_MAX,
+    SIDEBAR_WIDTH_MIN,
+    clampSidebarWidth,
+    readSidebarWidth,
+    writeSidebarWidth,
+  } from "../sidebar"
   import { settingsHref } from "../settings-ui.svelte"
   import { clientTimeZone, datesBetween } from "../time"
   import BuiltByKolektiv from "./BuiltByKolektiv.svelte"
@@ -43,9 +51,11 @@
   let {
     data,
     organizations = [],
+    timeZones = [],
   }: {
     data: HomePage
     organizations?: ViewerOrganization[]
+    timeZones?: string[]
   } = $props()
 
   const viewTimeZone = clientTimeZone()
@@ -126,11 +136,39 @@
 
   let dismissedSyncAlerts = $state<Record<string, boolean>>({})
   let syncAlertsReady = $state(false)
+  let sidebarWidth = $state(SIDEBAR_WIDTH_DEFAULT)
+  let resizingSidebar = $state(false)
 
   onMount(() => {
     dismissedSyncAlerts = readDismissedSyncAlerts()
     syncAlertsReady = true
+    sidebarWidth = readSidebarWidth()
   })
+
+  function startSidebarResize(event: PointerEvent) {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const handle = event.currentTarget as HTMLElement
+    const startX = event.clientX
+    const startWidth = sidebarWidth
+    resizingSidebar = true
+    handle.setPointerCapture(event.pointerId)
+
+    const onMove = (move: PointerEvent) => {
+      sidebarWidth = clampSidebarWidth(startWidth + (move.clientX - startX))
+    }
+    const onUp = (up: PointerEvent) => {
+      resizingSidebar = false
+      writeSidebarWidth(sidebarWidth)
+      handle.releasePointerCapture(up.pointerId)
+      handle.removeEventListener("pointermove", onMove)
+      handle.removeEventListener("pointerup", onUp)
+      handle.removeEventListener("pointercancel", onUp)
+    }
+    handle.addEventListener("pointermove", onMove)
+    handle.addEventListener("pointerup", onUp)
+    handle.addEventListener("pointercancel", onUp)
+  }
 
   const syncBlockedAlert = $derived.by(() => {
     if (!syncAlertsReady || data.readOnly) return null
@@ -163,11 +201,16 @@
     }
   })
 
+  // One-shot sync: once we request ?tz=<viewTimeZone> (or the URL already has it),
+  // never visit again for this mount even if data.timeZone still disagrees.
+  let tzSyncRequested = false
+
   $effect(() => {
     if (typeof window === "undefined") return
     if (data.timeZone === viewTimeZone) return
     const url = new URL(window.location.href)
-    if (url.searchParams.get("tz") === viewTimeZone) return
+    if (url.searchParams.get("tz") === viewTimeZone || tzSyncRequested) return
+    tzSyncRequested = true
     url.searchParams.set("tz", viewTimeZone)
     void router.visit(`${url.pathname}${url.search}`, { replace: true, preserveScroll: true })
   })
@@ -369,20 +412,20 @@
     {/if}
     {#if syncBlockedAlert}
       {@const alert = syncBlockedAlert}
-      <div role="alert" class="alert alert-warning shrink-0 rounded-none">
-        <TriangleAlert class="h-5 w-5" aria-hidden="true" />
-        <span>
+      <div role="alert" class="alert alert-warning shrink-0 rounded-none text-warning-content">
+        <TriangleAlert class="h-5 w-5 shrink-0 text-warning-content" aria-hidden="true" />
+        <span class="text-warning-content">
           {alert.reason === "bot_manage_events"
             ? `The Kalendee bot needs the "Manage Events" permission in ${alert.server} before Discord events can be moved or resized.`
             : `You need the "Manage Events" permission in ${alert.server} before Discord events can be moved or resized.`}
         </span>
         <button
           type="button"
-          class="btn btn-ghost btn-sm btn-square"
+          class="btn btn-ghost btn-sm btn-square text-warning-content"
           aria-label="Dismiss"
           onclick={() => dismissSyncAlert(alert.calendar.id, alert.reason)}
         >
-          <X class="h-4 w-4" aria-hidden="true" />
+          <X class="h-4 w-4 text-warning-content" aria-hidden="true" />
         </button>
       </div>
     {/if}
@@ -419,12 +462,18 @@
   </div>
   <div class="drawer-side z-20">
     <label for="calendar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
-    <aside class="bg-base-100 flex h-full min-h-0 w-64 flex-col border-r border-base-300">
-      <div class="min-h-0 flex-1 overflow-y-auto">
+    <aside
+      class="bg-base-100 relative flex h-full min-h-0 flex-col border-r border-base-300"
+      style:width={`${sidebarWidth}px`}
+      style:min-width={`${sidebarWidth}px`}
+      style:max-width={`${sidebarWidth}px`}
+    >
+      <div class="min-h-0 flex-1 overflow-x-clip overflow-y-auto">
         <CalendarSidebar
           calendars={data.calendars}
           bind:selectedId
           timeZone={data.viewer?.timeZone || viewTimeZone}
+          {timeZones}
           showHolidays={data.showHolidays}
           friends={data.friends}
           friendRequests={data.friendRequests}
@@ -449,6 +498,27 @@
       <div class="shrink-0 border-t border-base-300 p-3">
         <BuiltByKolektiv />
       </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize calendar sidebar"
+        aria-valuenow={sidebarWidth}
+        aria-valuemin={SIDEBAR_WIDTH_MIN}
+        aria-valuemax={SIDEBAR_WIDTH_MAX}
+        tabindex="0"
+        class={[
+          "absolute top-0 right-0 z-10 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-base-content/15",
+          resizingSidebar ? "bg-primary/40" : "",
+        ].filter(Boolean).join(" ")}
+        onpointerdown={startSidebarResize}
+        onkeydown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+          event.preventDefault()
+          const delta = event.key === "ArrowRight" ? 16 : -16
+          sidebarWidth = clampSidebarWidth(sidebarWidth + delta)
+          writeSidebarWidth(sidebarWidth)
+        }}
+      ></div>
     </aside>
   </div>
 </div>

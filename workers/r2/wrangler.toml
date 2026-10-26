@@ -7,15 +7,19 @@ compatibility_date = "2025-05-01"
 # be served with correct caching and an optional read token without making the
 # bucket public.
 #
-# Create the bucket first:
+# Binding name must be BUCKET to match env.BUCKET in src/index.ts.
+# Create the bucket first if needed:
 #
-#   wrangler r2 bucket create <bucket-name>
-#
-# then uncomment the binding and replace <bucket-name>.
-#
-# [[r2_buckets]]
-# binding = "BUCKET"
-# bucket_name = "<bucket-name>"
+#   wrangler r2 bucket create kalendee
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "kalendee"
+
+# Workers Logs (CF dashboard Observability).
+[observability]
+enabled = true
+head_sampling_rate = 1
 
 # READ_TOKEN is optional. When set, every request must present it either as
 # `?token=<READ_TOKEN>` or as `Authorization: Bearer <READ_TOKEN>`. When unset,

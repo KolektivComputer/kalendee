@@ -1,8 +1,8 @@
 # Required repository secrets (same as the sibling keel repo):
 #   YURI_CAPITAL_REPO_USERNAME / YURI_CAPITAL_REPO_PASSWORD — Nexus credentials
-#   for repo.yuri.capital. The Maven job skips publication with a warning when
+#   for repo.kolektiv.computer. The Maven job skips publication with a warning when
 #   they are not configured. The Docker workflow (docker.yml) publishes to
-#   docker.yuri.capital using dedicated YURI_CAPITAL_DOCKER_* secrets when set,
+#   docker.kolektiv.computer using dedicated YURI_CAPITAL_DOCKER_* secrets when set,
 #   falling back to the YURI_CAPITAL_REPO_* secrets above.
 name: Publish
 
@@ -55,10 +55,10 @@ jobs:
           fi
           if printf '%s' "$VERSION" | grep -qi -- '-SNAPSHOT$'; then
             REPO_TASK="YuriSnapshotsRepository"
-            REPO_URL="https://repo.yuri.capital/repository/maven-snapshots"
+            REPO_URL="https://repo.kolektiv.computer/repository/maven-snapshots"
           else
             REPO_TASK="YuriReleasesRepository"
-            REPO_URL="https://repo.yuri.capital/repository/maven-releases"
+            REPO_URL="https://repo.kolektiv.computer/repository/maven-releases"
           fi
           CORE_POM="$REPO_URL/dev/kolektiv/kalendee/core/$VERSION/core-$VERSION.pom"
           SHARED_POM="$REPO_URL/dev/kolektiv/kalendee/shared/$VERSION/shared-$VERSION.pom"

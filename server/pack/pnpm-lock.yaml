@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@kolektiv/keel':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.2.1
+        version: 0.2.1
       '@kolektiv/keel-svelte':
-        specifier: 0.2.0
-        version: 0.2.0(@kolektiv/keel@0.2.0)(@tanstack/query-core@5.102.8)(@tanstack/svelte-query@5.90.2(svelte@5.57.0))(svelte@5.57.0)
+        specifier: 0.2.1
+        version: 0.2.1(@kolektiv/keel@0.2.1)(@tanstack/query-core@5.102.8)(@tanstack/svelte-query@5.90.2(svelte@5.57.0))(svelte@5.57.0)
       '@lucide/svelte':
         specifier: ^1.44.0
         version: 1.44.0(svelte@5.57.0)
@@ -34,8 +34,8 @@ importers:
         version: 5.57.0
     devDependencies:
       '@kolektiv/keel-pack':
-        specifier: 0.2.0
-        version: 0.2.0(vite@6.4.3(jiti@2.7.0)(lightningcss@1.32.0))
+        specifier: 0.2.1
+        version: 0.2.1(vite@6.4.3(jiti@2.7.0)(lightningcss@1.32.0))
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.3
         version: 5.1.1(svelte@5.57.0)(vite@6.4.3(jiti@2.7.0)(lightningcss@1.32.0))
@@ -241,8 +241,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@kolektiv/keel-pack@0.2.0':
-    resolution: {integrity: sha512-9xD9wJtx4kiu6WXY4pj/rQcmMzoBvUNZPRRPIlKOHX+VrKuFNdeovEdi9UU53AgFjHEVXZ9Zgbv4jQ5xlWTqdA==}
+  '@kolektiv/keel-pack@0.2.1':
+    resolution: {integrity: sha512-LKQLYACXu+Z+DcVxu05hMr6uVfOgNugWBIJr98ShpuXegmGJRIK/OfjXmM6/JTCb7wJ4UwKM3+6WkjQq5H8Fvw==}
     hasBin: true
     peerDependencies:
       vite: ^6
@@ -250,16 +250,16 @@ packages:
       vite:
         optional: true
 
-  '@kolektiv/keel-svelte@0.2.0':
-    resolution: {integrity: sha512-VpLoXHnyICDX1RiYjoUmVDOjRTDDaetSy3sG1DghfdiFsG5EERtPojIPHtnTAgme+u1R4yQv5hgYtM+Y3Ze2zA==}
+  '@kolektiv/keel-svelte@0.2.1':
+    resolution: {integrity: sha512-oCFZXNvO1mfu80hRu7rL+GeBbNjUHK2hoktfWRGscHcb7LbHzq3p+KSnDpQkOo5iEbUKef77xVEuldoNTR4hHw==}
     peerDependencies:
-      '@kolektiv/keel': 0.2.0
+      '@kolektiv/keel': 0.2.1
       '@tanstack/query-core': ^5.0.0
       '@tanstack/svelte-query': ^5.0.0
       svelte: ^5.0.0
 
-  '@kolektiv/keel@0.2.0':
-    resolution: {integrity: sha512-Whkr2xSuJr/FDgvBmcKRw5fn1/ii26gN/rW53p6fsbcQa3/hlHl2hBHPKUGjX8hUGa/eq0tlIkf0xXzuOft09Q==}
+  '@kolektiv/keel@0.2.1':
+    resolution: {integrity: sha512-gfFGWUFJ8bHepoD8ekrozKQp5MIhQK/HtwWb+oNHSoX5zrrBnAPl6gzLkGtv+YCvUHyaVVYdChx9g3hJb+71+A==}
 
   '@lucide/svelte@1.44.0':
     resolution: {integrity: sha512-67510ne/YowceSyN9BECQaWfp5Ed446X6xpUE5C0e4rRV0e1jRj1KzIlKJCXcGc21hgr/VBDkqQXY7v4VQDeBw==}
@@ -986,20 +986,20 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@kolektiv/keel-pack@0.2.0(vite@6.4.3(jiti@2.7.0)(lightningcss@1.32.0))':
+  '@kolektiv/keel-pack@0.2.1(vite@6.4.3(jiti@2.7.0)(lightningcss@1.32.0))':
     dependencies:
       fflate: 0.8.3
     optionalDependencies:
       vite: 6.4.3(jiti@2.7.0)(lightningcss@1.32.0)
 
-  '@kolektiv/keel-svelte@0.2.0(@kolektiv/keel@0.2.0)(@tanstack/query-core@5.102.8)(@tanstack/svelte-query@5.90.2(svelte@5.57.0))(svelte@5.57.0)':
+  '@kolektiv/keel-svelte@0.2.1(@kolektiv/keel@0.2.1)(@tanstack/query-core@5.102.8)(@tanstack/svelte-query@5.90.2(svelte@5.57.0))(svelte@5.57.0)':
     dependencies:
-      '@kolektiv/keel': 0.2.0
+      '@kolektiv/keel': 0.2.1
       '@tanstack/query-core': 5.102.8
       '@tanstack/svelte-query': 5.90.2(svelte@5.57.0)
       svelte: 5.57.0
 
-  '@kolektiv/keel@0.2.0': {}
+  '@kolektiv/keel@0.2.1': {}
 
   '@lucide/svelte@1.44.0(svelte@5.57.0)':
     dependencies:
